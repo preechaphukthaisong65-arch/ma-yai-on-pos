@@ -26,13 +26,24 @@ public class MainActivity extends BaseScreen {
                         FrameLayout.LayoutParams.MATCH_PARENT
                 );
 
-        contentParams.setMargins(
-                dp(16), dp(12), dp(16), dp(12)
-        );
-
+        contentParams.setMargins(0, 0, 0, dp(8));
         root.addView(content, contentParams);
 
-        // แถบแจ้งเตือน
+        // 1. โลโก้ร้านอยู่บนสุดและเต็มความกว้าง
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.logomain);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setAdjustViewBounds(true);
+
+        LinearLayout.LayoutParams logoParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(112)
+                );
+
+        content.addView(logo, logoParams);
+
+        // 2. แถบแจ้งเตือนอยู่ใต้โลโก้
         View notification = createNotificationBar();
 
         LinearLayout.LayoutParams notificationParams =
@@ -41,23 +52,13 @@ public class MainActivity extends BaseScreen {
                         dp(42)
                 );
 
-        notificationParams.bottomMargin = dp(12);
+        notificationParams.setMargins(
+                dp(12), dp(8), dp(12), dp(12)
+        );
+
         content.addView(notification, notificationParams);
 
-        // โลโก้ร้าน
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logomain);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-
-        LinearLayout.LayoutParams logoParams =
-                new LinearLayout.LayoutParams(
-                        dp(112), dp(112)
-                );
-
-        logoParams.bottomMargin = dp(12);
-        content.addView(logo, logoParams);
-
-        // ปุ่มเมนูทั้ง 6
+        // 3. เมนู 6 ปุ่ม
         GridLayout menuGrid = new GridLayout(this);
         menuGrid.setColumnCount(2);
         menuGrid.setRowCount(3);
@@ -69,6 +70,10 @@ public class MainActivity extends BaseScreen {
                         0,
                         1f
                 );
+
+        gridParams.setMargins(
+                dp(10), 0, dp(10), dp(8)
+        );
 
         content.addView(menuGrid, gridParams);
 
@@ -106,13 +111,19 @@ public class MainActivity extends BaseScreen {
         params.height = 0;
 
         params.columnSpec =
-                GridLayout.spec(GridLayout.UNDEFINED, 1f);
+                GridLayout.spec(
+                        GridLayout.UNDEFINED, 1f
+                );
 
         params.rowSpec =
-                GridLayout.spec(GridLayout.UNDEFINED, 1f);
+                GridLayout.spec(
+                        GridLayout.UNDEFINED, 1f
+                );
 
-        params.setMargins(dp(5), dp(5), dp(5), dp(5));
+        params.setMargins(
+                dp(5), dp(5), dp(5), dp(5)
+        );
 
         grid.addView(button, params);
     }
-  }
+}
