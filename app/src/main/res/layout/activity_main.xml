@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/app_background"
+    android:padding="16dp"
+    android:gravity="center_horizontal">
+
+    <!-- โลโก้ / ส่วนหัว (ไม่มีข้อความ) -->
+    <ImageView
+        android:id="@+id/ivHeaderLogo"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/logomain"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- แถบการแจ้งเตือน (มีข้อความเฉพาะแถบนี้) -->
+    <TextView
+        android:id="@+id/tvAlertBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔔 แจ้งเตือน: สินค้าใกล้หมด! [รายการ X, Y] - ตรวจสอบด่วน"
+        android:textColor="#C62828"
+        android:textSize="12sp"
+        android:background="@drawable/rounded_header_bg"
+        android:padding="10dp"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- เมนู 6 ปุ่มแบบรูปภาพล้วน -->
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:columnCount="2"
+        android:rowCount="3"
+        android:alignmentMode="alignMargins"
+        android:columnOrderPreserved="false">
+
+        <ImageButton
+            android:id="@+id/btnSell"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:scaleType="fitCenter"
+            android:background="@drawable/menu_sell"/>
+
+        <ImageButton
+            android:id="@+id/btnWarehouse"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:scaleType="fitCenter"
+            android:background="@drawable/menu_stock"/>
+
+        <ImageButton
+            android:id="@+id/btnHistory"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:scaleType="fitCenter"
+            android:background="@drawable/menu_history"/>
+
+        <ImageButton
+            android:id="@+id/btnManage"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:scaleType="fitCenter"
+            android:background="@drawable/menu_manage"/>
+
+        <ImageButton
+            android:id="@+id/btnBarcode"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:scaleType="fitCenter"
+            android:background="@drawable/menu_barcode"/>
+
+        <ImageButton
+            android:id="@+id/btnReport"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
+            android:layout_columnWeight="1"
+            android:layout_margin="6dp"
+            android:scaleType="fitCenter"
+            android:background="@drawable/menu_report"/>
+
+    </GridLayout>
+
+</LinearLayout>
