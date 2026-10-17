@@ -1,3 +1,4 @@
+
 name: Build Ma Yai On POS APK
 
 on:
@@ -28,31 +29,35 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Install Gradle 8.7
+        run: |
+          curl -fL \
+            https://services.gradle.org/distributions/gradle-8.7-bin.zip \
+            -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          /tmp/gradle-8.7/bin/gradle --version
 
       - name: Check project files
         run: |
           echo "Checking project files..."
           ls -la
-          if [ ! -f "gradlew" ]; then
-            echo "ERROR: gradlew not found in repository root"
-            exit 1
-          fi
-          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
-            echo "ERROR: Gradle settings file not found"
-            exit 1
-          fi
-
-      - name: Grant Gradle permission
-        run: chmod +x ./gradlew
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
 
       - name: Build APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: /tmp/gradle-8.7/bin/gradle assembleDebug --stacktrace
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ma-yai-on-pos-debug-apk
-          path: '**/build/outputs/apk/debug/*.apk'
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
