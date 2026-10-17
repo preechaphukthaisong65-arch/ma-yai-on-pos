@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/app_background"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📦 จัดการคลังสินค้า"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#5A3E2B"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
+
+    <ListView
+        android:id="@+id/listViewWarehouse"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFFFFF"
+        android:layout_marginBottom="12dp"/>
+
+    <Button
+        android:id="@+id/btnAddProduct"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="+ เพิ่มสินค้าใหม่เข้าคลัง"
+        android:textStyle="bold"
+        android:padding="12dp"/>
+
+</LinearLayout>
