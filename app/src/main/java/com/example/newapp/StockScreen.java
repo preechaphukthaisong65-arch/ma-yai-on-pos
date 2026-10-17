@@ -568,7 +568,7 @@ public class StockScreen extends BaseScreen {
         EditText price = field(
                 "0.00",
                 android.text.InputType.TYPE_CLASS_NUMBER
-                        | android.text.InputType.NUMBER_FLAG_DECIMAL
+                        | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
         content.addView(price);
 
@@ -670,7 +670,7 @@ public class StockScreen extends BaseScreen {
         EditText price = field(
                 "ราคาขาย",
                 android.text.InputType.TYPE_CLASS_NUMBER
-                        | android.text.InputType.NUMBER_FLAG_DECIMAL
+                        | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
         price.setText(String.valueOf(p.price));
         content.addView(price);
@@ -756,29 +756,43 @@ public class StockScreen extends BaseScreen {
 
             if (p == null || p.archived) {
                 details.addView(
-                        text("ไม่พบสินค้า กรุณาตรวจสอบบาร์โค้ด",
-                                14, RED, true)
+                        text(
+                                "ไม่พบสินค้า กรุณาตรวจสอบบาร์โค้ด",
+                                14,
+                                RED,
+                                true
+                        )
                 );
                 return;
             }
 
             details.addView(text(p.name, 18, DARK, true));
+
             details.addView(
-                    text("ราคาขาย ฿" + money(p.price),
-                            14, BLUE, true)
-            );
-            details.addView(
-                    text("จำนวนปัจจุบัน " + p.stock + " " + p.unit,
-                            14, DARK, false)
+                    text(
+                            "ราคาขาย ฿" + money(p.price),
+                            14,
+                            BLUE,
+                            true
+                    )
             );
 
-            TextView label = text(
+            details.addView(
+                    text(
+                            "จำนวนปัจจุบัน " + p.stock + " " + p.unit,
+                            14,
+                            DARK,
+                            false
+                    )
+            );
+
+            TextView qtyLabel = text(
                     "จำนวนที่รับเข้า",
                     14,
                     DARK,
                     true
             );
-            details.addView(label);
+            details.addView(qtyLabel);
 
             EditText quantity = field(
                     "จำนวนที่รับเข้า",
@@ -873,7 +887,14 @@ public class StockScreen extends BaseScreen {
                     )
             );
 
-            labelIn(details, "จำนวนที่นับได้จริง");
+            TextView actualLabel = text(
+                    "จำนวนที่นับได้จริง",
+                    14,
+                    DARK,
+                    true
+            );
+            actualLabel.setPadding(0, dp(8), 0, dp(6));
+            details.addView(actualLabel);
 
             EditText counted = field(
                     "จำนวนที่นับได้จริง",
@@ -893,17 +914,14 @@ public class StockScreen extends BaseScreen {
                             .setMessage(
                                     "จำนวนเดิม: " + p.stock
                                             + "\nจำนวนที่นับได้: " + actual
-                                            + "\nผลต่าง: "
-                                            + (actual - p.stock)
+                                            + "\nผลต่าง: " + (actual - p.stock)
                                             + "\n\nต้องการบันทึกและปรับสต็อกหรือไม่?"
                             )
                             .setNegativeButton("ยกเลิก", null)
                             .setPositiveButton(
                                     "ยืนยัน",
-                                    (dialog, which) -> saveStockCount(
-                                            p,
-                                            actual
-                                    )
+                                    (dialog, which) ->
+                                            saveStockCount(p, actual)
                             )
                             .show();
 
@@ -918,12 +936,6 @@ public class StockScreen extends BaseScreen {
         });
     }
 
-    private void labelIn(LinearLayout parent, String value) {
-        TextView t = text(value, 14, DARK, true);
-        t.setPadding(0, dp(8), 0, dp(6));
-        parent.addView(t);
-    }
-
     private void saveStockCount(
             ProductRepository.Product p,
             int actual) {
@@ -932,7 +944,6 @@ public class StockScreen extends BaseScreen {
         db.beginTransaction();
 
         try {
-            // อ่านยอดปัจจุบันใหม่ เพื่อป้องกันการเขียนทับยอดที่เปลี่ยนไป
             int current;
 
             Cursor c = db.query(
@@ -947,8 +958,9 @@ public class StockScreen extends BaseScreen {
 
             try {
                 if (!c.moveToFirst() || c.getInt(2) == 1) {
-                    toast("ไม่พบสินค้าหรือสินค้าถูกเก็บถาวร");
-                    return;
+                    throw new IllegalStateException(
+                            "ไม่พบสินค้าหรือสินค้าถูกเก็บถาวร"
+                    );
                 }
 
                 current = c.getInt(0);
@@ -1000,7 +1012,10 @@ public class StockScreen extends BaseScreen {
                 movement.put("quantity", difference);
                 movement.put("stock_before", current);
                 movement.put("stock_after", actual);
-                movement.put("reference_id", String.valueOf(historyId));
+                movement.put(
+                        "reference_id",
+                        String.valueOf(historyId)
+                );
                 movement.put("created_at", now());
 
                 db.insertOrThrow(
@@ -1012,24 +1027,20 @@ public class StockScreen extends BaseScreen {
 
             db.setTransactionSuccessful();
 
-            toast(
-                    difference == 0
-                            ? "ตรวจนับเรียบร้อย จำนวนตรงกับระบบ"
-                            : "บันทึกผลตรวจนับและปรับสต็อกแล้ว"
-            );
-
-            showProducts();
-
         } catch (Exception ex) {
             toast(
                     ex.getMessage() == null
                             ? "บันทึกผลตรวจนับไม่สำเร็จ"
                             : ex.getMessage()
             );
+            return;
 
         } finally {
             db.endTransaction();
         }
+
+        toast("บันทึกผลตรวจนับเรียบร้อย");
+        showProducts();
     }
 
     // =====================================================
@@ -1080,15 +1091,6 @@ public class StockScreen extends BaseScreen {
                                 13,
                                 p.isLowStock() ? RED : GREEN,
                                 true
-                        )
-                );
-
-                box.addView(
-                        text(
-                                "ขั้นต่ำปัจจุบัน " + p.minStock,
-                                13,
-                                0xFF64748B,
-                                false
                         )
                 );
 
@@ -1158,7 +1160,7 @@ public class StockScreen extends BaseScreen {
     }
 
     // =====================================================
-    // ปิดการเชื่อมต่อฐานข้อมูลเมื่อออกจากหน้า
+    // ปิดการเชื่อมต่อฐานข้อมูล
     // =====================================================
 
     @Override
