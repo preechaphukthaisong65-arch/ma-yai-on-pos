@@ -21,10 +21,7 @@ jobs:
         java-version: '17'
 
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-      with:
-        build-tools-version: "34.0.0"
-        api-level: "34"
+      uses: android-actions/setup-android@v2
 
     - name: Make Gradle Wrapper Executable
       run: chmod +x gradlew
