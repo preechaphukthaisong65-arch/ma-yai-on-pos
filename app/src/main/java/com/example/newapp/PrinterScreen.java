@@ -3,10 +3,12 @@ package com.example.newapp;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.graphics.pdf.PdfDocument;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
+import android.print.PageRange;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintDocumentInfo;
@@ -14,188 +16,371 @@ import android.print.PrintJob;
 import android.print.PrintManager;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.graphics.Color;
+import android.widget.Toast;
 
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.List;
 
 public class PrinterScreen extends BaseScreen {
 
-    private static final int BLUE = Color.rgb(37, 99, 235);
-    private static final int DARK = Color.rgb(31, 41, 55);
-    private static final int GREEN = Color.rgb(22, 163, 74);
-    private static final int GRAY = Color.rgb(107, 114, 128);
-    private static final int WHITE = Color.WHITE;
-
+    private LinearLayout root;
     private TextView connectionStatus;
-    private TextView jobsStatus;
+    private TextView printerInfo;
+    private TextView jobStatus;
+
+    private PrintManager printManager;
+
+    private final int BLUE = 0xFF2563EB;
+    private final int DARK = 0xFF182230;
+    private final int BACKGROUND = 0xFFF4F7FB;
+    private final int GREEN = 0xFF159B72;
+    private final int RED = 0xFFE05260;
+    private final int GRAY = 0xFF667085;
+    private final int WHITE = 0xFFFFFFFF;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        createBackground();
+        printManager = (PrintManager) getSystemService(
+                Context.PRINT_SERVICE
+        );
+
         buildScreen();
-        refreshStatus();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-        if (connectionStatus != null) {
-            refreshStatus();
-        }
+        refreshPrintStatus();
     }
 
     private void buildScreen() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setBackgroundColor(BACKGROUND);
 
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(16), dp(14), dp(16), dp(24));
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(18), dp(16), dp(24));
+        root.setBackgroundColor(BACKGROUND);
 
-        scroll.addView(page);
+        scrollView.addView(root);
+        setContentView(scrollView);
 
-        ViewGroup content = findViewById(android.R.id.content);
-        View rootView = content.getChildCount() > 0
-                ? content.getChildAt(0)
-                : null;
+        TextView title = new TextView(this);
+        title.setText("ระบบเครื่องพิมพ์");
+        title.setTextSize(25);
+        title.setTextColor(DARK);
+        title.setTypeface(null, Typeface.BOLD);
+        root.addView(title);
 
-        if (rootView instanceof ViewGroup) {
-            ((ViewGroup) rootView).addView(
-                    scroll,
-                    new ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-            );
-        } else {
-            content.addView(
-                    scroll,
-                    new ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-            );
-        }
+        TextView subtitle = new TextView(this);
+        subtitle.setText(
+                "ค้นหาเครื่องพิมพ์ ตรวจสอบสถานะ และทดลองพิมพ์"
+        );
+        subtitle.setTextSize(14);
+        subtitle.setTextColor(GRAY);
 
-        page.addView(text(
-                "ระบบเครื่องพิมพ์",
-                25,
-                DARK,
-                true
-        ));
+        LinearLayout.LayoutParams subtitleParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+        subtitleParams.topMargin = dp(6);
+        subtitleParams.bottomMargin = dp(18);
+        root.addView(subtitle, subtitleParams);
 
-        page.addView(text(
-                "ค้นหาเครื่องพิมพ์ผ่านระบบ Android",
-                14,
-                GRAY,
-                false
-        ));
+        addStatusCard();
+        addPrinterCard();
+        addPrintJobCard();
+        addInformationCard();
 
-        addSpace(page, 18);
+        Button backButton = createButton(
+                "กลับ",
+                DARK
+        );
 
-        page.addView(text(
+        backButton.setOnClickListener(v -> finish());
+
+        LinearLayout.LayoutParams backParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(50)
+                );
+        backParams.topMargin = dp(18);
+
+        root.addView(backButton, backParams);
+    }
+
+    private void addStatusCard() {
+        LinearLayout card = createCard();
+
+        TextView heading = createText(
                 "สถานะระบบพิมพ์",
                 18,
                 DARK,
                 true
-        ));
+        );
+        card.addView(heading);
 
-        connectionStatus = text(
-                "กำลังตรวจสอบ...",
+        connectionStatus = createText(
+                "กำลังตรวจสอบระบบ...",
                 15,
                 GRAY,
                 false
         );
 
-        page.addView(connectionStatus);
-
-        addSpace(page, 12);
-
-        TextView searchButton = button(
-                "ค้นหา / เลือกเครื่องพิมพ์",
-                BLUE
-        );
-
-        page.addView(
-                searchButton,
+        LinearLayout.LayoutParams statusParams =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(50)
-                )
+                        -1,
+                        -2
+                );
+        statusParams.topMargin = dp(12);
+
+        card.addView(connectionStatus, statusParams);
+
+        TextView note = createText(
+                "สถานะนี้ตรวจสอบระบบพิมพ์ของ Android " +
+                "ไม่ได้ยืนยันว่าเครื่องพิมพ์จริงเชื่อมต่ออยู่",
+                13,
+                GRAY,
+                false
         );
 
-        searchButton.setOnClickListener(v -> startPrinterDiscovery());
-
-        addSpace(page, 10);
-
-        TextView refreshButton = button(
-                "ตรวจสอบสถานะอีกครั้ง",
-                GREEN
-        );
-
-        page.addView(
-                refreshButton,
+        LinearLayout.LayoutParams noteParams =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(46)
-                )
-        );
+                        -1,
+                        -2
+                );
+        noteParams.topMargin = dp(8);
 
-        refreshButton.setOnClickListener(v -> refreshStatus());
+        card.addView(note, noteParams);
 
-        addSpace(page, 22);
+        root.addView(card);
+    }
 
-        page.addView(text(
-                "สถานะงานพิมพ์ล่าสุด",
+    private void addPrinterCard() {
+        LinearLayout card = createCard();
+
+        TextView heading = createText(
+                "ค้นหาและเลือกเครื่องพิมพ์",
                 18,
                 DARK,
                 true
-        ));
+        );
+        card.addView(heading);
 
-        jobsStatus = text(
-                "ยังไม่มีข้อมูล",
+        printerInfo = createText(
+                "ใช้หน้าต่างพิมพ์ของ Android เพื่อเลือกเครื่องพิมพ์",
                 14,
                 GRAY,
                 false
         );
 
-        jobsStatus.setGravity(Gravity.TOP);
-        page.addView(jobsStatus);
+        LinearLayout.LayoutParams infoParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+        infoParams.topMargin = dp(10);
 
-        addSpace(page, 18);
+        card.addView(printerInfo, infoParams);
 
-        page.addView(text(
-                "หมายเหตุ: หน้าค้นหาเครื่องพิมพ์เป็นของ Android " +
-                "เครื่องพิมพ์ที่แสดงขึ้นอยู่กับบริการพิมพ์ที่ติดตั้ง " +
-                "และการรองรับของเครื่องพิมพ์แต่ละรุ่น",
-                13,
-                GRAY,
-                false
-        ));
+        Button searchButton = createButton(
+                "ค้นหา / เลือกเครื่องพิมพ์",
+                BLUE
+        );
+
+        LinearLayout.LayoutParams searchParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(52)
+                );
+        searchParams.topMargin = dp(16);
+
+        card.addView(searchButton, searchParams);
+
+        searchButton.setOnClickListener(v -> openPrintDialog());
+
+        Button refreshButton = createButton(
+                "ตรวจสอบสถานะอีกครั้ง",
+                GREEN
+        );
+
+        LinearLayout.LayoutParams refreshParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(48)
+                );
+        refreshParams.topMargin = dp(10);
+
+        card.addView(refreshButton, refreshParams);
+
+        refreshButton.setOnClickListener(v -> {
+            refreshPrintStatus();
+
+            Toast.makeText(
+                    PrinterScreen.this,
+                    "อัปเดตสถานะแล้ว",
+                    Toast.LENGTH_SHORT
+            ).show();
+        });
+
+        root.addView(card);
     }
 
-    private void startPrinterDiscovery() {
-        try {
-            PrintManager printManager =
-                    (PrintManager) getSystemService(
-                            Context.PRINT_SERVICE
-                    );
+    private void addPrintJobCard() {
+        LinearLayout card = createCard();
 
-            if (printManager == null) {
-                connectionStatus.setText(
-                        "อุปกรณ์ไม่สามารถเรียกใช้ระบบพิมพ์ของ Android ได้"
+        TextView heading = createText(
+                "สถานะงานพิมพ์",
+                18,
+                DARK,
+                true
+        );
+        card.addView(heading);
+
+        jobStatus = createText(
+                "ยังไม่มีข้อมูลการพิมพ์",
+                14,
+                GRAY,
+                false
+        );
+
+        LinearLayout.LayoutParams jobParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
                 );
-                return;
-            }
+        jobParams.topMargin = dp(12);
 
+        card.addView(jobStatus, jobParams);
+
+        Button refreshJobsButton = createButton(
+                "รีเฟรชสถานะงานพิมพ์",
+                BLUE
+        );
+
+        LinearLayout.LayoutParams buttonParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(48)
+                );
+        buttonParams.topMargin = dp(14);
+
+        card.addView(refreshJobsButton, buttonParams);
+
+        refreshJobsButton.setOnClickListener(
+                v -> refreshPrintStatus()
+        );
+
+        root.addView(card);
+    }
+
+    private void addInformationCard() {
+        LinearLayout card = createCard();
+
+        TextView heading = createText(
+                "ข้อมูลการรองรับ",
+                18,
+                DARK,
+                true
+        );
+        card.addView(heading);
+
+        TextView info = createText(
+                "• ใช้ระบบพิมพ์มาตรฐานของ Android\n\n" +
+                "• เครื่องพิมพ์ที่ค้นพบขึ้นอยู่กับบริการพิมพ์ " +
+                "และการเชื่อมต่อที่ติดตั้งในโทรศัพท์\n\n" +
+                "• เครื่องพิมพ์ Bluetooth บางรุ่นอาจต้องใช้ " +
+                "ไดรเวอร์หรือคำสั่งเฉพาะของผู้ผลิต\n\n" +
+                "• ปุ่มทดลองพิมพ์จะสร้างเอกสารทดสอบ PDF\n\n" +
+                "• การแสดงสถานะงานพิมพ์ไม่ใช่การยืนยันว่า " +
+                "กระดาษออกจากเครื่องจริงแล้ว",
+                14,
+                GRAY,
+                false
+        );
+
+        LinearLayout.LayoutParams infoParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+        infoParams.topMargin = dp(12);
+
+        card.addView(info, infoParams);
+
+        root.addView(card);
+    }
+
+    private LinearLayout createCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        card.setBackgroundColor(WHITE);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+        params.bottomMargin = dp(14);
+
+        card.setElevation(dp(2));
+
+        root.addView(card, params);
+
+        return card;
+    }
+
+    private TextView createText(
+            String text,
+            float size,
+            int color,
+            boolean bold
+    ) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setGravity(Gravity.CENTER_VERTICAL);
+
+        if (bold) {
+            view.setTypeface(null, Typeface.BOLD);
+        }
+
+        return view;
+    }
+
+    private Button createButton(
+            String text,
+            int color
+    ) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextColor(WHITE);
+        button.setTextSize(15);
+        button.setAllCaps(false);
+        button.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(color)
+        );
+
+        return button;
+    }
+
+    private void openPrintDialog() {
+        if (printManager == null) {
+            Toast.makeText(
+                    this,
+                    "ไม่พบระบบพิมพ์ของ Android",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
+        try {
             PrintAttributes attributes =
                     new PrintAttributes.Builder()
                             .setMediaSize(
@@ -220,84 +405,118 @@ public class PrinterScreen extends BaseScreen {
                     attributes
             );
 
-            connectionStatus.setText(
-                    "เปิดหน้าระบบพิมพ์แล้ว " +
-                    "โปรดเลือกเครื่องพิมพ์และตรวจสอบสถานะใน Android"
+            printerInfo.setText(
+                    "เปิดหน้าต่างพิมพ์แล้ว " +
+                    "เลือกเครื่องพิมพ์ที่ระบบ Android แสดง"
             );
 
+            refreshPrintStatus();
+
         } catch (Exception e) {
-            connectionStatus.setText(
-                    "เปิดระบบพิมพ์ไม่สำเร็จ: " + e.getMessage()
-            );
+            Toast.makeText(
+                    this,
+                    "เปิดระบบพิมพ์ไม่สำเร็จ: " + e.getMessage(),
+                    Toast.LENGTH_LONG
+            ).show();
         }
     }
 
-    private void refreshStatus() {
-        PrintManager printManager =
-                (PrintManager) getSystemService(
-                        Context.PRINT_SERVICE
-                );
-
+    private void refreshPrintStatus() {
         if (printManager == null) {
-            connectionStatus.setText(
-                    "ไม่พบระบบพิมพ์ของ Android"
-            );
-            jobsStatus.setText("ไม่สามารถอ่านสถานะงานพิมพ์ได้");
+            if (connectionStatus != null) {
+                connectionStatus.setText(
+                        "ไม่พบระบบพิมพ์ของ Android"
+                );
+                connectionStatus.setTextColor(RED);
+            }
             return;
         }
 
-        connectionStatus.setText(
-                "ระบบพิมพ์ Android พร้อมตรวจสอบ\n" +
-                "สถานะการเชื่อมต่อเครื่องจริงต้องตรวจในหน้าระบบพิมพ์"
-        );
+        if (connectionStatus != null) {
+            connectionStatus.setText(
+                    "ระบบพิมพ์ Android พร้อมให้เรียกใช้งาน"
+            );
+            connectionStatus.setTextColor(GREEN);
+        }
+
+        if (jobStatus == null) {
+            return;
+        }
 
         try {
             List<PrintJob> jobs = printManager.getPrintJobs();
 
             if (jobs == null || jobs.isEmpty()) {
-                jobsStatus.setText("ยังไม่มีงานพิมพ์ในรายการ");
+                jobStatus.setText(
+                        "ยังไม่พบงานพิมพ์ในรายการล่าสุด"
+                );
                 return;
             }
 
             StringBuilder result = new StringBuilder();
 
-            for (int i = jobs.size() - 1; i >= 0; i--) {
+            int count = Math.min(jobs.size(), 10);
+
+            for (int i = 0; i < count; i++) {
                 PrintJob job = jobs.get(i);
 
-                result.append(job.getInfo().getLabel())
-                        .append("\n");
-
-                if (job.isCompleted()) {
-                    result.append("สถานะ: พิมพ์เสร็จแล้ว");
-                } else if (job.isFailed()) {
-                    result.append("สถานะ: พิมพ์ไม่สำเร็จ");
-                } else if (job.isCancelled()) {
-                    result.append("สถานะ: ยกเลิก");
-                } else if (job.isQueued()) {
-                    result.append("สถานะ: รอพิมพ์");
-                } else if (job.isStarted()) {
-                    result.append("สถานะ: กำลังดำเนินการ");
-                } else {
-                    result.append("สถานะ: ")
-                            .append(job.getInfo().getState());
+                if (job == null || job.getInfo() == null) {
+                    continue;
                 }
 
-                result.append("\n\n");
+                String label = job.getInfo().getLabel();
+                String state = getJobState(job);
+
+                result.append("• ")
+                        .append(label)
+                        .append("\n  สถานะ: ")
+                        .append(state)
+                        .append("\n\n");
             }
 
-            jobsStatus.setText(result.toString());
+            if (result.length() == 0) {
+                jobStatus.setText(
+                        "ไม่มีข้อมูลงานพิมพ์ที่แสดงได้"
+                );
+            } else {
+                jobStatus.setText(result.toString());
+            }
 
         } catch (Exception e) {
-            jobsStatus.setText(
-                    "ไม่สามารถอ่านรายการงานพิมพ์ได้"
+            jobStatus.setText(
+                    "อ่านสถานะงานพิมพ์ไม่สำเร็จ: "
+                    + e.getMessage()
             );
         }
     }
 
+    private String getJobState(PrintJob job) {
+        if (job.isCompleted()) {
+            return "เสร็จสิ้นตามสถานะของระบบ";
+        }
+
+        if (job.isFailed()) {
+            return "ล้มเหลว";
+        }
+
+        if (job.isCancelled()) {
+            return "ยกเลิก";
+        }
+
+        if (job.isQueued()) {
+            return "อยู่ในคิว";
+        }
+
+        if (job.isStarted()) {
+            return "กำลังดำเนินการ";
+        }
+
+        return "กำลังตรวจสอบ";
+    }
+
     private class TestPrintAdapter extends PrintDocumentAdapter {
 
-        private final int pageWidth = 595;
-        private final int pageHeight = 842;
+        private PdfDocument pdfDocument;
 
         @Override
         public void onLayout(
@@ -305,7 +524,7 @@ public class PrinterScreen extends BaseScreen {
                 PrintAttributes newAttributes,
                 CancellationSignal cancellationSignal,
                 LayoutResultCallback callback,
-                android.os.Bundle extras
+                Bundle extras
         ) {
             if (cancellationSignal.isCanceled()) {
                 callback.onLayoutCancelled();
@@ -327,12 +546,12 @@ public class PrinterScreen extends BaseScreen {
 
         @Override
         public void onWrite(
-                android.print.PageRange[] pages,
+                PageRange[] pages,
                 ParcelFileDescriptor destination,
                 CancellationSignal cancellationSignal,
                 WriteResultCallback callback
         ) {
-            PdfDocument pdf = new PdfDocument();
+            FileOutputStream outputStream = null;
 
             try {
                 if (cancellationSignal.isCanceled()) {
@@ -340,119 +559,111 @@ public class PrinterScreen extends BaseScreen {
                     return;
                 }
 
+                pdfDocument = new PdfDocument();
+
                 PdfDocument.PageInfo pageInfo =
                         new PdfDocument.PageInfo.Builder(
-                                pageWidth,
-                                pageHeight,
+                                595,
+                                842,
                                 1
                         ).create();
 
-                PdfDocument.Page page = pdf.startPage(pageInfo);
+                PdfDocument.Page page =
+                        pdfDocument.startPage(pageInfo);
+
                 Canvas canvas = page.getCanvas();
 
-                Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                paint.setColor(Color.BLACK);
-                paint.setTextSize(24f);
-                paint.setFakeBoldText(true);
+                Paint paint = new Paint(
+                        Paint.ANTI_ALIAS_FLAG
+                );
+
+                paint.setColor(0xFF182230);
+                paint.setTextSize(25);
+                paint.setTypeface(
+                        Typeface.create(
+                                Typeface.DEFAULT,
+                                Typeface.BOLD
+                        )
+                );
 
                 canvas.drawText(
                         "ร้านแม่ใหญ่อ่อน POS",
-                        60,
+                        50,
                         100,
                         paint
                 );
 
-                paint.setFakeBoldText(false);
-                paint.setTextSize(18f);
+                paint.setTypeface(Typeface.DEFAULT);
+                paint.setTextSize(18);
 
                 canvas.drawText(
                         "เอกสารทดสอบเครื่องพิมพ์",
-                        60,
+                        50,
                         150,
                         paint
                 );
 
-                paint.setTextSize(14f);
+                paint.setTextSize(14);
 
                 canvas.drawText(
-                        "หากอ่านข้อความนี้ได้ แสดงว่ามีการพิมพ์เอกสาร",
-                        60,
-                        195,
+                        "หากอ่านข้อความนี้ได้ แสดงว่าเอกสารถูกสร้างแล้ว",
+                        50,
+                        190,
                         paint
                 );
 
                 canvas.drawText(
-                        "โปรดตรวจสอบขนาดกระดาษและคุณภาพการพิมพ์",
-                        60,
-                        225,
+                        "กรุณาตรวจสอบผลการพิมพ์จากเครื่องจริง",
+                        50,
+                        220,
                         paint
                 );
 
-                pdf.finishPage(page);
+                pdfDocument.finishPage(page);
 
                 if (cancellationSignal.isCanceled()) {
                     callback.onWriteCancelled();
                     return;
                 }
 
-                FileOutputStream output =
-                        new FileOutputStream(
-                                destination.getFileDescriptor()
-                        );
+                outputStream = new FileOutputStream(
+                        destination.getFileDescriptor()
+                );
 
-                pdf.writeTo(output);
-                output.flush();
+                pdfDocument.writeTo(outputStream);
+                outputStream.flush();
 
                 callback.onWriteFinished(
-                        new android.print.PageRange[]{
-                                android.print.PageRange.ALL_PAGES
+                        new PageRange[]{
+                                PageRange.ALL_PAGES
                         }
                 );
 
-            } catch (Exception e) {
-                callback.onWriteFailed(e.getMessage());
+            } catch (IOException | RuntimeException e) {
+                callback.onWriteFailed(
+                        e.getMessage() == null
+                                ? "สร้างเอกสารทดสอบไม่สำเร็จ"
+                                : e.getMessage()
+                );
 
             } finally {
-                pdf.close();
+                if (outputStream != null) {
+                    try {
+                        outputStream.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+
+                if (pdfDocument != null) {
+                    pdfDocument.close();
+                    pdfDocument = null;
+                }
+
+                try {
+                    destination.close();
+                } catch (IOException ignored) {
+                }
             }
         }
     }
-
-    private TextView text(
-            String value,
-            int size,
-            int color,
-            boolean bold
-    ) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-        view.setPadding(0, dp(4), 0, dp(4));
-
-        if (bold) {
-            view.setTypeface(null, Typeface.BOLD);
         }
-
-        return view;
-    }
-
-    private TextView button(String value, int color) {
-        TextView view = text(value, 15, WHITE, true);
-        view.setGravity(Gravity.CENTER);
-        view.setBackgroundColor(color);
-        return view;
-    }
-
-    private void addSpace(LinearLayout parent, int height) {
-        View space = new View(this);
-
-        parent.addView(
-                space,
-                new LinearLayout.LayoutParams(
-                        1,
-                        dp(height)
-                )
-        );
-    }
-                 }
