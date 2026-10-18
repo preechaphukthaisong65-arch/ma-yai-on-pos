@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.app.Activity;
@@ -12,7 +11,6 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 public class StockScreen extends Activity {
 
@@ -103,7 +101,10 @@ public class StockScreen extends Activity {
                 new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        showNotReadyMessage();
+                        startActivity(new Intent(
+                                StockScreen.this,
+                                StockLimitScreen.class
+                        ));
                     }
                 }
         );
@@ -145,13 +146,5 @@ public class StockScreen extends Activity {
 
         params.bottomMargin = dp(12);
         root.addView(button, params);
-    }
-
-    private void showNotReadyMessage() {
-        Toast.makeText(
-                this,
-                "เมนูนี้กำลังจัดทำ ยังไม่พร้อมใช้งาน",
-                Toast.LENGTH_SHORT
-        ).show();
     }
 }
