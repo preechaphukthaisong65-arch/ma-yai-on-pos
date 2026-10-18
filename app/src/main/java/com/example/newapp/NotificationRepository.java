@@ -7,39 +7,28 @@ import android.database.sqlite.SQLiteDatabase;
 
 public class NotificationRepository {
 
-    private final LocalDatabase helper;
+    private final LocalDatabase database;
 
-    public NotificationRepository(LocalDatabase helper) {
-        if (helper == null) {
-            throw new IllegalArgumentException("ฐานข้อมูลห้ามเป็น null");
-        }
-        this.helper = helper;
+    public NotificationRepository(LocalDatabase database) {
+        this.database = database;
     }
 
-    /**
-     * เพิ่มข้อความแจ้งเตือนลงฐานข้อมูล
-     * eventKey ใช้ระบุเหตุการณ์เพื่อป้องกันรายการซ้ำ
-     */
     public boolean addMessage(
             String eventKey,
-            String message,
-            String category
+            String message
     ) {
-        if (isBlank(eventKey)
-                || isBlank(message)
-                || isBlank(category)) {
+        if (eventKey == null || eventKey.trim().isEmpty()
+                || message == null || message.trim().isEmpty()) {
             return false;
         }
 
-        SQLiteDatabase db = helper.getWritableDatabase();
+        SQLiteDatabase db = database.getWritableDatabase();
 
         ContentValues values = new ContentValues();
-        values.put("message", message.trim());
-        values.put("category", category.trim());
-        values.put("created_at", LocalDatabase.now());
-
-        // ต้องมีคอลัมน์ event_key แบบ UNIQUE ในตาราง
         values.put("event_key", eventKey.trim());
+        values.put("message", message.trim());
+        values.put("created_at", LocalDatabase.now());
+        values.put("is_read", 0);
 
         long id = db.insertWithOnConflict(
                 "notification_messages",
@@ -51,36 +40,53 @@ public class NotificationRepository {
         return id != -1;
     }
 
-    /**
-     * ข้อความแจ้งเตือนล่าสุดสำหรับแถบข้อความ
-     */
-    public Cursor getRecentMessages(int limit) {
-        if (limit < 1 || limit > 100) {
-            throw new IllegalArgumentException(
-                    "จำนวนข้อความต้องอยู่ระหว่าง 1 ถึง 100"
-            );
-        }
+    public Cursor getLatestMessages(int limit) {
+        SQLiteDatabase db = database.getReadableDatabase();
+        int safeLimit = Math.max(1, Math.min(limit, 500));
 
-        SQLiteDatabase db = helper.getReadableDatabase();
-
-        return db.query(
-                "notification_messages",
-                new String[]{
-                        "id",
-                        "message",
-                        "category",
-                        "created_at"
-                },
-                null,
-                null,
-                null,
-                null,
-                "id DESC",
-                String.valueOf(limit)
+        return db.rawQuery(
+                "SELECT _id, event_key, message, created_at, is_read " +
+                "FROM notification_messages " +
+                "ORDER BY created_at DESC LIMIT " + safeLimit,
+                null
         );
     }
 
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+    public int getUnreadCount() {
+        SQLiteDatabase db = database.getReadableDatabase();
+
+        try (Cursor cursor = db.rawQuery(
+                "SELECT COUNT(*) FROM notification_messages WHERE is_read = 0",
+                null)) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
+    public boolean markRead(long notificationId) {
+        SQLiteDatabase db = database.getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+        values.put("is_read", 1);
+
+        return db.update(
+                "notification_messages",
+                values,
+                "_id = ?",
+                new String[]{String.valueOf(notificationId)}
+        ) > 0;
+    }
+
+    public int markAllRead() {
+        SQLiteDatabase db = database.getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+        values.put("is_read", 1);
+
+        return db.update(
+                "notification_messages",
+                values,
+                "is_read = 0",
+                null
+        );
     }
 }
