@@ -23,8 +23,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.print.PrintAttributes;
-import android.print.PrintManager;
 import android.print.PrintDocumentAdapter;
+import android.print.PrintJob;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -1159,21 +1159,19 @@ public class SellScreen extends BaseScreen {
             return;
         }
 
+        if (!PrinterManager.isAvailable(this)) {
+            Toast.makeText(
+                    this,
+                    "ระบบพิมพ์ Android ไม่พร้อมใช้งาน " +
+                            "ข้อมูลการขายยังบันทึกอยู่แล้ว",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
         String html = buildReceiptHtml(receipt);
 
         try {
-            PrintManager printManager =
-                    (PrintManager) getSystemService(PRINT_SERVICE);
-
-            if (printManager == null) {
-                Toast.makeText(
-                        this,
-                        "ระบบพิมพ์ไม่พร้อมใช้งาน",
-                        Toast.LENGTH_LONG
-                ).show();
-                return;
-            }
-
             WebView webView = new WebView(this);
             activePrintWebView = webView;
 
@@ -1204,8 +1202,7 @@ public class SellScreen extends BaseScreen {
                         PrintAttributes attributes =
                                 new PrintAttributes.Builder()
                                         .setMediaSize(
-                                                PrintAttributes.MediaSize
-                                                        .ISO_A4
+                                                PrintAttributes.MediaSize.ISO_A4
                                         )
                                         .setResolution(
                                                 new PrintAttributes.Resolution(
@@ -1220,22 +1217,35 @@ public class SellScreen extends BaseScreen {
                                         )
                                         .build();
 
-                        printManager.print(
+                        PrintJob job = PrinterManager.print(
+                                SellScreen.this,
                                 "ใบเสร็จ-" + receipt.receiptNumber,
                                 adapter,
                                 attributes
                         );
 
+                        if (job == null) {
+                            Toast.makeText(
+                                    SellScreen.this,
+                                    "เริ่มงานพิมพ์ไม่สำเร็จ " +
+                                            "ข้อมูลการขายยังบันทึกอยู่",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                            return;
+                        }
+
                         Toast.makeText(
                                 SellScreen.this,
-                                "ส่งคำขอพิมพ์แล้ว โปรดตรวจสอบสถานะในระบบพิมพ์",
+                                "ส่งคำขอพิมพ์แล้ว " +
+                                        "โปรดตรวจสอบสถานะในระบบพิมพ์",
                                 Toast.LENGTH_LONG
                         ).show();
 
                     } catch (Exception e) {
                         Toast.makeText(
                                 SellScreen.this,
-                                "ส่งคำขอพิมพ์ไม่สำเร็จ",
+                                "ส่งคำขอพิมพ์ไม่สำเร็จ " +
+                                        "ข้อมูลการขายยังบันทึกอยู่",
                                 Toast.LENGTH_LONG
                         ).show();
                     }
@@ -1529,4 +1539,4 @@ public class SellScreen extends BaseScreen {
 
         super.onDestroy();
     }
-    }
+             }
