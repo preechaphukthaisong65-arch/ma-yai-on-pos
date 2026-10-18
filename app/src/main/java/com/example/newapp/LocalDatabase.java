@@ -15,12 +15,12 @@ import java.util.Locale;
  * ฐานข้อมูล SQLite กลางของร้านแม่ใหญ่อ่อน POS
  *
  * ใช้ฐานข้อมูลเดียวร่วมกันทุกระบบ
- * ยังไม่เชื่อมหน้าจอขาย คลังสินค้า หรือรายงานในขั้นนี้
+ * การ Migration ต้องรักษาข้อมูลเดิมทั้งหมด
  */
 public class LocalDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "maeyai_on_pos.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     private static volatile LocalDatabase instance;
 
@@ -147,7 +147,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
         );
 
         // รายการสินค้าในบิล เก็บข้อมูล ณ เวลาขาย
-        // เพื่อให้ประวัติและใบเสร็จไม่เปลี่ยนตามราคาสินค้าปัจจุบัน
+        // เพื่อให้บิลเก่าไม่เปลี่ยนตามราคาสินค้าปัจจุบัน
         db.execSQL(
                 "CREATE TABLE sale_items (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -173,23 +173,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
         );
 
         // ประวัติการแก้ไขราคาขาย
-        db.execSQL(
-                "CREATE TABLE price_history (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "product_id INTEGER NOT NULL," +
-                "barcode TEXT NOT NULL," +
-                "product_name TEXT NOT NULL," +
-                "old_price REAL NOT NULL," +
-                "new_price REAL NOT NULL," +
-                "changed_at TEXT NOT NULL," +
-                "FOREIGN KEY(product_id) REFERENCES products(id)" +
-                ")"
-        );
-
-        db.execSQL(
-                "CREATE INDEX idx_price_history_product " +
-                "ON price_history(product_id, changed_at)"
-        );
+        createPriceHistoryTable(db);
 
         // การชำระหนี้แต่ละครั้ง เชื่อมกับบิลต้นฉบับ
         db.execSQL(
@@ -226,7 +210,6 @@ public class LocalDatabase extends SQLiteOpenHelper {
         db.insertOrThrow("app_settings", null, settings);
 
         // คิวซิงก์สำหรับการต่อ Cloud ในอนาคต
-        // สร้างตารางไว้เท่านั้น ยังไม่มีการเชื่อมต่อ Cloud
         db.execSQL(
                 "CREATE TABLE cloud_sync_queue (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -243,8 +226,40 @@ public class LocalDatabase extends SQLiteOpenHelper {
         );
 
         // ข้อความแจ้งเตือนจากเหตุการณ์จริงของระบบ
+        createNotificationMessagesTable(db);
+    }
+
+    /**
+     * สร้างตารางประวัติราคาและดัชนี
+     * ใช้ได้ทั้งฐานข้อมูลใหม่และ Migration
+     */
+    private void createPriceHistoryTable(SQLiteDatabase db) {
         db.execSQL(
-                "CREATE TABLE notification_messages (" +
+                "CREATE TABLE IF NOT EXISTS price_history (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "product_id INTEGER NOT NULL," +
+                "barcode TEXT NOT NULL," +
+                "product_name TEXT NOT NULL," +
+                "old_price REAL NOT NULL," +
+                "new_price REAL NOT NULL," +
+                "changed_at TEXT NOT NULL," +
+                "FOREIGN KEY(product_id) REFERENCES products(id)" +
+                ")"
+        );
+
+        db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_price_history_product " +
+                "ON price_history(product_id, changed_at)"
+        );
+    }
+
+    /**
+     * สร้างตารางข้อความแจ้งเตือน
+     * ไม่ลบข้อความแจ้งเตือนเดิม
+     */
+    private void createNotificationMessagesTable(SQLiteDatabase db) {
+        db.execSQL(
+                "CREATE TABLE IF NOT EXISTS notification_messages (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "message TEXT NOT NULL," +
                 "event_type TEXT NOT NULL," +
@@ -260,8 +275,12 @@ public class LocalDatabase extends SQLiteOpenHelper {
             int oldVersion,
             int newVersion
     ) {
-        // ห้ามลบตารางหรือข้อมูลเดิมอัตโนมัติ
-        // ต้องเพิ่มคำสั่ง Migration ตามเวอร์ชันอย่างชัดเจน
+        // Migration จากเวอร์ชัน 1 เป็น 2
+        // ไม่ลบตารางเดิม ไม่รีเซ็ตข้อมูลสินค้า และไม่ล้างประวัติ
+        if (oldVersion < 2 && newVersion >= 2) {
+            createPriceHistoryTable(db);
+            createNotificationMessagesTable(db);
+        }
     }
 
     /**
