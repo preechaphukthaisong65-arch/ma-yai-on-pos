@@ -1,139 +1,56 @@
-
 package com.example.newapp;
 
+import android.content.Context;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import java.util.List;
+import java.util.ArrayList;
 
-public class StockAlertRepository {
-
-    private final LocalDatabase database;
-
-    public StockAlertRepository(LocalDatabase database) {
-        this.database = database;
-    }
-
-    public static class StockAlert {
-        public final long productId;
-        public final String barcode;
-        public final String name;
-        public final double quantity;
-        public final double limit;
-
-        public StockAlert(
-                long productId,
-                String barcode,
-                String name,
-                double quantity,
-                double limit
-        ) {
-            this.productId = productId;
-            this.barcode = barcode;
-            this.name = name;
-            this.quantity = quantity;
-            this.limit = limit;
-        }
-    }
+public class StockAlertManager {
 
     /**
-     * ตรวจทุกสินค้าและคืนเฉพาะสินค้าที่เพิ่งเปลี่ยนจากสถานะปกติ
-     * เป็นสถานะสต๊อกต่ำในรอบนี้
-     *
-     * ต้องเรียกหลังจากมีการเปลี่ยนสต๊อกหรือเปลี่ยนลิมิตสินค้า
+     * ตรวจสอบสินค้าที่เพิ่งเปลี่ยนสถานะเป็นสต๊อกต่ำ และดำเนินการบันทึกพร้อมส่งแจ้งเตือน
      */
-    public java.util.List<StockAlert> detectNewLowStockEvents() {
-        java.util.List<StockAlert> newAlerts = new java.util.ArrayList<>();
-        SQLiteDatabase db = database.getWritableDatabase();
+    public static void checkAndNotifyNewLowStock(Context context) {
+        // 1. สร้าง Repository สำหรับตรวจสอบสต๊อก
+        LocalDatabase dbHelper = LocalDatabase.getInstance(context);
+        StockAlertRepository alertRepository = new StockAlertRepository(dbHelper);
 
-        db.beginTransaction();
+        // 2. สร้าง Repository และ Service สำหรับจัดการการแจ้งเตือน
+        NotificationRepository notificationRepo = new NotificationRepository(dbHelper);
+        AndroidNotificationService notificationService = new AndroidNotificationService(context);
 
-        try (Cursor cursor = db.rawQuery(
-                "SELECT id, barcode, name, stock_qty, min_stock " +
-                "FROM products ORDER BY name COLLATE NOCASE",
-                null)) {
+        // 3. ดึงรายการสินค้าที่เพิ่งเปลี่ยนสถานะเป็นสต๊อกต่ำในรอบนี้
+        List<StockAlertRepository.StockAlert> newAlerts = alertRepository.detectNewLowStockEvents();
 
-            while (cursor.moveToNext()) {
-                long id = cursor.getLong(0);
-                String barcode = cursor.getString(1);
-                String name = cursor.getString(2);
-                double quantity = cursor.getDouble(3);
-                double limit = cursor.getDouble(4);
+        if (newAlerts != null && !newAlerts.isEmpty()) {
+            for (StockAlertRepository.StockAlert alert : newAlerts) {
+                
+                // กำหนด event_key ให้ไม่ซ้ำกันสำหรับแต่ละสินค้า
+                String eventKey = "low_stock_" + alert.productId;
+                
+                String title = "เตือนสินค้าใกล้หมด (Stock Low)";
+                String message = String.format(
+                        "สินค้า '%s' (Barcode: %s) คงเหลือ %.2f (ขั้นต่ำ: %.2f)",
+                        alert.name,
+                        alert.barcode,
+                        alert.quantity,
+                        alert.limit
+                );
 
-                boolean isLow = quantity <= limit;
-                String key = "stock_low_active_" + id;
-                boolean wasLow = getSettingBoolean(db, key, false);
+                // 4. บันทึกข้อความเตือนลงฐานข้อมูล
+                notificationRepo.saveNotification(
+                        eventKey,
+                        title,
+                        message,
+                        System.currentTimeMillis()
+                );
 
-                if (isLow && !wasLow) {
-                    newAlerts.add(new StockAlert(
-                            id, barcode, name, quantity, limit
-                    ));
-                    setSetting(db, key, "1");
-                } else if (!isLow && wasLow) {
-                    setSetting(db, key, "0");
-                }
-            }
-
-            db.setTransactionSuccessful();
-
-        } finally {
-            db.endTransaction();
-        }
-
-        return newAlerts;
-    }
-
-    public java.util.List<StockAlert> getAllLowStockProducts() {
-        java.util.List<StockAlert> result = new java.util.ArrayList<>();
-        SQLiteDatabase db = database.getReadableDatabase();
-
-        try (Cursor cursor = db.rawQuery(
-                "SELECT id, barcode, name, stock_qty, min_stock " +
-                "FROM products WHERE stock_qty <= min_stock " +
-                "ORDER BY stock_qty ASC, name COLLATE NOCASE",
-                null)) {
-
-            while (cursor.moveToNext()) {
-                result.add(new StockAlert(
-                        cursor.getLong(0),
-                        cursor.getString(1),
-                        cursor.getString(2),
-                        cursor.getDouble(3),
-                        cursor.getDouble(4)
-                ));
+                // 5. ส่ง Android Notification ออกไป (ใช้ productId แปลงเป็น int เพื่อให้ Notification ID ไม่ซ้ำกัน)
+                int notificationId = (int) alert.productId;
+                notificationService.showNotification(notificationId, title, message);
             }
         }
-
-        return result;
-    }
-
-    private boolean getSettingBoolean(
-            SQLiteDatabase db,
-            String key,
-            boolean defaultValue
-    ) {
-        try (Cursor cursor = db.rawQuery(
-                "SELECT setting_value FROM app_settings WHERE setting_key = ? LIMIT 1",
-                new String[]{key})) {
-
-            if (!cursor.moveToFirst()) {
-                return defaultValue;
-            }
-
-            return "1".equals(cursor.getString(0))
-                    || "true".equalsIgnoreCase(cursor.getString(0));
-        }
-    }
-
-    private void setSetting(SQLiteDatabase db, String key, String value) {
-        ContentValues values = new ContentValues();
-        values.put("setting_key", key);
-        values.put("setting_value", value);
-
-        db.insertWithOnConflict(
-                "app_settings",
-                null,
-                values,
-                SQLiteDatabase.CONFLICT_REPLACE
-        );
     }
 }
