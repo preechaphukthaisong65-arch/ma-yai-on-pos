@@ -6,6 +6,7 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -162,7 +163,6 @@ public class BarcodeScreen extends BaseScreen {
         }
 
         try {
-            // ใช้ ProductRepository เพื่อบันทึกสินค้าและรันหมายเลขบาร์โค้ดอัตโนมัติไม่ให้ซ้ำ
             ProductRepository.Product newProduct = productRepository.addProduct(
                     nameStr,
                     priceVal,
