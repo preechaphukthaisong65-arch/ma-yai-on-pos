@@ -150,7 +150,8 @@ public class PrinterScreen extends BaseScreen {
         ));
 
         printerInfo = createText(
-                "ใช้หน้าต่างพิมพ์ของ Android เพื่อเลือกเครื่องพิมพ์",
+                "กดปุ่มด้านล่างเพื่อเปิดหน้าต่างพิมพ์ " +
+                "และเลือกเครื่องพิมพ์ที่ Android รองรับ",
                 14,
                 GRAY,
                 false
@@ -251,7 +252,10 @@ public class PrinterScreen extends BaseScreen {
                 "และการเชื่อมต่อที่ติดตั้งในโทรศัพท์\n\n" +
                 "• เครื่องพิมพ์ Bluetooth บางรุ่นอาจต้องใช้ " +
                 "ไดรเวอร์หรือคำสั่งเฉพาะของผู้ผลิต\n\n" +
-                "• ปุ่มทดลองพิมพ์จะสร้างเอกสารทดสอบ PDF\n\n" +
+                "• ปุ่มทดลองพิมพ์จะสร้างเอกสารทดสอบ PDF " +
+                "ขนาด A4\n\n" +
+                "• เอกสารทดสอบนี้ยังไม่ใช่การทดสอบฉลาก " +
+                "ขนาด 40 × 30 มม.\n\n" +
                 "• สถานะงานพิมพ์ไม่ใช่การยืนยันว่ากระดาษ " +
                 "ออกจากเครื่องจริงแล้ว",
                 14,
@@ -316,11 +320,18 @@ public class PrinterScreen extends BaseScreen {
 
     private void openPrintDialog() {
         if (!PrinterManager.isAvailable(this)) {
+            printerInfo.setText(
+                    "ไม่พบระบบพิมพ์ของ Android " +
+                    "โปรดตรวจสอบบริการพิมพ์ในการตั้งค่าโทรศัพท์"
+            );
+
             Toast.makeText(
                     this,
                     "ไม่พบระบบพิมพ์ของ Android",
                     Toast.LENGTH_LONG
             ).show();
+
+            refreshPrintStatus();
             return;
         }
 
@@ -352,7 +363,8 @@ public class PrinterScreen extends BaseScreen {
 
             if (job == null) {
                 printerInfo.setText(
-                        "ไม่สามารถเริ่มงานพิมพ์ได้"
+                        "ไม่สามารถเริ่มงานพิมพ์ได้ " +
+                        "โปรดตรวจสอบระบบพิมพ์ของ Android"
                 );
 
                 Toast.makeText(
@@ -366,84 +378,113 @@ public class PrinterScreen extends BaseScreen {
             }
 
             printerInfo.setText(
-                    "ส่งคำขอเปิดหน้าต่างพิมพ์แล้ว " +
-                    "กรุณาเลือกเครื่องพิมพ์ใน Android"
+                    "ส่งคำขอพิมพ์เอกสารทดสอบแล้ว " +
+                    "กรุณาตรวจสอบหน้าต่างพิมพ์ของ Android " +
+                    "และเลือกเครื่องพิมพ์ที่ต้องการ"
             );
 
             refreshPrintStatus();
 
         } catch (Exception e) {
+            String message = e.getMessage();
+
+            printerInfo.setText(
+                    "เปิดระบบพิมพ์ไม่สำเร็จ"
+            );
+
             Toast.makeText(
                     this,
-                    "เปิดระบบพิมพ์ไม่สำเร็จ: "
-                            + e.getMessage(),
+                    "เปิดระบบพิมพ์ไม่สำเร็จ: " +
+                            (message == null ? "เกิดข้อผิดพลาด" : message),
                     Toast.LENGTH_LONG
             ).show();
+
+            refreshPrintStatus();
         }
     }
 
     private void refreshPrintStatus() {
-        PrinterManager.PrinterStatus status =
-                PrinterManager.getStatus(this);
+        try {
+            PrinterManager.PrinterStatus status =
+                    PrinterManager.getStatus(this);
 
-        if (connectionStatus != null) {
-            connectionStatus.setText(status.message);
+            if (connectionStatus != null) {
+                connectionStatus.setText(status.message);
 
-            if (!status.frameworkAvailable || status.failedJobs > 0) {
-                connectionStatus.setTextColor(RED);
-            } else {
-                connectionStatus.setTextColor(GREEN);
-            }
-        }
-
-        if (jobStatus == null) {
-            return;
-        }
-
-        List<PrintJob> jobs =
-                PrinterManager.getPrintJobs(this);
-
-        StringBuilder result = new StringBuilder();
-
-        result.append("จำนวนงานพิมพ์: ")
-                .append(status.totalJobs)
-                .append("\nรอดำเนินการ: ")
-                .append(status.queuedJobs)
-                .append("\nกำลังดำเนินการ: ")
-                .append(status.startedJobs)
-                .append("\nเสร็จสิ้นตามระบบ: ")
-                .append(status.completedJobs)
-                .append("\nผิดพลาด: ")
-                .append(status.failedJobs)
-                .append("\nยกเลิก: ")
-                .append(status.canceledJobs)
-                .append("\n\n");
-
-        if (jobs.isEmpty()) {
-            result.append(
-                    "ยังไม่พบงานพิมพ์ในรายการล่าสุด"
-            );
-        } else {
-            int count = Math.min(jobs.size(), 10);
-
-            for (int i = 0; i < count; i++) {
-                PrintJob job = jobs.get(i);
-
-                if (job == null) {
-                    continue;
+                if (!status.frameworkAvailable ||
+                        status.failedJobs > 0) {
+                    connectionStatus.setTextColor(RED);
+                } else {
+                    connectionStatus.setTextColor(GREEN);
                 }
+            }
 
-                result.append("• ")
-                        .append(PrinterManager.getJobName(job))
-                        .append("\n  สถานะ: ")
-                        .append(
-                                PrinterManager.getJobStatusText(job)
-                        )
-                        .append("\n\n");
+            if (jobStatus == null) {
+                return;
+            }
+
+            List<PrintJob> jobs =
+                    PrinterManager.getPrintJobs(this);
+
+            StringBuilder result = new StringBuilder();
+
+            result.append("จำนวนงานพิมพ์: ")
+                    .append(status.totalJobs)
+                    .append("\nรอดำเนินการ: ")
+                    .append(status.queuedJobs)
+                    .append("\nกำลังดำเนินการ: ")
+                    .append(status.startedJobs)
+                    .append("\nเสร็จสิ้นตามระบบ: ")
+                    .append(status.completedJobs)
+                    .append("\nผิดพลาด: ")
+                    .append(status.failedJobs)
+                    .append("\nยกเลิก: ")
+                    .append(status.canceledJobs)
+                    .append("\n\n");
+
+            if (jobs == null || jobs.isEmpty()) {
+                result.append(
+                        "ยังไม่พบงานพิมพ์ในรายการล่าสุด"
+                );
+            } else {
+                int count = Math.min(jobs.size(), 10);
+
+                for (int i = 0; i < count; i++) {
+                    PrintJob job = jobs.get(i);
+
+                    if (job == null) {
+                        continue;
+                    }
+
+                    result.append("• ")
+                            .append(
+                                    PrinterManager.getJobName(job)
+                            )
+                            .append("\n  สถานะ: ")
+                            .append(
+                                    PrinterManager.getJobStatusText(job)
+                            )
+                            .append("\n\n");
+                }
+            }
+
+            jobStatus.setText(result.toString());
+
+        } catch (Exception e) {
+            if (connectionStatus != null) {
+                connectionStatus.setText(
+                        "ไม่สามารถอ่านสถานะระบบพิมพ์ได้"
+                );
+                connectionStatus.setTextColor(RED);
+            }
+
+            if (jobStatus != null) {
+                jobStatus.setText(
+                        "อ่านรายการงานพิมพ์ไม่สำเร็จ " +
+                        "โปรดลองรีเฟรชสถานะอีกครั้ง"
+                );
             }
         }
-
-        jobStatus.setText(result.toString());
     }
 
     private class TestPrintAdapter extends PrintDocumentAdapter {
@@ -571,10 +612,12 @@ public class PrinterScreen extends BaseScreen {
                 );
 
             } catch (IOException | RuntimeException e) {
+                String message = e.getMessage();
+
                 callback.onWriteFailed(
-                        e.getMessage() == null
+                        message == null
                                 ? "สร้างเอกสารทดสอบไม่สำเร็จ"
-                                : e.getMessage()
+                                : message
                 );
 
             } finally {
