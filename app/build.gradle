@@ -21,12 +21,13 @@ android {
     }
 }
 
+// ป้องกัน Kotlin JDK8 รุ่นเก่ามีคลาสซ้ำกับ Kotlin รุ่นใหม่
+configurations.configureEach {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+}
+
 dependencies {
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
-
-    // AndroidX Core: ใช้กับระบบแจ้งเตือนและสิทธิ์การใช้งาน
     implementation 'androidx.core:core:1.15.0'
-
-    // AndroidX AppCompat: ใช้กับหน้าจอที่สืบทอด AppCompatActivity
     implementation 'androidx.appcompat:appcompat:1.7.0'
 }
