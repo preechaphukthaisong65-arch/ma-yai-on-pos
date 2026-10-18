@@ -89,7 +89,10 @@ public class StockScreen extends Activity {
                 new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        showNotReadyMessage();
+                        startActivity(new Intent(
+                                StockScreen.this,
+                                StocktakeScreen.class
+                        ));
                     }
                 }
         );
@@ -131,7 +134,14 @@ public class StockScreen extends Activity {
         button.setMinHeight(dp(56));
         button.setOnClickListener(listener);
 
-        root.addView(button, buttonLayoutParams());
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        params.bottomMargin = dp(12);
+        root.addView(button, params);
     }
 
     private void showNotReadyMessage() {
@@ -140,16 +150,5 @@ public class StockScreen extends Activity {
                 "เมนูนี้กำลังจัดทำ ยังไม่พร้อมใช้งาน",
                 Toast.LENGTH_SHORT
         ).show();
-    }
-
-    private LinearLayout.LayoutParams buttonLayoutParams() {
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        params.bottomMargin = dp(12);
-        return params;
     }
 }
