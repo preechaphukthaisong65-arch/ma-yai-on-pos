@@ -1,3 +1,4 @@
+
 package com.example.newapp;
 
 import android.app.AlertDialog;
@@ -136,9 +137,10 @@ public class StockScreen extends BaseScreen {
         );
     }
 
-    private int dp(float value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
-    }
+    /*
+     * ใช้ dp(float) จาก BaseScreen โดยตรง
+     * ไม่ประกาศ private ซ้ำ เพราะ BaseScreen กำหนดเป็น protected
+     */
 
     private TextView text(
             String value,
@@ -1059,10 +1061,6 @@ public class StockScreen extends BaseScreen {
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list);
 
-        /*
-         * แก้ปัญหา variable refresh might not have been initialized:
-         * ใช้ array เก็บ Runnable เพื่อให้เรียกตัวเองจาก callback ได้
-         */
         final Runnable[] refresh = new Runnable[1];
 
         refresh[0] = () -> {
@@ -1175,4 +1173,4 @@ public class StockScreen extends BaseScreen {
 
         super.onDestroy();
     }
-                                 }
+}
