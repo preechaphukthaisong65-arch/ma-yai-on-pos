@@ -12,6 +12,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class StockScreen extends Activity {
 
@@ -24,7 +25,10 @@ public class StockScreen extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        buildScreen();
+    }
 
+    private void buildScreen() {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
         scrollView.setBackgroundColor(Color.WHITE);
@@ -32,7 +36,6 @@ public class StockScreen extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(20), dp(20), dp(20));
-
         scrollView.addView(root);
 
         TextView title = new TextView(this);
@@ -52,9 +55,7 @@ public class StockScreen extends Activity {
         );
 
         TextView description = new TextView(this);
-        description.setText(
-                "เลือกรายการที่ต้องการจัดการ"
-        );
+        description.setText("เลือกรายการที่ต้องการจัดการ");
         description.setTextSize(16);
         description.setTextColor(Color.DKGRAY);
         description.setGravity(Gravity.CENTER);
@@ -68,31 +69,77 @@ public class StockScreen extends Activity {
                 )
         );
 
-        Button allProductsButton = new Button(this);
-        allProductsButton.setText("สินค้าทั้งหมดในคลัง");
-        allProductsButton.setTextSize(17);
-        allProductsButton.setAllCaps(false);
-        allProductsButton.setMinHeight(dp(56));
-
-        root.addView(
-                allProductsButton,
-                buttonLayoutParams()
-        );
-
-        allProductsButton.setOnClickListener(
+        addMenuButton(
+                root,
+                "สินค้าทั้งหมด",
                 new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        Intent intent = new Intent(
+                        startActivity(new Intent(
                                 StockScreen.this,
                                 StockProductListScreen.class
-                        );
-                        startActivity(intent);
+                        ));
+                    }
+                }
+        );
+
+        addMenuButton(
+                root,
+                "ตรวจนับสต๊อก",
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        showNotReadyMessage();
+                    }
+                }
+        );
+
+        addMenuButton(
+                root,
+                "ตั้งค่าลิมิตสต๊อก",
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        showNotReadyMessage();
+                    }
+                }
+        );
+
+        addMenuButton(
+                root,
+                "รับสินค้าเข้า",
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        showNotReadyMessage();
                     }
                 }
         );
 
         setContentView(scrollView);
+    }
+
+    private void addMenuButton(
+            LinearLayout root,
+            String text,
+            View.OnClickListener listener
+    ) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextSize(17);
+        button.setAllCaps(false);
+        button.setMinHeight(dp(56));
+        button.setOnClickListener(listener);
+
+        root.addView(button, buttonLayoutParams());
+    }
+
+    private void showNotReadyMessage() {
+        Toast.makeText(
+                this,
+                "เมนูนี้กำลังจัดทำ ยังไม่พร้อมใช้งาน",
+                Toast.LENGTH_SHORT
+        ).show();
     }
 
     private LinearLayout.LayoutParams buttonLayoutParams() {
