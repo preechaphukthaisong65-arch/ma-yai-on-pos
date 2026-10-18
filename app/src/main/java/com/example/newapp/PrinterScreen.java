@@ -15,7 +15,6 @@ import android.print.PrintDocumentInfo;
 import android.print.PrintJob;
 import android.print.PrintManager;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -55,6 +54,15 @@ public class PrinterScreen extends BaseScreen {
         refreshPrintStatus();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (printManager != null) {
+            refreshPrintStatus();
+        }
+    }
+
     private void buildScreen() {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
@@ -83,12 +91,10 @@ public class PrinterScreen extends BaseScreen {
         subtitle.setTextColor(GRAY);
 
         LinearLayout.LayoutParams subtitleParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         subtitleParams.topMargin = dp(6);
         subtitleParams.bottomMargin = dp(18);
+
         root.addView(subtitle, subtitleParams);
 
         addStatusCard();
@@ -96,18 +102,11 @@ public class PrinterScreen extends BaseScreen {
         addPrintJobCard();
         addInformationCard();
 
-        Button backButton = createButton(
-                "กลับ",
-                DARK
-        );
-
+        Button backButton = createButton("กลับ", DARK);
         backButton.setOnClickListener(v -> finish());
 
         LinearLayout.LayoutParams backParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(50)
-                );
+                new LinearLayout.LayoutParams(-1, dp(50));
         backParams.topMargin = dp(18);
 
         root.addView(backButton, backParams);
@@ -116,13 +115,12 @@ public class PrinterScreen extends BaseScreen {
     private void addStatusCard() {
         LinearLayout card = createCard();
 
-        TextView heading = createText(
+        card.addView(createText(
                 "สถานะระบบพิมพ์",
                 18,
                 DARK,
                 true
-        );
-        card.addView(heading);
+        ));
 
         connectionStatus = createText(
                 "กำลังตรวจสอบระบบ...",
@@ -132,10 +130,7 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams statusParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         statusParams.topMargin = dp(12);
 
         card.addView(connectionStatus, statusParams);
@@ -149,27 +144,21 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams noteParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         noteParams.topMargin = dp(8);
 
         card.addView(note, noteParams);
-
-        root.addView(card);
     }
 
     private void addPrinterCard() {
         LinearLayout card = createCard();
 
-        TextView heading = createText(
+        card.addView(createText(
                 "ค้นหาและเลือกเครื่องพิมพ์",
                 18,
                 DARK,
                 true
-        );
-        card.addView(heading);
+        ));
 
         printerInfo = createText(
                 "ใช้หน้าต่างพิมพ์ของ Android เพื่อเลือกเครื่องพิมพ์",
@@ -179,10 +168,7 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams infoParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         infoParams.topMargin = dp(10);
 
         card.addView(printerInfo, infoParams);
@@ -193,14 +179,10 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams searchParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(52)
-                );
+                new LinearLayout.LayoutParams(-1, dp(52));
         searchParams.topMargin = dp(16);
 
         card.addView(searchButton, searchParams);
-
         searchButton.setOnClickListener(v -> openPrintDialog());
 
         Button refreshButton = createButton(
@@ -209,10 +191,7 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams refreshParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(48)
-                );
+                new LinearLayout.LayoutParams(-1, dp(48));
         refreshParams.topMargin = dp(10);
 
         card.addView(refreshButton, refreshParams);
@@ -226,20 +205,17 @@ public class PrinterScreen extends BaseScreen {
                     Toast.LENGTH_SHORT
             ).show();
         });
-
-        root.addView(card);
     }
 
     private void addPrintJobCard() {
         LinearLayout card = createCard();
 
-        TextView heading = createText(
+        card.addView(createText(
                 "สถานะงานพิมพ์",
                 18,
                 DARK,
                 true
-        );
-        card.addView(heading);
+        ));
 
         jobStatus = createText(
                 "ยังไม่มีข้อมูลการพิมพ์",
@@ -249,10 +225,7 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams jobParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         jobParams.topMargin = dp(12);
 
         card.addView(jobStatus, jobParams);
@@ -263,10 +236,7 @@ public class PrinterScreen extends BaseScreen {
         );
 
         LinearLayout.LayoutParams buttonParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(48)
-                );
+                new LinearLayout.LayoutParams(-1, dp(48));
         buttonParams.topMargin = dp(14);
 
         card.addView(refreshJobsButton, buttonParams);
@@ -274,20 +244,17 @@ public class PrinterScreen extends BaseScreen {
         refreshJobsButton.setOnClickListener(
                 v -> refreshPrintStatus()
         );
-
-        root.addView(card);
     }
 
     private void addInformationCard() {
         LinearLayout card = createCard();
 
-        TextView heading = createText(
+        card.addView(createText(
                 "ข้อมูลการรองรับ",
                 18,
                 DARK,
                 true
-        );
-        card.addView(heading);
+        ));
 
         TextView info = createText(
                 "• ใช้ระบบพิมพ์มาตรฐานของ Android\n\n" +
@@ -296,23 +263,18 @@ public class PrinterScreen extends BaseScreen {
                 "• เครื่องพิมพ์ Bluetooth บางรุ่นอาจต้องใช้ " +
                 "ไดรเวอร์หรือคำสั่งเฉพาะของผู้ผลิต\n\n" +
                 "• ปุ่มทดลองพิมพ์จะสร้างเอกสารทดสอบ PDF\n\n" +
-                "• การแสดงสถานะงานพิมพ์ไม่ใช่การยืนยันว่า " +
-                "กระดาษออกจากเครื่องจริงแล้ว",
+                "• สถานะงานพิมพ์ไม่ใช่การยืนยันว่ากระดาษ " +
+                "ออกจากเครื่องจริงแล้ว",
                 14,
                 GRAY,
                 false
         );
 
         LinearLayout.LayoutParams infoParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         infoParams.topMargin = dp(12);
 
         card.addView(info, infoParams);
-
-        root.addView(card);
     }
 
     private LinearLayout createCard() {
@@ -320,15 +282,11 @@ public class PrinterScreen extends BaseScreen {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(16), dp(16), dp(16));
         card.setBackgroundColor(WHITE);
+        card.setElevation(dp(2));
 
         LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
         params.bottomMargin = dp(14);
-
-        card.setElevation(dp(2));
 
         root.addView(card, params);
 
@@ -354,10 +312,7 @@ public class PrinterScreen extends BaseScreen {
         return view;
     }
 
-    private Button createButton(
-            String text,
-            int color
-    ) {
+    private Button createButton(String text, int color) {
         Button button = new Button(this);
         button.setText(text);
         button.setTextColor(WHITE);
@@ -454,7 +409,6 @@ public class PrinterScreen extends BaseScreen {
             }
 
             StringBuilder result = new StringBuilder();
-
             int count = Math.min(jobs.size(), 10);
 
             for (int i = 0; i < count; i++) {
@@ -577,7 +531,7 @@ public class PrinterScreen extends BaseScreen {
                         Paint.ANTI_ALIAS_FLAG
                 );
 
-                paint.setColor(0xFF182230);
+                paint.setColor(DARK);
                 paint.setTextSize(25);
                 paint.setTypeface(
                         Typeface.create(
@@ -666,4 +620,4 @@ public class PrinterScreen extends BaseScreen {
             }
         }
     }
-        }
+    }
