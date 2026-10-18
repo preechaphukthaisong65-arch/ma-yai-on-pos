@@ -1,3 +1,4 @@
+
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -28,22 +29,31 @@
             </intent-filter>
         </activity>
 
-        <!-- เมนูหลัก -->
+        <!-- เมนูขายสินค้า -->
         <activity
             android:name=".SellScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- คลังสินค้า -->
         <activity
             android:name=".StockScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าสร้างบาร์โค้ด -->
         <activity
             android:name=".BarcodeScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าคลังบาร์โค้ด ค้นหา สแกน และพิมพ์ซ้ำ -->
+        <activity
+            android:name=".BarcodeLibraryScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <!-- รายงาน -->
         <activity
             android:name=".ReportScreen"
             android:screenOrientation="portrait"
