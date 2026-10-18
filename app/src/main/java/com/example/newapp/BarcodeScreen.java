@@ -30,6 +30,7 @@ import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class BarcodeScreen extends BaseScreen {
@@ -329,7 +330,8 @@ public class BarcodeScreen extends BaseScreen {
                 return;
             }
 
-            ArrayList<PrintJob> jobs =
+            // แก้แล้ว: ใช้ List ให้ตรงกับชนิดค่าที่เมธอดคืนมา
+            List<PrintJob> jobs =
                     PrinterManager.getPrintJobs(this);
 
             int total = jobs == null ? 0 : jobs.size();
@@ -678,12 +680,10 @@ public class BarcodeScreen extends BaseScreen {
                     Toast.LENGTH_LONG
             ).show();
 
-            if (printerInfo != null) {
-                printerInfo.setText(
-                        "สถานะ: ระบบพิมพ์ Android ไม่พร้อมใช้งาน"
-                );
-                printerInfo.setTextColor(RED);
-            }
+            updatePrinterMessage(
+                    "สถานะ: ระบบพิมพ์ Android ไม่พร้อมใช้งาน",
+                    RED
+            );
 
             return;
         }
