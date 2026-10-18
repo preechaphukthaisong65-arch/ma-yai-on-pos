@@ -17,7 +17,6 @@ import android.print.PrintManager;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -31,10 +30,10 @@ import android.widget.Toast;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
-import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.oned.Code128Writer;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,7 +56,6 @@ public class BarcodeScreen extends BaseScreen {
     private static final int BLUE = Color.rgb(53, 99, 233);
     private static final int DARK = Color.rgb(24, 34, 48);
     private static final int GRAY = Color.rgb(100, 116, 139);
-    private static final int BACKGROUND = Color.rgb(245, 247, 251);
     private static final int GREEN = Color.rgb(21, 155, 114);
     private static final int RED = Color.rgb(224, 82, 96);
 
@@ -106,7 +104,10 @@ public class BarcodeScreen extends BaseScreen {
                             "ไม่สามารถเปิดฐานข้อมูลสินค้าได้\n\n"
                                     + e.getMessage()
                     )
-                    .setPositiveButton("ตกลง", (dialog, which) -> finish())
+                    .setPositiveButton(
+                            "ตกลง",
+                            (dialog, which) -> finish()
+                    )
                     .show();
         }
     }
@@ -123,7 +124,6 @@ public class BarcodeScreen extends BaseScreen {
         mainLayout.setPadding(dp(16), dp(12), dp(16), dp(24));
 
         scrollView.addView(mainLayout);
-
         setContentView(scrollView);
 
         TextView title = new TextView(this);
@@ -131,7 +131,6 @@ public class BarcodeScreen extends BaseScreen {
         title.setTextColor(DARK);
         title.setTextSize(24);
         title.setTypeface(null, Typeface.BOLD);
-
         mainLayout.addView(title);
 
         TextView subtitle = new TextView(this);
@@ -157,12 +156,14 @@ public class BarcodeScreen extends BaseScreen {
         searchInput.setTextSize(16);
         searchInput.setHint("ค้นหาชื่อสินค้า หรือบาร์โค้ด");
         searchInput.setPadding(dp(14), dp(8), dp(14), dp(8));
-        searchInput.setBackground(makeRoundedBackground(
-                Color.WHITE,
-                12,
-                Color.rgb(220, 226, 235),
-                1
-        ));
+        searchInput.setBackground(
+                makeRoundedBackground(
+                        Color.WHITE,
+                        12,
+                        Color.rgb(220, 226, 235),
+                        1
+                )
+        );
 
         LinearLayout.LayoutParams searchParams =
                 new LinearLayout.LayoutParams(
@@ -171,7 +172,6 @@ public class BarcodeScreen extends BaseScreen {
                 );
 
         searchParams.topMargin = dp(16);
-
         mainLayout.addView(searchInput, searchParams);
 
         TextView listTitle = new TextView(this);
@@ -232,38 +232,35 @@ public class BarcodeScreen extends BaseScreen {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(14), dp(14), dp(14));
-        card.setBackground(makeRoundedBackground(
-                Color.WHITE,
-                14,
-                Color.rgb(225, 231, 240),
-                1
-        ));
+        card.setBackground(
+                makeRoundedBackground(
+                        Color.WHITE,
+                        14,
+                        Color.rgb(225, 231, 240),
+                        1
+                )
+        );
 
         TextView heading = new TextView(this);
         heading.setText("ระบบพิมพ์ฉลาก");
         heading.setTextColor(DARK);
         heading.setTextSize(17);
         heading.setTypeface(null, Typeface.BOLD);
-
         card.addView(heading);
 
         printerStatusText = new TextView(this);
         printerStatusText.setTextColor(GRAY);
         printerStatusText.setTextSize(13);
         printerStatusText.setPadding(0, dp(8), 0, dp(10));
-
         card.addView(printerStatusText);
 
         Button searchPrinterButton = new Button(this);
         searchPrinterButton.setText("ค้นหาเครื่องพิมพ์ / เปิดหน้าพิมพ์");
         searchPrinterButton.setTextColor(Color.WHITE);
         searchPrinterButton.setAllCaps(false);
-        searchPrinterButton.setBackground(makeRoundedBackground(
-                BLUE,
-                10,
-                BLUE,
-                0
-        ));
+        searchPrinterButton.setBackground(
+                makeRoundedBackground(BLUE, 10, BLUE, 0)
+        );
 
         searchPrinterButton.setOnClickListener(v -> openPrinterSearch());
 
@@ -275,13 +272,13 @@ public class BarcodeScreen extends BaseScreen {
                 )
         );
 
-        LinearLayout.LayoutParams cardParams =
+        mainLayout.addView(
+                card,
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-
-        mainLayout.addView(card, cardParams);
+                )
+        );
 
         refreshPrinterStatus();
     }
@@ -313,7 +310,9 @@ public class BarcodeScreen extends BaseScreen {
                         continue;
                     }
 
-                    if (job.isQueued() || job.isStarted() || job.isBlocked()) {
+                    if (job.isQueued()
+                            || job.isStarted()
+                            || job.isBlocked()) {
                         activeJobs++;
                     }
 
@@ -329,8 +328,8 @@ public class BarcodeScreen extends BaseScreen {
                             + activeJobs
                             + "\nงานพิมพ์ที่ล้มเหลว: "
                             + failedJobs
-                            + "\nหมายเหตุ: สถานะนี้ยังยืนยันไม่ได้ว่า "
-                            + "เครื่องพิมพ์จริงเชื่อมต่ออยู่"
+                            + "\nสถานะนี้ไม่สามารถยืนยันการเชื่อมต่อ "
+                            + "เครื่องพิมพ์จริงได้"
             );
 
             printerStatusText.setTextColor(
@@ -346,33 +345,20 @@ public class BarcodeScreen extends BaseScreen {
     }
 
     private void openPrinterSearch() {
-        try {
-            String html =
-                    "<!DOCTYPE html><html><head>"
-                            + "<meta charset='UTF-8'>"
-                            + "<style>"
-                            + "@page { size: A4; margin: 15mm; }"
-                            + "body { font-family: sans-serif; "
-                            + "text-align: center; padding-top: 40px; }"
-                            + "</style></head><body>"
-                            + "<h2>ทดสอบระบบพิมพ์</h2>"
-                            + "<p>ร้านแม่ใหญ่อ่อน POS</p>"
-                            + "<p>เลือกเครื่องพิมพ์จากหน้าต่างพิมพ์ของ Android</p>"
-                            + "</body></html>";
+        String html =
+                "<!DOCTYPE html><html><head>"
+                        + "<meta charset='UTF-8'>"
+                        + "<style>"
+                        + "@page { size: A4; margin: 15mm; }"
+                        + "body { font-family: sans-serif; "
+                        + "text-align: center; padding-top: 40px; }"
+                        + "</style></head><body>"
+                        + "<h2>ทดสอบระบบพิมพ์</h2>"
+                        + "<p>ร้านแม่ใหญ่อ่อน POS</p>"
+                        + "<p>เลือกเครื่องพิมพ์จากหน้าต่างพิมพ์ Android</p>"
+                        + "</body></html>";
 
-            printHtml(
-                    "ค้นหาเครื่องพิมพ์",
-                    html,
-                    false
-            );
-
-        } catch (Exception e) {
-            Toast.makeText(
-                    this,
-                    "เปิดหน้าค้นหาเครื่องพิมพ์ไม่สำเร็จ",
-                    Toast.LENGTH_LONG
-            ).show();
-        }
+        printHtml("ค้นหาเครื่องพิมพ์", html, false);
     }
 
     private void loadProducts(String keyword) {
@@ -401,25 +387,30 @@ public class BarcodeScreen extends BaseScreen {
             );
 
             while (cursor.moveToNext()) {
-                ProductItem item = new ProductItem(
-                        cursor.getLong(cursor.getColumnIndexOrThrow("id")),
-                        cursor.getString(cursor.getColumnIndexOrThrow("name")),
-                        cursor.getString(cursor.getColumnIndexOrThrow("barcode")),
-                        cursor.getDouble(cursor.getColumnIndexOrThrow("price")),
-                        cursor.getInt(cursor.getColumnIndexOrThrow("stock"))
+                products.add(
+                        new ProductItem(
+                                cursor.getLong(
+                                        cursor.getColumnIndexOrThrow("id")
+                                ),
+                                cursor.getString(
+                                        cursor.getColumnIndexOrThrow("name")
+                                ),
+                                cursor.getString(
+                                        cursor.getColumnIndexOrThrow("barcode")
+                                ),
+                                cursor.getDouble(
+                                        cursor.getColumnIndexOrThrow("price")
+                                ),
+                                cursor.getInt(
+                                        cursor.getColumnIndexOrThrow("stock")
+                                )
+                        )
                 );
-
-                products.add(item);
             }
 
         } catch (Exception e) {
             e.printStackTrace();
-
-            showEmptyMessage(
-                    "อ่านข้อมูลสินค้าไม่สำเร็จ\n"
-                            + e.getMessage()
-            );
-
+            showEmptyMessage("อ่านข้อมูลสินค้าไม่สำเร็จ");
             return;
 
         } finally {
@@ -442,13 +433,14 @@ public class BarcodeScreen extends BaseScreen {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
-
-        card.setBackground(makeRoundedBackground(
-                Color.WHITE,
-                12,
-                Color.rgb(225, 231, 240),
-                1
-        ));
+        card.setBackground(
+                makeRoundedBackground(
+                        Color.WHITE,
+                        12,
+                        Color.rgb(225, 231, 240),
+                        1
+                )
+        );
 
         LinearLayout.LayoutParams cardParams =
                 new LinearLayout.LayoutParams(
@@ -457,15 +449,13 @@ public class BarcodeScreen extends BaseScreen {
                 );
 
         cardParams.bottomMargin = dp(10);
-
         productContainer.addView(card, cardParams);
 
         TextView name = new TextView(this);
-        name.setText(item.name == null ? "ไม่มีชื่อสินค้า" : item.name);
+        name.setText(safeText(item.name));
         name.setTextColor(DARK);
         name.setTextSize(16);
         name.setTypeface(null, Typeface.BOLD);
-
         card.addView(name);
 
         TextView barcode = new TextView(this);
@@ -480,21 +470,15 @@ public class BarcodeScreen extends BaseScreen {
                 );
 
         barcodeParams.topMargin = dp(5);
-
         card.addView(barcode, barcodeParams);
 
         TextView price = new TextView(this);
         price.setText(
                 "ราคา: "
-                        + String.format(
-                                Locale.US,
-                                "%,.2f บาท",
-                                item.price
-                        )
+                        + String.format(Locale.US, "%,.2f บาท", item.price)
                         + "    คงเหลือ: "
                         + item.stock
         );
-
         price.setTextColor(BLUE);
         price.setTextSize(14);
 
@@ -505,19 +489,15 @@ public class BarcodeScreen extends BaseScreen {
                 );
 
         priceParams.topMargin = dp(5);
-
         card.addView(price, priceParams);
 
         Button viewButton = new Button(this);
         viewButton.setText("ดูบาร์โค้ด / พิมพ์ฉลาก");
         viewButton.setAllCaps(false);
         viewButton.setTextColor(Color.WHITE);
-        viewButton.setBackground(makeRoundedBackground(
-                BLUE,
-                9,
-                BLUE,
-                0
-        ));
+        viewButton.setBackground(
+                makeRoundedBackground(BLUE, 9, BLUE, 0)
+        );
 
         viewButton.setOnClickListener(v -> showBarcode(item));
 
@@ -528,7 +508,6 @@ public class BarcodeScreen extends BaseScreen {
                 );
 
         buttonParams.topMargin = dp(10);
-
         card.addView(viewButton, buttonParams);
     }
 
@@ -580,7 +559,6 @@ public class BarcodeScreen extends BaseScreen {
         productName.setTextSize(17);
         productName.setTypeface(null, Typeface.BOLD);
         productName.setGravity(Gravity.CENTER);
-
         content.addView(productName);
 
         ImageView imageView = new ImageView(this);
@@ -588,46 +566,31 @@ public class BarcodeScreen extends BaseScreen {
         imageView.setAdjustViewBounds(true);
         imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-        LinearLayout.LayoutParams imageParams =
+        content.addView(
+                imageView,
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         dp(120)
-                );
-
-        imageParams.topMargin = dp(10);
-
-        content.addView(imageView, imageParams);
+                )
+        );
 
         TextView codeText = new TextView(this);
         codeText.setText(item.barcode);
         codeText.setTextColor(DARK);
         codeText.setTextSize(15);
         codeText.setGravity(Gravity.CENTER);
-
         content.addView(codeText);
 
         TextView priceText = new TextView(this);
         priceText.setText(
-                String.format(
-                        Locale.US,
-                        "%.2f บาท",
-                        item.price
-                )
+                String.format(Locale.US, "%.2f บาท", item.price)
         );
         priceText.setTextColor(BLUE);
         priceText.setTextSize(18);
         priceText.setTypeface(null, Typeface.BOLD);
         priceText.setGravity(Gravity.CENTER);
 
-        LinearLayout.LayoutParams priceParams =
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-
-        priceParams.topMargin = dp(8);
-
-        content.addView(priceText, priceParams);
+        content.addView(priceText);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("บาร์โค้ดสินค้า")
@@ -637,9 +600,8 @@ public class BarcodeScreen extends BaseScreen {
                 .create();
 
         dialog.setOnShowListener(d -> {
-            Button printButton = dialog.getButton(
-                    AlertDialog.BUTTON_POSITIVE
-            );
+            Button printButton =
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE);
 
             printButton.setOnClickListener(v -> {
                 dialog.dismiss();
@@ -651,9 +613,8 @@ public class BarcodeScreen extends BaseScreen {
     }
 
     /**
-     * สร้างบาร์โค้ด Code 128 ด้วย ZXing
-     * คำนวณความกว้างจาก BitMatrix โดยตรง
-     * จึงไม่เกิดปัญหาความกว้างไม่พอจากการนับตัวเลขใน pattern
+     * สร้าง Code 128 จาก ZXing โดยใช้ความกว้างจริงจาก BitMatrix
+     * ไม่คำนวณความกว้างจากจำนวนตัวอักษรใน pattern
      */
     private Bitmap createBarcodeBitmap(String value) {
         if (value == null || value.trim().isEmpty()) {
@@ -697,6 +658,8 @@ public class BarcodeScreen extends BaseScreen {
             paint.setStyle(Paint.Style.FILL);
             paint.setAntiAlias(false);
 
+            int top = 8;
+
             for (int x = 0; x < barcodeWidth; x++) {
                 for (int y = 0; y < barcodeHeight; y++) {
                     if (matrix.get(x, y)) {
@@ -706,9 +669,9 @@ public class BarcodeScreen extends BaseScreen {
 
                         canvas.drawRect(
                                 left,
-                                8 + y,
+                                top + y,
                                 left + moduleWidth,
-                                8 + y + 1,
+                                top + y + 1,
                                 paint
                         );
                     }
@@ -717,7 +680,7 @@ public class BarcodeScreen extends BaseScreen {
 
             return bitmap;
 
-        } catch (WriterException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             e.printStackTrace();
             return null;
 
@@ -728,7 +691,10 @@ public class BarcodeScreen extends BaseScreen {
     }
 
     private void printBarcodeLabel(ProductItem item) {
-        if (item == null || item.barcode == null) {
+        if (item == null
+                || item.barcode == null
+                || item.barcode.trim().isEmpty()) {
+
             Toast.makeText(
                     this,
                     "ข้อมูลบาร์โค้ดไม่ถูกต้อง",
@@ -737,11 +703,9 @@ public class BarcodeScreen extends BaseScreen {
             return;
         }
 
-        String html = createLabelHtml(item);
-
         printHtml(
                 "ฉลาก " + safeText(item.name),
-                html,
+                createLabelHtml(item),
                 true
         );
     }
@@ -750,11 +714,8 @@ public class BarcodeScreen extends BaseScreen {
         String name = escapeHtml(safeText(item.name));
         String barcode = escapeHtml(safeText(item.barcode));
 
-        String price = String.format(
-                Locale.US,
-                "%.2f",
-                item.price
-        );
+        String price = String.format(Locale.US, "%.2f", item.price);
+        String imageBase64 = bitmapToBase64(item.barcode);
 
         return "<!DOCTYPE html>"
                 + "<html><head>"
@@ -777,8 +738,7 @@ public class BarcodeScreen extends BaseScreen {
                 + "</style></head><body>"
                 + "<div class='name'>" + name + "</div>"
                 + "<img class='barcode' src='data:image/png;base64,"
-                + bitmapToBase64(item.barcode)
-                + "'>"
+                + imageBase64 + "'>"
                 + "<div class='code'>" + barcode + "</div>"
                 + "<div class='price'>" + price + " บาท</div>"
                 + "</body></html>";
@@ -791,8 +751,7 @@ public class BarcodeScreen extends BaseScreen {
             return "";
         }
 
-        java.io.ByteArrayOutputStream output =
-                new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
 
         bitmap.compress(
                 Bitmap.CompressFormat.PNG,
