@@ -136,12 +136,16 @@ public class StockScreen extends BaseScreen {
         );
     }
 
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
     private TextView text(
             String value,
             int size,
             int color,
-            boolean bold) {
-
+            boolean bold
+    ) {
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
@@ -157,8 +161,8 @@ public class StockScreen extends BaseScreen {
     private GradientDrawable rounded(
             int color,
             int radius,
-            int strokeColor) {
-
+            int strokeColor
+    ) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
         d.setCornerRadius(dp(radius));
@@ -251,7 +255,6 @@ public class StockScreen extends BaseScreen {
             }
 
             return result;
-
         } catch (Exception ex) {
             throw new IllegalArgumentException(
                     fieldName + " ต้องเป็นจำนวนเต็มตั้งแต่ศูนย์ขึ้นไป"
@@ -263,12 +266,13 @@ public class StockScreen extends BaseScreen {
         try {
             double result = Double.parseDouble(value(e));
 
-            if (!Double.isFinite(result) || result < 0) {
+            if (Double.isNaN(result)
+                    || Double.isInfinite(result)
+                    || result < 0) {
                 throw new NumberFormatException();
             }
 
             return result;
-
         } catch (Exception ex) {
             throw new IllegalArgumentException(
                     "กรุณากรอกราคาขายให้ถูกต้อง"
@@ -302,12 +306,7 @@ public class StockScreen extends BaseScreen {
         );
 
         summary.addView(
-                text(
-                        "ระบบใช้ราคาขายเท่านั้น",
-                        14,
-                        0xFFE7EEFF,
-                        false
-                )
+                text("ระบบใช้ราคาขายเท่านั้น", 14, 0xFFE7EEFF, false)
         );
 
         content.addView(summary);
@@ -370,8 +369,8 @@ public class StockScreen extends BaseScreen {
             String icon,
             String title,
             String subtitle,
-            Runnable action) {
-
+            Runnable action
+    ) {
         LinearLayout item = card();
         item.setOrientation(LinearLayout.HORIZONTAL);
         item.setGravity(Gravity.CENTER_VERTICAL);
@@ -492,8 +491,8 @@ public class StockScreen extends BaseScreen {
 
     private void addProductCard(
             LinearLayout list,
-            ProductRepository.Product p) {
-
+            ProductRepository.Product p
+    ) {
         LinearLayout box = card();
 
         box.addView(text(p.name, 17, DARK, true));
@@ -553,9 +552,7 @@ public class StockScreen extends BaseScreen {
     private void showAddProduct() {
         preparePage("เพิ่มสินค้า");
 
-        message(
-                "กรอกชื่อและราคาขาย ระบบสร้างบาร์โค้ดให้อัตโนมัติ"
-        );
+        message("กรอกชื่อและราคาขาย ระบบสร้างบาร์โค้ดให้อัตโนมัติ");
 
         label("ชื่อสินค้า");
         EditText name = field(
@@ -696,6 +693,12 @@ public class StockScreen extends BaseScreen {
 
         save.setOnClickListener(v -> {
             try {
+                if (value(name).isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "กรุณากรอกชื่อสินค้า"
+                    );
+                }
+
                 boolean success = repository.updateProduct(
                         p.id,
                         value(name),
@@ -786,13 +789,9 @@ public class StockScreen extends BaseScreen {
                     )
             );
 
-            TextView qtyLabel = text(
-                    "จำนวนที่รับเข้า",
-                    14,
-                    DARK,
-                    true
+            details.addView(
+                    text("จำนวนที่รับเข้า", 14, DARK, true)
             );
-            details.addView(qtyLabel);
 
             EditText quantity = field(
                     "จำนวนที่รับเข้า",
@@ -847,7 +846,7 @@ public class StockScreen extends BaseScreen {
 
         message(
                 "กรอกจำนวนที่นับได้จริง ระบบจะบันทึกผลต่าง " +
-                "และปรับจำนวนคงเหลือหลังยืนยัน"
+                "และปรับยอดหลังยืนยัน"
         );
 
         label("บาร์โค้ดสินค้า");
@@ -870,9 +869,7 @@ public class StockScreen extends BaseScreen {
                     repository.getByBarcode(value(barcode));
 
             if (p == null || p.archived) {
-                details.addView(
-                        text("ไม่พบสินค้า", 14, RED, true)
-                );
+                details.addView(text("ไม่พบสินค้า", 14, RED, true));
                 return;
             }
 
@@ -938,8 +935,8 @@ public class StockScreen extends BaseScreen {
 
     private void saveStockCount(
             ProductRepository.Product p,
-            int actual) {
-
+            int actual
+    ) {
         SQLiteDatabase db = database.getWritableDatabase();
         db.beginTransaction();
 
@@ -1012,10 +1009,7 @@ public class StockScreen extends BaseScreen {
                 movement.put("quantity", difference);
                 movement.put("stock_before", current);
                 movement.put("stock_after", actual);
-                movement.put(
-                        "reference_id",
-                        String.valueOf(historyId)
-                );
+                movement.put("reference_id", String.valueOf(historyId));
                 movement.put("created_at", now());
 
                 db.insertOrThrow(
@@ -1065,7 +1059,13 @@ public class StockScreen extends BaseScreen {
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list);
 
-        Runnable refresh = () -> {
+        /*
+         * แก้ปัญหา variable refresh might not have been initialized:
+         * ใช้ array เก็บ Runnable เพื่อให้เรียกตัวเองจาก callback ได้
+         */
+        final Runnable[] refresh = new Runnable[1];
+
+        refresh[0] = () -> {
             list.removeAllViews();
 
             String query = value(search).toLowerCase(Locale.ROOT);
@@ -1123,7 +1123,7 @@ public class StockScreen extends BaseScreen {
 
                         if (success) {
                             toast("บันทึกสต็อกขั้นต่ำแล้ว");
-                            refresh.run();
+                            refresh[0].run();
                         } else {
                             toast("บันทึกไม่สำเร็จ");
                         }
@@ -1149,18 +1149,18 @@ public class StockScreen extends BaseScreen {
             @Override
             public void onTextChanged(
                     CharSequence s, int start, int before, int count) {
-                refresh.run();
+                refresh[0].run();
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
         });
 
-        refresh.run();
+        refresh[0].run();
     }
 
     // =====================================================
-    // ปิดการเชื่อมต่อฐานข้อมูล
+    // ปิดการเชื่อมต่อ
     // =====================================================
 
     @Override
@@ -1175,4 +1175,4 @@ public class StockScreen extends BaseScreen {
 
         super.onDestroy();
     }
-            }
+                                 }
