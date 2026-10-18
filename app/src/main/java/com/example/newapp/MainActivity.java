@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -13,6 +14,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
+
+    private long lastBackPressedTime = 0;
+
+    private static final long BACK_PRESS_INTERVAL = 2000;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -22,6 +27,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ข้อ 2: เปิดแอปแบบเต็มหน้าจอ
+        getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+        );
+
+        // ซ่อนแถบสถานะและแถบนำทาง
+        hideSystemBars();
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -64,7 +78,7 @@ public class MainActivity extends Activity {
             page.addView(title);
         }
 
-        // แถบข้อความ
+        // แถบข้อความต้อนรับ
         TextView ticker = new TextView(this);
         ticker.setText(
                 "ยินดีต้อนรับสู่ร้านแม่ใหญ่อ่อน POS"
@@ -80,7 +94,7 @@ public class MainActivity extends Activity {
 
         page.addView(ticker);
 
-        // แถวเมนู 3 แถว แถวละ 2 เมนู
+        // เมนู 3 แถว แถวละ 2 ช่อง
         LinearLayout row1 = makeRow();
         LinearLayout row2 = makeRow();
         LinearLayout row3 = makeRow();
@@ -119,6 +133,46 @@ public class MainActivity extends Activity {
 
         scroll.addView(page);
         setContentView(scroll);
+    }
+
+    // ซ่อนแถบระบบแบบต่อเนื่อง
+    private void hideSystemBars() {
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        );
+    }
+
+    // เมื่อกลับมาหน้าหลัก ให้คงโหมดเต็มหน้าจอ
+    @Override
+    protected void onResume() {
+        super.onResume();
+        hideSystemBars();
+    }
+
+    // ข้อ 4: ป้องกันการออกจากแอปโดยไม่ตั้งใจ
+    @Override
+    public void onBackPressed() {
+        long currentTime = System.currentTimeMillis();
+
+        if (currentTime - lastBackPressedTime
+                < BACK_PRESS_INTERVAL) {
+
+            super.onBackPressed();
+
+        } else {
+            lastBackPressedTime = currentTime;
+
+            Toast.makeText(
+                    this,
+                    "กดย้อนกลับอีกครั้งเพื่อออกจากแอป",
+                    Toast.LENGTH_SHORT
+            ).show();
+        }
     }
 
     private LinearLayout makeRow() {
