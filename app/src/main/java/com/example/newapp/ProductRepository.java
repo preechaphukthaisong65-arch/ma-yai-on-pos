@@ -25,8 +25,8 @@ public class ProductRepository {
         public int minStock;
         public String barcode;
         public String unit;
-        public boolean archived = false; // ป้องกัน error ตัวแปร archived
-        public byte[] imageData = null;  // ป้องกัน error ตัวแปร imageData
+        public boolean archived = false;
+        public byte[] imageData = null;
 
         public Product(long id, String name, double price, int cost, int stock, int minStock, String barcode, String unit) {
             this.id = id;
@@ -102,14 +102,13 @@ public class ProductRepository {
         return list;
     }
 
-    // รองรับ ArrayList<Product> ตามที่ StockScreen เรียกใช้งาน
     public ArrayList<Product> getActiveProducts() {
         return new ArrayList<>(getAllProducts());
     }
 
-    // ดึงรายการสินค้าที่สต็อกต่ำ
-    public List<Product> getLowStockProducts() {
-        List<Product> lowStockList = new ArrayList<>();
+    // แก้ไขให้คืนค่าเป็น ArrayList<Product> ตามที่ StockScreen ต้องการ
+    public ArrayList<Product> getLowStockProducts() {
+        ArrayList<Product> lowStockList = new ArrayList<>();
         for (Product p : getAllProducts()) {
             if (p.isLowStock()) {
                 lowStockList.add(p);
@@ -118,7 +117,6 @@ public class ProductRepository {
         return lowStockList;
     }
 
-    // ค้นหาด้วย ID
     public Product getById(long id) {
         SQLiteDatabase db = helper.getReadableDatabase();
         Cursor cursor = null;
@@ -147,7 +145,6 @@ public class ProductRepository {
         return product;
     }
 
-    // ค้นหาด้วย Barcode
     public Product getByBarcode(String barcode) {
         SQLiteDatabase db = helper.getReadableDatabase();
         Cursor cursor = null;
@@ -176,7 +173,30 @@ public class ProductRepository {
         return product;
     }
 
-    // ปรับปรุงสต็อก (รองรับทั้งแบบ 3 และ 4 พารามิเตอร์)
+    // เมธอด updateProduct รองรับลายเซ็น 7 พารามิเตอร์ตาม StockScreen
+    public boolean updateProduct(long id, String name, double price, int cost, int stock, byte[] imageData, String unit) {
+        SQLiteDatabase db = helper.getWritableDatabase();
+        boolean success = false;
+
+        try {
+            ContentValues values = new ContentValues();
+            values.put("name", name);
+            values.put("price", price);
+            values.put("cost", cost);
+            values.put("stock", stock);
+            values.put("unit", unit != null ? unit : "ชิ้น");
+
+            int rows = db.update("products", values, "id = ?", new String[]{String.valueOf(id)});
+            success = (rows > 0);
+        } catch (Exception e) {
+            // Log error
+        } finally {
+            db.close();
+        }
+
+        return success;
+    }
+
     public boolean adjustStock(long productId, int quantityChange, String reason) {
         return adjustStock(productId, quantityChange, reason, null);
     }
