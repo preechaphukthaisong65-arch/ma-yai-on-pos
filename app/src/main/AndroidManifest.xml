@@ -3,10 +3,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- สิทธิ์การแจ้งเตือน -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- สิทธิ์ Bluetooth สำหรับค้นหาและเชื่อมต่อเครื่องพิมพ์ -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -22,7 +20,6 @@
         android:theme="@style/Theme.StockProPOS"
         tools:targetApi="31">
 
-        <!-- หน้าหลัก -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -32,49 +29,41 @@
             </intent-filter>
         </activity>
 
-        <!-- เมนูขายสินค้า -->
         <activity
             android:name=".SellScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- คลังสินค้า -->
         <activity
             android:name=".StockScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- รายการสินค้าทั้งหมดในคลัง -->
         <activity
             android:name=".StockProductListScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- หน้าสร้างบาร์โค้ด -->
         <activity
             android:name=".BarcodeScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- หน้าคลังบาร์โค้ด ค้นหา สแกน และพิมพ์ซ้ำ -->
         <activity
             android:name=".BarcodeLibraryScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- รายงาน -->
         <activity
             android:name=".ReportScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- ระบบบัญชีลูกค้าเดิม -->
         <activity
             android:name=".CreditAccountScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- ประวัติการชำระเงินของลูกค้า -->
         <activity
             android:name=".CreditPaymentHistoryScreen"
             android:screenOrientation="portrait"
