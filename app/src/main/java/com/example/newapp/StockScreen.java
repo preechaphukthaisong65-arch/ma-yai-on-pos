@@ -114,7 +114,10 @@ public class StockScreen extends Activity {
                 new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        showNotReadyMessage();
+                        startActivity(new Intent(
+                                StockScreen.this,
+                                ReceiveStockScreen.class
+                        ));
                     }
                 }
         );
