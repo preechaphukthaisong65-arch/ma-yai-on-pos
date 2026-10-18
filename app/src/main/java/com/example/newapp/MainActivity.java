@@ -1,207 +1,146 @@
 package com.example.newapp;
 
-import android.graphics.BitmapFactory;
+import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.FrameLayout;
-import android.widget.GridLayout;
-import android.widget.ImageView;
+import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 public class MainActivity extends BaseScreen {
+
+    private static final int BLUE = Color.rgb(37, 99, 235);
+    private static final int GREEN = Color.rgb(16, 185, 129);
+    private static final int PURPLE = Color.rgb(124, 58, 237);
+    private static final int ORANGE = Color.rgb(217, 119, 6);
+    private static final int DARK = Color.rgb(31, 41, 55);
+    private static final int GRAY = Color.rgb(107, 114, 128);
+    private static final int WHITE = Color.WHITE;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ใช้พื้นหลังเดิมของแอป
         createBackground();
+        buildHomeScreen();
 
-        // ------------------------------------
-        // 1. พื้นที่หลัก
-        // ------------------------------------
-        FrameLayout mainLayer = new FrameLayout(this);
-
-        FrameLayout.LayoutParams mainLayerParams =
-                new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                );
-
-        root.addView(mainLayer, mainLayerParams);
-
-        // ------------------------------------
-        // 2. คำนวณความสูงโลโก้ตามสัดส่วนจริง
-        // ------------------------------------
-        BitmapFactory.Options options =
-                new BitmapFactory.Options();
-
-        options.inJustDecodeBounds = true;
-
-        BitmapFactory.decodeResource(
-                getResources(),
-                R.drawable.logomain,
-                options
-        );
-
-        int imageWidth = options.outWidth;
-        int imageHeight = options.outHeight;
-
-        int screenWidth =
-                getResources().getDisplayMetrics().widthPixels;
-
-        int logoHeight;
-
-        if (imageWidth > 0 && imageHeight > 0) {
-            logoHeight = Math.round(
-                    screenWidth * (imageHeight / (float) imageWidth)
-            );
-        } else {
-            // สำรองกรณีอ่านขนาดภาพไม่ได้
-            logoHeight = dp(180);
-        }
-
-        // ------------------------------------
-        // 3. ภาพโลโก้ด้านหลัง
-        // ------------------------------------
-        ImageView logo = new ImageView(this);
-
-        logo.setImageResource(R.drawable.logomain);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        logo.setAdjustViewBounds(false);
-        logo.setPadding(0, 0, 0, 0);
-
-        FrameLayout.LayoutParams logoParams =
-                new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        logoHeight,
-                        Gravity.TOP
-                );
-
-        mainLayer.addView(logo, logoParams);
-
-        // ------------------------------------
-        // 4. แถบแจ้งเตือนซ้อนทับโลโก้
-        // ------------------------------------
-        View notification = createNotificationBar();
-
-        FrameLayout.LayoutParams notificationParams =
-                new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        dp(42),
-                        Gravity.TOP
-                );
-
-        // วางแถบแจ้งเตือนบริเวณล่างของโลโก้
-        notificationParams.setMargins(
-                dp(12),
-                Math.max(0, logoHeight - dp(42) - dp(8)),
-                dp(12),
-                0
-        );
-
-        mainLayer.addView(
-                notification,
-                notificationParams
-        );
-
-        // ------------------------------------
-        // 5. ตารางเมนู 6 ปุ่มซ้อนบนภาพ
-        // ------------------------------------
-        GridLayout menuGrid = new GridLayout(this);
-
-        menuGrid.setColumnCount(2);
-        menuGrid.setRowCount(3);
-        menuGrid.setUseDefaultMargins(false);
-
-        FrameLayout.LayoutParams gridParams =
-                new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        Gravity.TOP
-                );
-
-        // รักษาระยะขอบเมนูเดิม
-        gridParams.setMargins(
-                dp(10),
-                logoHeight,
-                dp(10),
-                dp(8)
-        );
-
-        mainLayer.addView(menuGrid, gridParams);
-
-        // ------------------------------------
-        // 6. เมนูเดิมทั้ง 6 ปุ่ม
-        // ------------------------------------
-        addMenu(
-                menuGrid,
-                R.drawable.menu_sell,
-                SellScreen.class
-        );
-
-        addMenu(
-                menuGrid,
-                R.drawable.menu_stock,
-                StockScreen.class
-        );
-
-        addMenu(
-                menuGrid,
-                R.drawable.menu_barcode,
-                BarcodeScreen.class
-        );
-
-        addMenu(
-                menuGrid,
-                R.drawable.menu_history,
-                HistoryScreen.class
-        );
-
-        addMenu(
-                menuGrid,
-                R.drawable.menu_manage,
-                ManageScreen.class
-        );
-
-        addMenu(
-                menuGrid,
-                R.drawable.menu_report,
-                ReportScreen.class
-        );
+        // ตรวจสอบและกู้คืนข้อมูลอัตโนมัติจากคลาวด์เมื่อเปิดแอป (กรณีเปลี่ยนเครื่องหรือติดตั้งใหม่)
+        checkAndRestoreDataOnStartup();
     }
 
-    // ------------------------------------
-    // สร้างปุ่มเมนู
-    // ------------------------------------
-    private void addMenu(
-            GridLayout grid,
-            int imageResource,
-            Class<?> screenClass) {
+    private void buildHomeScreen() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
 
-        ImageView button =
-                createImageButton(imageResource, screenClass);
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(20), dp(20), dp(20), dp(24));
 
-        GridLayout.LayoutParams params =
-                new GridLayout.LayoutParams();
+        scroll.addView(page);
 
-        params.width = 0;
-        params.height = 0;
+        ViewGroup content = findViewById(android.R.id.content);
+        View rootView = content.getChildCount() > 0 ? content.getChildAt(0) : null;
 
-        params.columnSpec =
-                GridLayout.spec(GridLayout.UNDEFINED, 1f);
+        if (rootView instanceof ViewGroup) {
+            ((ViewGroup) rootView).addView(
+                    scroll,
+                    new ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+            );
+        } else {
+            content.addView(
+                    scroll,
+                    new ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+            );
+        }
 
-        params.rowSpec =
-                GridLayout.spec(GridLayout.UNDEFINED, 1f);
+        // ส่วนหัวข้อร้าน
+        page.addView(text("ร้านแม่ใหญ่อ่อน POS", 26, DARK, true));
+        page.addView(text("ระบบจัดการร้านค้าและขายหน้าร้าน (Offline-First)", 14, GRAY, false));
 
-        params.setMargins(
-                dp(5),
-                dp(5),
-                dp(5),
-                dp(5)
+        addSpace(page, 24);
+
+        // เมนูปุ่มกดไปยังหน้าต่างๆ
+        page.addView(createMenuButton("🛒  ระบบขายหน้าร้าน (POS)", GREEN, v -> {
+            startActivity(new Intent(MainActivity.this, SalesScreen.class));
+        }));
+
+        addSpace(page, 12);
+
+        page.addView(createMenuButton("📦  จัดการสต็อก / คลังสินค้า", BLUE, v -> {
+            startActivity(new Intent(MainActivity.this, StockScreen.class));
+        }));
+
+        addSpace(page, 12);
+
+        page.addView(createMenuButton("🖨️  สร้างและพิมพ์บาร์โค้ด", PURPLE, v -> {
+            startActivity(new Intent(MainActivity.this, BarcodeScreen.class));
+        }));
+
+        addSpace(page, 12);
+
+        page.addView(createMenuButton("📊  รายงานยอดขายและประวัติ", ORANGE, v -> {
+            startActivity(new Intent(MainActivity.this, ReportScreen.class));
+        }));
+    }
+
+    private void checkAndRestoreDataOnStartup() {
+        SyncManager syncManager = new SyncManager(this);
+        if (syncManager.isOnline()) {
+            syncManager.restoreDataFromCloud((success, message) -> {
+                runOnUiThread(() -> {
+                    // แจ้งเตือนสถานะการซิงก์/กู้คืนข้อมูลเบื้องหลัง
+                    if (success && !message.contains("ไม่พบข้อมูล")) {
+                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+        }
+    }
+
+    private Button createMenuButton(String label, int bgColor, View.OnClickListener listener) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setTextColor(WHITE);
+        b.setTextSize(16);
+        b.setAllCaps(false);
+        b.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        b.setPadding(dp(20), dp(0), dp(20), dp(0));
+        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(bgColor));
+        b.setOnClickListener(listener);
+        
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(60)
         );
+        b.setLayoutParams(params);
+        return b;
+    }
 
-        grid.addView(button, params);
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setGravity(Gravity.CENTER_VERTICAL);
+        if (bold) {
+            view.setTypeface(null, Typeface.BOLD);
+        }
+        return view;
+    }
+
+    private void addSpace(LinearLayout parent, int height) {
+        View space = new View(this);
+        parent.addView(space, new LinearLayout.LayoutParams(1, dp(height)));
     }
 }
