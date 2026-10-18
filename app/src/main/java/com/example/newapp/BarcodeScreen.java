@@ -12,7 +12,7 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
-import android.print.PrintManager;
+import android.print.PrintJob;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Base64;
@@ -85,6 +85,13 @@ public class BarcodeScreen extends BaseScreen {
 
         buildScreen();
         loadProducts();
+        refreshPrinterStatus();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshPrinterStatus();
     }
 
     // =========================================================
@@ -147,9 +154,7 @@ public class BarcodeScreen extends BaseScreen {
         ));
 
         addSpace(page, 14);
-
         addPrinterCard(page);
-
         addSpace(page, 14);
 
         summaryText = text(
@@ -160,7 +165,6 @@ public class BarcodeScreen extends BaseScreen {
         );
 
         page.addView(summaryText);
-
         addSpace(page, 10);
 
         searchInput = new EditText(this);
@@ -251,7 +255,7 @@ public class BarcodeScreen extends BaseScreen {
         addSpace(card, 4);
 
         printerInfo = text(
-                "สถานะ: ยังไม่ได้ตรวจสอบเครื่องพิมพ์",
+                "สถานะ: กำลังตรวจสอบระบบพิมพ์...",
                 13,
                 GRAY,
                 false
@@ -309,6 +313,66 @@ public class BarcodeScreen extends BaseScreen {
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 )
         );
+    }
+
+    private void refreshPrinterStatus() {
+        if (printerInfo == null) {
+            return;
+        }
+
+        try {
+            if (!PrinterManager.isAvailable(this)) {
+                printerInfo.setText(
+                        "สถานะ: ระบบพิมพ์ Android ไม่พร้อมใช้งาน"
+                );
+                printerInfo.setTextColor(RED);
+                return;
+            }
+
+            ArrayList<PrintJob> jobs =
+                    PrinterManager.getPrintJobs(this);
+
+            int total = jobs == null ? 0 : jobs.size();
+            int active = 0;
+            int failed = 0;
+
+            if (jobs != null) {
+                for (PrintJob job : jobs) {
+                    if (job == null) {
+                        continue;
+                    }
+
+                    if (job.isQueued() || job.isStarted()) {
+                        active++;
+                    }
+
+                    if (job.isFailed()) {
+                        failed++;
+                    }
+                }
+            }
+
+            String status =
+                    "สถานะระบบพิมพ์ Android: พร้อมใช้งาน\n" +
+                    "งานพิมพ์ทั้งหมด: " + total + " รายการ\n" +
+                    "กำลังดำเนินการ: " + active + " รายการ\n" +
+                    "งานพิมพ์ผิดพลาด: " + failed + " รายการ\n" +
+                    "สถานะเครื่องพิมพ์จริง: ยังยืนยันไม่ได้";
+
+            printerInfo.setText(status);
+
+            if (failed > 0) {
+                printerInfo.setTextColor(RED);
+            } else {
+                printerInfo.setTextColor(GREEN);
+            }
+
+        } catch (Exception e) {
+            printerInfo.setText(
+                    "สถานะ: ตรวจสอบระบบพิมพ์ไม่สำเร็จ"
+            );
+            printerInfo.setTextColor(RED);
+        }
     }
 
     // =========================================================
@@ -557,7 +621,6 @@ public class BarcodeScreen extends BaseScreen {
         );
 
         barcodeText.setGravity(Gravity.CENTER);
-
         container.addView(barcodeText);
 
         container.addView(text(
@@ -585,14 +648,14 @@ public class BarcodeScreen extends BaseScreen {
                 .create();
 
         dialog.setOnDismissListener(d -> {
-            // เก็บ Bitmap ไว้ เผื่อระบบพิมพ์กำลังใช้งาน
+            // ไม่รีไซเคิล Bitmap เพราะงานพิมพ์อาจยังใช้งานอยู่
         });
 
         dialog.show();
     }
 
     // =========================================================
-    // พิมพ์ฉลากบาร์โค้ดผ่านระบบพิมพ์ Android
+    // พิมพ์ฉลากผ่าน PrinterManager
     // =========================================================
 
     private void printBarcodeLabel(
@@ -605,6 +668,23 @@ public class BarcodeScreen extends BaseScreen {
                     "ไม่มีภาพบาร์โค้ดสำหรับพิมพ์",
                     Toast.LENGTH_LONG
             ).show();
+            return;
+        }
+
+        if (!PrinterManager.isAvailable(this)) {
+            Toast.makeText(
+                    this,
+                    "ระบบพิมพ์ Android ไม่พร้อมใช้งาน",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            if (printerInfo != null) {
+                printerInfo.setText(
+                        "สถานะ: ระบบพิมพ์ Android ไม่พร้อมใช้งาน"
+                );
+                printerInfo.setTextColor(RED);
+            }
+
             return;
         }
 
@@ -673,18 +753,6 @@ public class BarcodeScreen extends BaseScreen {
                 " บาท</div>" +
                 "</body></html>";
 
-        PrintManager printManager =
-                (PrintManager) getSystemService(PRINT_SERVICE);
-
-        if (printManager == null) {
-            Toast.makeText(
-                    this,
-                    "ระบบพิมพ์ Android ไม่พร้อมใช้งาน",
-                    Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-
         WebView printWebView = new WebView(this);
         activePrintWebView = printWebView;
 
@@ -717,23 +785,53 @@ public class BarcodeScreen extends BaseScreen {
                                                 )
                                                 .build();
 
-                                printManager.print(
+                                PrintJob job = PrinterManager.print(
+                                        BarcodeScreen.this,
                                         "ฉลาก_" + product.id,
                                         adapter,
                                         attributes
                                 );
 
-                                if (printerInfo != null) {
-                                    printerInfo.setText(
-                                            "สถานะ: ส่งคำขอไปยังระบบพิมพ์แล้ว " +
-                                            "(ยังไม่ยืนยันว่าพิมพ์สำเร็จ)"
+                                if (job == null) {
+                                    updatePrinterMessage(
+                                            "ส่งงานพิมพ์ไม่สำเร็จ " +
+                                            "โปรดตรวจสอบระบบพิมพ์",
+                                            RED
                                     );
+
+                                    Toast.makeText(
+                                            BarcodeScreen.this,
+                                            "ส่งงานพิมพ์ไม่สำเร็จ",
+                                            Toast.LENGTH_LONG
+                                    ).show();
+
+                                    return;
                                 }
 
-                            } catch (Exception e) {
+                                updatePrinterMessage(
+                                        "ส่งคำขอพิมพ์ฉลากแล้ว\n" +
+                                        "สถานะงาน: " +
+                                        PrinterManager.getJobStatusText(job) +
+                                        "\nยังไม่ยืนยันว่าพิมพ์ออกจริง",
+                                        GREEN
+                                );
+
                                 Toast.makeText(
                                         BarcodeScreen.this,
-                                        "เปิดหน้าพิมพ์ไม่สำเร็จ",
+                                        "ส่งคำขอพิมพ์แล้ว " +
+                                        "ตรวจสอบสถานะในหน้าจัดการเครื่องพิมพ์",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                            } catch (Exception e) {
+                                updatePrinterMessage(
+                                        "เกิดข้อผิดพลาดขณะส่งงานพิมพ์",
+                                        RED
+                                );
+
+                                Toast.makeText(
+                                        BarcodeScreen.this,
+                                        "เปิดหรือส่งงานพิมพ์ไม่สำเร็จ",
                                         Toast.LENGTH_LONG
                                 ).show();
                             }
@@ -749,6 +847,16 @@ public class BarcodeScreen extends BaseScreen {
                 "UTF-8",
                 null
         );
+    }
+
+    private void updatePrinterMessage(
+            String message,
+            int color
+    ) {
+        if (printerInfo != null) {
+            printerInfo.setText(message);
+            printerInfo.setTextColor(color);
+        }
     }
 
     private String escapeHtml(String value) {
@@ -983,7 +1091,7 @@ public class BarcodeScreen extends BaseScreen {
     }
 
     // =========================================================
-    // ปิดฐานข้อมูล
+    // ปิดฐานข้อมูลและ WebView
     // =========================================================
 
     @Override
@@ -991,7 +1099,16 @@ public class BarcodeScreen extends BaseScreen {
         if (activePrintWebView != null) {
             try {
                 activePrintWebView.stopLoading();
+
+                ViewGroup parent =
+                        (ViewGroup) activePrintWebView.getParent();
+
+                if (parent != null) {
+                    parent.removeView(activePrintWebView);
+                }
+
                 activePrintWebView.destroy();
+
             } catch (Exception ignored) {
             }
 
