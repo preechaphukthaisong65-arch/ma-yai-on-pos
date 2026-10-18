@@ -1,6 +1,5 @@
 package com.example.newapp;
 
-import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
@@ -13,7 +12,6 @@ import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintDocumentInfo;
 import android.print.PrintJob;
-import android.print.PrintManager;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -32,8 +30,6 @@ public class PrinterScreen extends BaseScreen {
     private TextView printerInfo;
     private TextView jobStatus;
 
-    private PrintManager printManager;
-
     private final int BLUE = 0xFF2563EB;
     private final int DARK = 0xFF182230;
     private final int BACKGROUND = 0xFFF4F7FB;
@@ -46,10 +42,6 @@ public class PrinterScreen extends BaseScreen {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        printManager = (PrintManager) getSystemService(
-                Context.PRINT_SERVICE
-        );
-
         buildScreen();
         refreshPrintStatus();
     }
@@ -57,10 +49,7 @@ public class PrinterScreen extends BaseScreen {
     @Override
     protected void onResume() {
         super.onResume();
-
-        if (printManager != null) {
-            refreshPrintStatus();
-        }
+        refreshPrintStatus();
     }
 
     private void buildScreen() {
@@ -326,7 +315,7 @@ public class PrinterScreen extends BaseScreen {
     }
 
     private void openPrintDialog() {
-        if (printManager == null) {
+        if (!PrinterManager.isAvailable(this)) {
             Toast.makeText(
                     this,
                     "ไม่พบระบบพิมพ์ของ Android",
@@ -354,15 +343,31 @@ public class PrinterScreen extends BaseScreen {
                             )
                             .build();
 
-            printManager.print(
+            PrintJob job = PrinterManager.print(
+                    this,
                     "ทดสอบเครื่องพิมพ์ ร้านแม่ใหญ่อ่อน POS",
                     new TestPrintAdapter(),
                     attributes
             );
 
+            if (job == null) {
+                printerInfo.setText(
+                        "ไม่สามารถเริ่มงานพิมพ์ได้"
+                );
+
+                Toast.makeText(
+                        this,
+                        "เปิดระบบพิมพ์ไม่สำเร็จ",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                refreshPrintStatus();
+                return;
+            }
+
             printerInfo.setText(
-                    "เปิดหน้าต่างพิมพ์แล้ว " +
-                    "เลือกเครื่องพิมพ์ที่ระบบ Android แสดง"
+                    "ส่งคำขอเปิดหน้าต่างพิมพ์แล้ว " +
+                    "กรุณาเลือกเครื่องพิมพ์ใน Android"
             );
 
             refreshPrintStatus();
@@ -370,107 +375,78 @@ public class PrinterScreen extends BaseScreen {
         } catch (Exception e) {
             Toast.makeText(
                     this,
-                    "เปิดระบบพิมพ์ไม่สำเร็จ: " + e.getMessage(),
+                    "เปิดระบบพิมพ์ไม่สำเร็จ: "
+                            + e.getMessage(),
                     Toast.LENGTH_LONG
             ).show();
         }
     }
 
     private void refreshPrintStatus() {
-        if (printManager == null) {
-            if (connectionStatus != null) {
-                connectionStatus.setText(
-                        "ไม่พบระบบพิมพ์ของ Android"
-                );
-                connectionStatus.setTextColor(RED);
-            }
-            return;
-        }
+        PrinterManager.PrinterStatus status =
+                PrinterManager.getStatus(this);
 
         if (connectionStatus != null) {
-            connectionStatus.setText(
-                    "ระบบพิมพ์ Android พร้อมให้เรียกใช้งาน"
-            );
-            connectionStatus.setTextColor(GREEN);
+            connectionStatus.setText(status.message);
+
+            if (!status.frameworkAvailable || status.failedJobs > 0) {
+                connectionStatus.setTextColor(RED);
+            } else {
+                connectionStatus.setTextColor(GREEN);
+            }
         }
 
         if (jobStatus == null) {
             return;
         }
 
-        try {
-            List<PrintJob> jobs = printManager.getPrintJobs();
+        List<PrintJob> jobs =
+                PrinterManager.getPrintJobs(this);
 
-            if (jobs == null || jobs.isEmpty()) {
-                jobStatus.setText(
-                        "ยังไม่พบงานพิมพ์ในรายการล่าสุด"
-                );
-                return;
-            }
+        StringBuilder result = new StringBuilder();
 
-            StringBuilder result = new StringBuilder();
+        result.append("จำนวนงานพิมพ์: ")
+                .append(status.totalJobs)
+                .append("\nรอดำเนินการ: ")
+                .append(status.queuedJobs)
+                .append("\nกำลังดำเนินการ: ")
+                .append(status.startedJobs)
+                .append("\nเสร็จสิ้นตามระบบ: ")
+                .append(status.completedJobs)
+                .append("\nผิดพลาด: ")
+                .append(status.failedJobs)
+                .append("\nยกเลิก: ")
+                .append(status.canceledJobs)
+                .append("\n\n");
+
+        if (jobs.isEmpty()) {
+            result.append(
+                    "ยังไม่พบงานพิมพ์ในรายการล่าสุด"
+            );
+        } else {
             int count = Math.min(jobs.size(), 10);
 
             for (int i = 0; i < count; i++) {
                 PrintJob job = jobs.get(i);
 
-                if (job == null || job.getInfo() == null) {
+                if (job == null) {
                     continue;
                 }
 
-                String label = job.getInfo().getLabel();
-                String state = getJobState(job);
-
                 result.append("• ")
-                        .append(label)
+                        .append(PrinterManager.getJobName(job))
                         .append("\n  สถานะ: ")
-                        .append(state)
+                        .append(
+                                PrinterManager.getJobStatusText(job)
+                        )
                         .append("\n\n");
             }
-
-            if (result.length() == 0) {
-                jobStatus.setText(
-                        "ไม่มีข้อมูลงานพิมพ์ที่แสดงได้"
-                );
-            } else {
-                jobStatus.setText(result.toString());
-            }
-
-        } catch (Exception e) {
-            jobStatus.setText(
-                    "อ่านสถานะงานพิมพ์ไม่สำเร็จ: "
-                    + e.getMessage()
-            );
-        }
-    }
-
-    private String getJobState(PrintJob job) {
-        if (job.isCompleted()) {
-            return "เสร็จสิ้นตามสถานะของระบบ";
         }
 
-        if (job.isFailed()) {
-            return "ล้มเหลว";
-        }
-
-        if (job.isCancelled()) {
-            return "ยกเลิก";
-        }
-
-        if (job.isQueued()) {
-            return "อยู่ในคิว";
-        }
-
-        if (job.isStarted()) {
-            return "กำลังดำเนินการ";
-        }
-
-        return "กำลังตรวจสอบ";
+        jobStatus.setText(result.toString());
     }
 
     private class TestPrintAdapter extends PrintDocumentAdapter {
-
-        private PdfDocument pdfDocument;
 
         @Override
         public void onLayout(
@@ -505,6 +481,7 @@ public class PrinterScreen extends BaseScreen {
                 CancellationSignal cancellationSignal,
                 WriteResultCallback callback
         ) {
+            PdfDocument pdfDocument = null;
             FileOutputStream outputStream = null;
 
             try {
@@ -610,7 +587,6 @@ public class PrinterScreen extends BaseScreen {
 
                 if (pdfDocument != null) {
                     pdfDocument.close();
-                    pdfDocument = null;
                 }
 
                 try {
@@ -620,4 +596,4 @@ public class PrinterScreen extends BaseScreen {
             }
         }
     }
-    }
+            }
