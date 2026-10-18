@@ -1,56 +1,94 @@
 package com.example.newapp;
 
-import android.content.Context;
-import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import java.util.List;
-import java.util.ArrayList;
 
-public class StockAlertManager {
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * อ่านรายการสินค้าที่สต๊อกต่ำจากฐานข้อมูลเดิม
+ * ไม่สร้างหรือลบตาราง และไม่เปลี่ยนโครงสร้างฐานข้อมูล
+ */
+public class StockAlertRepository {
+
+    private final LocalDatabase database;
+
+    public StockAlertRepository(LocalDatabase database) {
+        if (database == null) {
+            throw new IllegalArgumentException(
+                    "ฐานข้อมูลห้ามเป็น null"
+            );
+        }
+        this.database = database;
+    }
+
+    public static class StockAlert {
+        public final long productId;
+        public final String name;
+        public final String barcode;
+        public final int quantity;
+        public final int limit;
+
+        public StockAlert(
+                long productId,
+                String name,
+                String barcode,
+                int quantity,
+                int limit
+        ) {
+            this.productId = productId;
+            this.name = name;
+            this.barcode = barcode;
+            this.quantity = quantity;
+            this.limit = limit;
+        }
+    }
 
     /**
-     * ตรวจสอบสินค้าที่เพิ่งเปลี่ยนสถานะเป็นสต๊อกต่ำ และดำเนินการบันทึกพร้อมส่งแจ้งเตือน
+     * ดึงสินค้าที่จำนวนคงเหลือน้อยกว่าหรือเท่ากับขั้นต่ำ
      */
-    public static void checkAndNotifyNewLowStock(Context context) {
-        // 1. สร้าง Repository สำหรับตรวจสอบสต๊อก
-        LocalDatabase dbHelper = LocalDatabase.getInstance(context);
-        StockAlertRepository alertRepository = new StockAlertRepository(dbHelper);
+    public List<StockAlert> detectNewLowStockEvents() {
+        List<StockAlert> alerts = new ArrayList<>();
 
-        // 2. สร้าง Repository และ Service สำหรับจัดการการแจ้งเตือน
-        NotificationRepository notificationRepo = new NotificationRepository(dbHelper);
-        AndroidNotificationService notificationService = new AndroidNotificationService(context);
+        SQLiteDatabase db = database.getReadableDatabase();
 
-        // 3. ดึงรายการสินค้าที่เพิ่งเปลี่ยนสถานะเป็นสต๊อกต่ำในรอบนี้
-        List<StockAlertRepository.StockAlert> newAlerts = alertRepository.detectNewLowStockEvents();
-
-        if (newAlerts != null && !newAlerts.isEmpty()) {
-            for (StockAlertRepository.StockAlert alert : newAlerts) {
-                
-                // กำหนด event_key ให้ไม่ซ้ำกันสำหรับแต่ละสินค้า
-                String eventKey = "low_stock_" + alert.productId;
-                
-                String title = "เตือนสินค้าใกล้หมด (Stock Low)";
-                String message = String.format(
-                        "สินค้า '%s' (Barcode: %s) คงเหลือ %.2f (ขั้นต่ำ: %.2f)",
-                        alert.name,
-                        alert.barcode,
-                        alert.quantity,
-                        alert.limit
-                );
-
-                // 4. บันทึกข้อความเตือนลงฐานข้อมูล
-                notificationRepo.saveNotification(
-                        eventKey,
-                        title,
-                        message,
-                        System.currentTimeMillis()
-                );
-
-                // 5. ส่ง Android Notification ออกไป (ใช้ productId แปลงเป็น int เพื่อให้ Notification ID ไม่ซ้ำกัน)
-                int notificationId = (int) alert.productId;
-                notificationService.showNotification(notificationId, title, message);
+        try (Cursor cursor = db.query(
+                "products",
+                new String[]{
+                        "id",
+                        "name",
+                        "barcode",
+                        "stock_qty",
+                        "min_stock"
+                },
+                "stock_qty <= min_stock",
+                null,
+                null,
+                null,
+                "stock_qty ASC, name COLLATE NOCASE ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                alerts.add(new StockAlert(
+                        cursor.getLong(
+                                cursor.getColumnIndexOrThrow("id")
+                        ),
+                        cursor.getString(
+                                cursor.getColumnIndexOrThrow("name")
+                        ),
+                        cursor.getString(
+                                cursor.getColumnIndexOrThrow("barcode")
+                        ),
+                        cursor.getInt(
+                                cursor.getColumnIndexOrThrow("stock_qty")
+                        ),
+                        cursor.getInt(
+                                cursor.getColumnIndexOrThrow("min_stock")
+                        )
+                ));
             }
         }
+
+        return alerts;
     }
 }
