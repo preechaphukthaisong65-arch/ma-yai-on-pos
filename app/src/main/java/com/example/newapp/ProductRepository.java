@@ -25,6 +25,8 @@ public class ProductRepository {
         public int minStock;
         public String barcode;
         public String unit;
+        public boolean archived = false; // ป้องกัน error ตัวแปร archived
+        public byte[] imageData = null;  // ป้องกัน error ตัวแปร imageData
 
         public Product(long id, String name, double price, int cost, int stock, int minStock, String barcode, String unit) {
             this.id = id;
@@ -37,7 +39,6 @@ public class ProductRepository {
             this.unit = unit;
         }
 
-        // เมธอดเช็กว่าสินค้าใกล้หมดหรือไม่ (สต็อกน้อยกว่าหรือเท่ากับ minStock)
         public boolean isLowStock() {
             return this.stock <= this.minStock;
         }
@@ -101,12 +102,52 @@ public class ProductRepository {
         return list;
     }
 
-    // เมธอดดึงสินค้าทั้งหมด (alias สำหรับ getActiveProducts)
-    public List<Product> getActiveProducts() {
-        return getAllProducts();
+    // รองรับ ArrayList<Product> ตามที่ StockScreen เรียกใช้งาน
+    public ArrayList<Product> getActiveProducts() {
+        return new ArrayList<>(getAllProducts());
     }
 
-    // ค้นหาสินค้าด้วยบาร์โค้ด
+    // ดึงรายการสินค้าที่สต็อกต่ำ
+    public List<Product> getLowStockProducts() {
+        List<Product> lowStockList = new ArrayList<>();
+        for (Product p : getAllProducts()) {
+            if (p.isLowStock()) {
+                lowStockList.add(p);
+            }
+        }
+        return lowStockList;
+    }
+
+    // ค้นหาด้วย ID
+    public Product getById(long id) {
+        SQLiteDatabase db = helper.getReadableDatabase();
+        Cursor cursor = null;
+        Product product = null;
+
+        try {
+            cursor = db.rawQuery("SELECT id, name, price, cost, stock, min_stock, barcode, unit FROM products WHERE id = ? LIMIT 1", new String[]{String.valueOf(id)});
+            if (cursor != null && cursor.moveToFirst()) {
+                long prodId = cursor.getLong(0);
+                String name = cursor.getString(1);
+                double price = cursor.getDouble(2);
+                int cost = cursor.getInt(3);
+                int stock = cursor.getInt(4);
+                int minStock = cursor.getInt(5);
+                String bc = cursor.getString(6);
+                String unit = cursor.getString(7);
+                product = new Product(prodId, name, price, cost, stock, minStock, bc, unit);
+            }
+        } catch (Exception e) {
+            // Log error
+        } finally {
+            if (cursor != null) cursor.close();
+            db.close();
+        }
+
+        return product;
+    }
+
+    // ค้นหาด้วย Barcode
     public Product getByBarcode(String barcode) {
         SQLiteDatabase db = helper.getReadableDatabase();
         Cursor cursor = null;
@@ -135,8 +176,12 @@ public class ProductRepository {
         return product;
     }
 
-    // ปรับปรุงจำนวนสต็อกสินค้า
+    // ปรับปรุงสต็อก (รองรับทั้งแบบ 3 และ 4 พารามิเตอร์)
     public boolean adjustStock(long productId, int quantityChange, String reason) {
+        return adjustStock(productId, quantityChange, reason, null);
+    }
+
+    public boolean adjustStock(long productId, int quantityChange, String reason, String referenceId) {
         SQLiteDatabase db = helper.getWritableDatabase();
         boolean success = false;
 
@@ -146,7 +191,7 @@ public class ProductRepository {
             if (cursor != null && cursor.moveToFirst()) {
                 int currentStock = cursor.getInt(0);
                 int newStock = currentStock + quantityChange;
-                if (newStock < 0) newStock = 0; // ป้องกันสต็อกติดลบ
+                if (newStock < 0) newStock = 0;
 
                 ContentValues values = new ContentValues();
                 values.put("stock", newStock);
