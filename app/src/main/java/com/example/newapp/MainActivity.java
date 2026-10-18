@@ -3,14 +3,14 @@ package com.example.newapp;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
@@ -25,82 +25,183 @@ public class MainActivity extends Activity {
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.rgb(245, 247, 251));
+        scroll.setBackgroundColor(Color.WHITE);
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(20), dp(28), dp(20), dp(24));
+        page.setPadding(dp(12), dp(8), dp(12), dp(16));
+
+        int backgroundId = getResources().getIdentifier(
+                "app_background", "drawable", getPackageName());
+
+        if (backgroundId != 0) {
+            page.setBackgroundResource(backgroundId);
+        }
+
+        // โลโก้ร้าน
+        int logoId = getResources().getIdentifier(
+                "logomain", "drawable", getPackageName());
+
+        if (logoId != 0) {
+            ImageView logo = new ImageView(this);
+            logo.setImageResource(logoId);
+            logo.setAdjustViewBounds(true);
+            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+            LinearLayout.LayoutParams logoParams =
+                    new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT);
+
+            logoParams.bottomMargin = dp(6);
+            page.addView(logo, logoParams);
+        } else {
+            TextView title = new TextView(this);
+            title.setText("ร้านแม่ใหญ่อ่อน POS");
+            title.setTextSize(25);
+            title.setTextColor(Color.rgb(45, 90, 55));
+            title.setGravity(Gravity.CENTER);
+            page.addView(title);
+        }
+
+        // แถบข้อความ
+        TextView ticker = new TextView(this);
+        ticker.setText(
+                "ยินดีต้อนรับสู่ร้านแม่ใหญ่อ่อน POS"
+                        + "     •     ระบบขายสินค้าและจัดการร้านค้า");
+        ticker.setTextSize(14);
+        ticker.setTextColor(Color.rgb(45, 90, 55));
+        ticker.setSingleLine(true);
+        ticker.setEllipsize(
+                android.text.TextUtils.TruncateAt.MARQUEE);
+        ticker.setMarqueeRepeatLimit(-1);
+        ticker.setSelected(true);
+        ticker.setPadding(dp(4), dp(8), dp(4), dp(8));
+
+        page.addView(ticker);
+
+        // แถวเมนู 3 แถว แถวละ 2 เมนู
+        LinearLayout row1 = makeRow();
+        LinearLayout row2 = makeRow();
+        LinearLayout row3 = makeRow();
+
+        addImageMenu(
+                row1, "menu_sell",
+                "ขายสินค้า", SellScreen.class);
+
+        addImageMenu(
+                row1, "menu_stock",
+                "คลังสินค้า", StockScreen.class);
+
+        addImageMenu(
+                row2, "menu_history",
+                "ประวัติการขาย", null);
+
+        addImageMenu(
+                row2, "menu_manage",
+                "จัดการร้านค้า", null);
+
+        addImageMenu(
+                row3, "menu_barcode",
+                "สร้างบาร์โค้ด", BarcodeScreen.class);
+
+        addImageMenu(
+                row3, "menu_report",
+                "รายงานยอดขาย", ReportScreen.class);
+
+        page.addView(row1);
+        addSpace(page, 8);
+
+        page.addView(row2);
+        addSpace(page, 8);
+
+        page.addView(row3);
+
         scroll.addView(page);
-
-        TextView title = new TextView(this);
-        title.setText("ร้านแม่ใหญ่อ่อน POS");
-        title.setTextSize(27);
-        title.setTextColor(Color.rgb(31, 41, 55));
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setGravity(Gravity.CENTER);
-        page.addView(title);
-
-        TextView subtitle = new TextView(this);
-        subtitle.setText("ระบบขายสินค้าและจัดการร้านค้า");
-        subtitle.setTextSize(15);
-        subtitle.setTextColor(Color.rgb(107, 114, 128));
-        subtitle.setGravity(Gravity.CENTER);
-
-        LinearLayout.LayoutParams subParams =
-                new LinearLayout.LayoutParams(
-                        -1, -2);
-        subParams.topMargin = dp(8);
-        page.addView(subtitle, subParams);
-
-        addSpace(page, 28);
-
-        addMenu(page, "🛒  ขายสินค้า",
-                Color.rgb(16, 145, 95), SellScreen.class);
-
-        addSpace(page, 12);
-
-        addMenu(page, "📦  คลังสินค้า",
-                Color.rgb(37, 99, 235), StockScreen.class);
-
-        addSpace(page, 12);
-
-        addMenu(page, "🏷️  สร้างบาร์โค้ด",
-                Color.rgb(124, 58, 237), BarcodeScreen.class);
-
-        addSpace(page, 12);
-
-        addMenu(page, "📊  รายงานยอดขาย",
-                Color.rgb(217, 119, 6), ReportScreen.class);
-
         setContentView(scroll);
     }
 
-    private void addMenu(LinearLayout parent,
-                         String label, int color,
-                         Class<?> target) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setTextColor(Color.WHITE);
-        button.setTextSize(17);
-        button.setAllCaps(false);
-        button.setGravity(Gravity.CENTER);
-        button.setMinHeight(dp(58));
-        button.setBackgroundTintList(
-                android.content.res.ColorStateList
-                        .valueOf(color));
-
-        button.setOnClickListener(v ->
-                startActivity(new Intent(this, target)));
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(-1, dp(62));
-
-        parent.addView(button, params);
+    private LinearLayout makeRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        return row;
     }
 
-    private void addSpace(LinearLayout parent, int height) {
+    private void addImageMenu(
+            LinearLayout row,
+            String imageName,
+            String label,
+            Class<?> target) {
+
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(3), dp(3), dp(3), dp(3));
+
+        // รูปเมนู
+        ImageView image = new ImageView(this);
+
+        int imageId = getResources().getIdentifier(
+                imageName, "drawable", getPackageName());
+
+        if (imageId != 0) {
+            image.setImageResource(imageId);
+        }
+
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setAdjustViewBounds(true);
+
+        tile.addView(
+                image,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(145)));
+
+        // ชื่อเมนู
+        TextView caption = new TextView(this);
+        caption.setText(label);
+        caption.setTextColor(Color.rgb(35, 45, 55));
+        caption.setTextSize(14);
+        caption.setGravity(Gravity.CENTER);
+        caption.setMaxLines(2);
+
+        tile.addView(
+                caption,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        // การกดเมนู
+        tile.setOnClickListener(v -> {
+            if (target != null) {
+                startActivity(
+                        new Intent(MainActivity.this, target));
+            } else {
+                Toast.makeText(
+                        MainActivity.this,
+                        "เมนูนี้แสดงแล้ว แต่ยังต้องเชื่อมหน้าระบบก่อน",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+
+        row.addView(
+                tile,
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f));
+    }
+
+    private void addSpace(
+            LinearLayout parent, int height) {
+
         View space = new View(this);
-        parent.addView(space,
-                new LinearLayout.LayoutParams(1, dp(height)));
+
+        parent.addView(
+                space,
+                new LinearLayout.LayoutParams(
+                        1, dp(height)));
     }
 }
