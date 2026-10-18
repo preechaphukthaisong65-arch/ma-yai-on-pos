@@ -1,9 +1,11 @@
-
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- สิทธิ์การแจ้งเตือน -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- สิทธิ์ Bluetooth สำหรับค้นหาและเชื่อมต่อเครื่องพิมพ์ -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -65,6 +67,7 @@
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- ประวัติการชำระเงินของลูกค้า -->
         <activity
             android:name=".CreditPaymentHistoryScreen"
             android:screenOrientation="portrait"
