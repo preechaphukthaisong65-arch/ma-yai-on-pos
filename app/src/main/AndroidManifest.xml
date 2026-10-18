@@ -18,6 +18,7 @@
         android:theme="@style/Theme.StockProPOS"
         tools:targetApi="31">
 
+        <!-- หน้าหลัก -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -27,6 +28,28 @@
             </intent-filter>
         </activity>
 
+        <!-- เมนูหลัก -->
+        <activity
+            android:name=".SellScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".StockScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".BarcodeScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".ReportScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <!-- ระบบบัญชีลูกค้าเดิม -->
         <activity
             android:name=".CreditAccountScreen"
             android:screenOrientation="portrait"
