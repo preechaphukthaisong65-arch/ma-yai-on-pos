@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.content.ContentValues;
@@ -10,13 +9,15 @@ public class NotificationRepository {
     private final LocalDatabase database;
 
     public NotificationRepository(LocalDatabase database) {
+        if (database == null) {
+            throw new IllegalArgumentException(
+                    "ฐานข้อมูลห้ามเป็น null"
+            );
+        }
         this.database = database;
     }
 
-    public boolean addMessage(
-            String eventKey,
-            String message
-    ) {
+    public boolean addMessage(String eventKey, String message) {
         if (eventKey == null || eventKey.trim().isEmpty()
                 || message == null || message.trim().isEmpty()) {
             return false;
@@ -25,18 +26,12 @@ public class NotificationRepository {
         SQLiteDatabase db = database.getWritableDatabase();
 
         ContentValues values = new ContentValues();
-        values.put("event_key", eventKey.trim());
+        values.put("event_type", eventKey.trim());
         values.put("message", message.trim());
         values.put("created_at", LocalDatabase.now());
         values.put("is_read", 0);
 
-        long id = db.insertWithOnConflict(
-                "notification_messages",
-                null,
-                values,
-                SQLiteDatabase.CONFLICT_IGNORE
-        );
-
+        long id = db.insert("notification_messages", null, values);
         return id != -1;
     }
 
@@ -45,9 +40,9 @@ public class NotificationRepository {
         int safeLimit = Math.max(1, Math.min(limit, 500));
 
         return db.rawQuery(
-                "SELECT _id, event_key, message, created_at, is_read " +
+                "SELECT id, event_type, message, created_at, is_read " +
                 "FROM notification_messages " +
-                "ORDER BY created_at DESC LIMIT " + safeLimit,
+                "ORDER BY id DESC LIMIT " + safeLimit,
                 null
         );
     }
@@ -56,8 +51,10 @@ public class NotificationRepository {
         SQLiteDatabase db = database.getReadableDatabase();
 
         try (Cursor cursor = db.rawQuery(
-                "SELECT COUNT(*) FROM notification_messages WHERE is_read = 0",
-                null)) {
+                "SELECT COUNT(*) FROM notification_messages " +
+                "WHERE is_read = 0",
+                null
+        )) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
     }
@@ -71,7 +68,7 @@ public class NotificationRepository {
         return db.update(
                 "notification_messages",
                 values,
-                "_id = ?",
+                "id = ?",
                 new String[]{String.valueOf(notificationId)}
         ) > 0;
     }
