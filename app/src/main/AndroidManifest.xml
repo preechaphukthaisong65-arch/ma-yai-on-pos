@@ -54,6 +54,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".StockLimitScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".BarcodeScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
