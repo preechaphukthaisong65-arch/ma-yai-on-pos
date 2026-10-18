@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- สิทธิ์กล้องสำหรับสแกนบาร์โค้ด -->
+    <!-- สิทธิ์ใช้งานกล้องสำหรับสแกนบาร์โค้ด -->
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
@@ -12,36 +12,49 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
+        <!-- หน้ารายงานยอดขาย -->
         <activity
             android:name=".ReportScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าจัดการลูกค้า -->
         <activity
             android:name=".ManageScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าประวัติการขาย -->
         <activity
             android:name=".HistoryScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าสร้างและแสดงบาร์โค้ด -->
         <activity
             android:name=".BarcodeScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าคลังสินค้า -->
         <activity
             android:name=".StockScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าขายสินค้า -->
         <activity
             android:name=".SellScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <!-- หน้าระบบเครื่องพิมพ์ -->
+        <activity
+            android:name=".PrinterScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <!-- หน้าหลักของแอป -->
         <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"
