@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
@@ -131,7 +132,6 @@ public class BarcodeScreen extends BaseScreen {
             );
         }
 
-        // หัวข้อ
         page.addView(text(
                 "บาร์โค้ดสินค้า",
                 25,
@@ -148,12 +148,10 @@ public class BarcodeScreen extends BaseScreen {
 
         addSpace(page, 14);
 
-        // แผงเครื่องพิมพ์
         addPrinterCard(page);
 
         addSpace(page, 14);
 
-        // สรุปจำนวนสินค้า
         summaryText = text(
                 "กำลังโหลดสินค้า...",
                 15,
@@ -165,7 +163,6 @@ public class BarcodeScreen extends BaseScreen {
 
         addSpace(page, 10);
 
-        // ช่องค้นหา
         searchInput = new EditText(this);
         searchInput.setSingleLine(true);
         searchInput.setTextSize(16);
@@ -190,7 +187,6 @@ public class BarcodeScreen extends BaseScreen {
 
         addSpace(page, 12);
 
-        // รายการสินค้า
         productList = new LinearLayout(this);
         productList.setOrientation(LinearLayout.VERTICAL);
 
@@ -589,7 +585,7 @@ public class BarcodeScreen extends BaseScreen {
                 .create();
 
         dialog.setOnDismissListener(d -> {
-            // ไม่รีไซเคิล Bitmap ตรงนี้ เพราะอาจถูกส่งไปพิมพ์ต่อ
+            // เก็บ Bitmap ไว้ เผื่อระบบพิมพ์กำลังใช้งาน
         });
 
         dialog.show();
@@ -689,7 +685,6 @@ public class BarcodeScreen extends BaseScreen {
             return;
         }
 
-        // เก็บ WebView ไว้ระหว่างโหลดและส่งงานพิมพ์
         WebView printWebView = new WebView(this);
         activePrintWebView = printWebView;
 
@@ -845,7 +840,7 @@ public class BarcodeScreen extends BaseScreen {
 
         ArrayList<Integer> codes = new ArrayList<>();
 
-        codes.add(104); // Start Code B
+        codes.add(104);
 
         int checksum = 104;
 
@@ -863,7 +858,7 @@ public class BarcodeScreen extends BaseScreen {
         }
 
         codes.add(checksum % 103);
-        codes.add(106); // Stop
+        codes.add(106);
 
         int[] result = new int[codes.size()];
 
