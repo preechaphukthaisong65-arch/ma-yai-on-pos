@@ -1,71 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- สิทธิ์ใช้งานกล้องสำหรับสแกนบาร์โค้ด -->
-    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Permissions สำหรับบลูทูธและการแจ้งเตือน -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
         android:allowBackup="true"
-        android:label="ร้านแม่ใหญ่อ่อน POS"
-        android:icon="@mipmap/app_icon"
-        android:roundIcon="@mipmap/app_icon"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_full_rules"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.StockProPOS"
+        tools:targetApi="31">
 
-        <!-- หน้ารายงานยอดขาย -->
+        <!-- หน้าจอหลักหรือ Activity อื่นๆ (ตัวอย่าง) -->
+        <!-- <activity android:name=".MainActivity" ... /> -->
+
+        <!-- หน้าจอจัดการบัญชีเครดิต (ล็อกแนวตั้ง) -->
         <activity
-            android:name=".ReportScreen"
+            android:name=".CreditAccountScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- หน้าจัดการลูกค้า -->
+        <!-- หน้าจอประวัติการชำระเงินเครดิต (ล็อกแนวตั้ง) -->
         <activity
-            android:name=".ManageScreen"
+            android:name=".CreditPaymentHistoryScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
-
-        <!-- หน้าประวัติการขาย -->
-        <activity
-            android:name=".HistoryScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <!-- หน้าสร้างและแสดงบาร์โค้ด -->
-        <activity
-            android:name=".BarcodeScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <!-- หน้าคลังสินค้า -->
-        <activity
-            android:name=".StockScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <!-- หน้าขายสินค้า -->
-        <activity
-            android:name=".SellScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <!-- หน้าระบบเครื่องพิมพ์ -->
-        <activity
-            android:name=".PrinterScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <!-- หน้าหลักของแอป -->
-        <activity
-            android:name=".MainActivity"
-            android:screenOrientation="portrait"
-            android:exported="true">
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-        </activity>
 
     </application>
 
