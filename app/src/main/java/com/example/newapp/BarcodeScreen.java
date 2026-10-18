@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.app.Activity;
@@ -6,7 +5,6 @@ import android.os.Bundle;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -32,7 +30,9 @@ public class BarcodeScreen extends Activity {
         super.onCreate(savedInstanceState);
 
         database = LocalDatabase.getInstance(this);
-        productRepository = new ProductRepository(database);
+
+        // ProductRepository ต้องรับ Context ไม่ใช่ LocalDatabase
+        productRepository = new ProductRepository(this);
 
         buildScreen();
     }
@@ -79,6 +79,7 @@ public class BarcodeScreen extends Activity {
         barcodeImage = new ImageView(this);
         barcodeImage.setAdjustViewBounds(true);
         barcodeImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
         root.addView(
                 barcodeImage,
                 new LinearLayout.LayoutParams(
@@ -129,31 +130,44 @@ public class BarcodeScreen extends Activity {
             return;
         }
 
-        // จองเลขจากฐานข้อมูลกลางก่อนบันทึกสินค้า
-        String barcode = database.reserveNextBarcode();
+        final String barcode;
 
-        if (barcode == null || barcode.trim().isEmpty()) {
+        try {
+            barcode = database.reserveNextBarcode();
+
+            if (barcode == null || barcode.trim().isEmpty()) {
+                Toast.makeText(
+                        this,
+                        "จองหมายเลขบาร์โค้ดไม่สำเร็จ",
+                        Toast.LENGTH_LONG
+                ).show();
+                return;
+            }
+
+            // createProduct คืนค่า long ซึ่งเป็น ID ของสินค้า
+            long createdId = productRepository.createProduct(
+                    barcode,
+                    name,
+                    price,
+                    0.0,
+                    "ชิ้น",
+                    0
+            );
+
+            if (createdId <= 0) {
+                Toast.makeText(
+                        this,
+                        "บันทึกสินค้าไม่สำเร็จ",
+                        Toast.LENGTH_LONG
+                ).show();
+                return;
+            }
+
+        } catch (IllegalArgumentException
+                 | IllegalStateException e) {
             Toast.makeText(
                     this,
-                    "จองหมายเลขบาร์โค้ดไม่สำเร็จ",
-                    Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-
-        boolean created = productRepository.createProduct(
-                barcode,
-                name,
-                price,
-                0.0,
-                "ชิ้น",
-                0
-        );
-
-        if (!created) {
-            Toast.makeText(
-                    this,
-                    "บันทึกสินค้าไม่สำเร็จ กรุณาตรวจสอบบาร์โค้ดซ้ำ",
+                    "สร้างสินค้าไม่สำเร็จ: " + e.getMessage(),
                     Toast.LENGTH_LONG
             ).show();
             return;
@@ -173,6 +187,12 @@ public class BarcodeScreen extends Activity {
             );
 
             barcodeImage.setImageBitmap(bitmap);
+
+            Toast.makeText(
+                    this,
+                    "บันทึกสินค้าและสร้างบาร์โค้ดสำเร็จ",
+                    Toast.LENGTH_SHORT
+            ).show();
 
         } catch (WriterException | IllegalArgumentException e) {
             barcodeText.setText(
