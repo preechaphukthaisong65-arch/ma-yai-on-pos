@@ -1,17 +1,14 @@
-
 package com.example.newapp;
 
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.bluetooth.BluetoothAdapter;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -24,7 +21,6 @@ import android.widget.Toast;
 
 import com.google.zxing.WriterException;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +40,8 @@ public class BarcodeScreen extends Activity {
     private TextView printerStatus;
     private TextView barcodeInfo;
     private ImageView barcodeImage;
+
+    private Button createButton;
     private Button connectButton;
     private Button printButton;
 
@@ -53,6 +51,8 @@ public class BarcodeScreen extends Activity {
     private ArrayAdapter<PrinterService.PrinterDevice> printerAdapter;
     private ProductRepository.Product currentProduct;
     private Bitmap currentBitmap;
+
+    private boolean creatingBarcode = false;
     private boolean connecting = false;
     private boolean printing = false;
 
@@ -73,6 +73,7 @@ public class BarcodeScreen extends Activity {
         int pad = dp(16);
 
         ScrollView scrollView = new ScrollView(this);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, pad, pad, pad);
@@ -94,11 +95,13 @@ public class BarcodeScreen extends Activity {
         subtitle.setTextSize(14);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setTextColor(0xFF586174);
+
         LinearLayout.LayoutParams subtitleParams = matchWrap();
         subtitleParams.bottomMargin = dp(16);
         root.addView(subtitle, subtitleParams);
 
         addLabel(root, "ชื่อสินค้า");
+
         nameInput = new EditText(this);
         nameInput.setSingleLine(true);
         nameInput.setHint("กรอกชื่อสินค้า");
@@ -109,6 +112,7 @@ public class BarcodeScreen extends Activity {
         root.addView(nameInput, matchWrap());
 
         addLabel(root, "ราคาขาย (บาท)");
+
         priceInput = new EditText(this);
         priceInput.setSingleLine(true);
         priceInput.setHint("เช่น 25 หรือ 25.50");
@@ -119,10 +123,12 @@ public class BarcodeScreen extends Activity {
         );
         root.addView(priceInput, matchWrap());
 
-        Button createButton = new Button(this);
+        createButton = new Button(this);
         createButton.setText("สร้างและบันทึกบาร์โค้ด");
+
         LinearLayout.LayoutParams createParams = matchWrap();
         createParams.topMargin = dp(12);
+
         root.addView(createButton, createParams);
         createButton.setOnClickListener(v -> createBarcode());
 
@@ -131,18 +137,22 @@ public class BarcodeScreen extends Activity {
         barcodeInfo.setTextSize(16);
         barcodeInfo.setTextColor(0xFF172033);
         barcodeInfo.setGravity(Gravity.CENTER);
+
         LinearLayout.LayoutParams infoParams = matchWrap();
         infoParams.topMargin = dp(12);
+
         root.addView(barcodeInfo, infoParams);
 
         barcodeImage = new ImageView(this);
         barcodeImage.setAdjustViewBounds(true);
         barcodeImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         barcodeImage.setBackgroundColor(0xFFFFFFFF);
+
         LinearLayout.LayoutParams imageParams = matchWrap();
         imageParams.height = dp(145);
         imageParams.topMargin = dp(8);
         imageParams.bottomMargin = dp(12);
+
         root.addView(barcodeImage, imageParams);
 
         addSectionTitle(root, "เครื่องพิมพ์บาร์โค้ด");
@@ -153,17 +163,22 @@ public class BarcodeScreen extends Activity {
         root.addView(printerStatus, matchWrap());
 
         printerSpinner = new Spinner(this);
+
         printerAdapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 printerDevices
         );
+
         printerAdapter.setDropDownViewResource(
                 android.R.layout.simple_spinner_dropdown_item
         );
+
         printerSpinner.setAdapter(printerAdapter);
+
         LinearLayout.LayoutParams spinnerParams = matchWrap();
         spinnerParams.topMargin = dp(8);
+
         root.addView(printerSpinner, spinnerParams);
 
         Button refreshButton = new Button(this);
@@ -183,8 +198,10 @@ public class BarcodeScreen extends Activity {
         quantityInput.setInputType(
                 android.text.InputType.TYPE_CLASS_NUMBER
         );
+
         LinearLayout.LayoutParams quantityParams = matchWrap();
         quantityParams.topMargin = dp(8);
+
         root.addView(quantityInput, quantityParams);
 
         printButton = new Button(this);
@@ -193,10 +210,15 @@ public class BarcodeScreen extends Activity {
         printButton.setOnClickListener(v -> printCurrentBarcode());
 
         Button libraryButton = new Button(this);
-        libraryButton.setText("เปิดคลังบาร์โค้ด / ค้นหา / พิมพ์ซ้ำ");
+        libraryButton.setText(
+                "เปิดคลังบาร์โค้ด / ค้นหา / พิมพ์ซ้ำ"
+        );
+
         LinearLayout.LayoutParams libraryParams = matchWrap();
         libraryParams.topMargin = dp(8);
+
         root.addView(libraryButton, libraryParams);
+
         libraryButton.setOnClickListener(v -> {
             startActivity(new Intent(
                     BarcodeScreen.this,
@@ -211,6 +233,10 @@ public class BarcodeScreen extends Activity {
     }
 
     private void createBarcode() {
+        if (creatingBarcode) {
+            return;
+        }
+
         String name = nameInput.getText().toString().trim();
         String priceText = priceInput.getText().toString().trim();
 
@@ -227,31 +253,51 @@ public class BarcodeScreen extends Activity {
         }
 
         final double price;
+
         try {
             price = Double.parseDouble(priceText);
+
             if (Double.isNaN(price)
                     || Double.isInfinite(price)
                     || price < 0) {
-                priceInput.setError("ราคาต้องเป็นเลขตั้งแต่ 0 ขึ้นไป");
+                priceInput.setError(
+                        "ราคาต้องเป็นเลขตั้งแต่ 0 ขึ้นไป"
+                );
                 return;
             }
+
         } catch (NumberFormatException e) {
             priceInput.setError("กรุณากรอกราคาให้ถูกต้อง");
             return;
         }
 
+        creatingBarcode = true;
+        createButton.setEnabled(false);
+
+        ProductRepository.Product createdProduct = null;
+
         try {
             // บันทึกสินค้าและจองเลขบาร์โค้ดใน transaction เดียว
-            ProductRepository.Product product =
-                    barcodeRepository.createProduct(name, price);
+            createdProduct = barcodeRepository.createProduct(
+                    name,
+                    price
+            );
+
+            /*
+             * สินค้าถูกบันทึกแล้ว
+             * ล้างช่องกรอกทันทีเพื่อป้องกันการกดซ้ำ
+             * แล้วค่อยสร้างภาพบาร์โค้ด
+             */
+            nameInput.setText("");
+            priceInput.setText("");
 
             Bitmap newBitmap = BarcodeGenerator.createCode128Bitmap(
-                    product.barcode,
+                    createdProduct.barcode,
                     700,
                     200
             );
 
-            showProduct(product, newBitmap);
+            showProduct(createdProduct, newBitmap);
 
             Toast.makeText(
                     this,
@@ -260,10 +306,44 @@ public class BarcodeScreen extends Activity {
             ).show();
 
         } catch (WriterException e) {
-            showError("สร้างภาพบาร์โค้ดไม่สำเร็จ: " + e.getMessage());
+            if (createdProduct != null) {
+                showProduct(createdProduct, null);
+
+                showError(
+                        "บันทึกสินค้าและเลขบาร์โค้ดแล้ว "
+                                + "แต่สร้างภาพบาร์โค้ดไม่สำเร็จ: "
+                                + safeMessage(e)
+                                + "\nค้นหาสินค้านี้ได้จากคลังบาร์โค้ด"
+                );
+            } else {
+                showError(
+                        "สร้างภาพบาร์โค้ดไม่สำเร็จ: "
+                                + safeMessage(e)
+                );
+            }
+
         } catch (Exception e) {
-            showError("บันทึกหรือสร้างบาร์โค้ดไม่สำเร็จ: "
-                    + safeMessage(e));
+            if (createdProduct != null) {
+                showProduct(createdProduct, null);
+
+                showError(
+                        "บันทึกสินค้าแล้ว แต่มีปัญหาระหว่างสร้างภาพ: "
+                                + safeMessage(e)
+                                + "\nค้นหาสินค้านี้ได้จากคลังบาร์โค้ด"
+                );
+            } else {
+                showError(
+                        "บันทึกหรือสร้างบาร์โค้ดไม่สำเร็จ: "
+                                + safeMessage(e)
+                );
+            }
+
+        } finally {
+            creatingBarcode = false;
+
+            if (createButton != null) {
+                createButton.setEnabled(true);
+            }
         }
     }
 
@@ -271,7 +351,9 @@ public class BarcodeScreen extends Activity {
             ProductRepository.Product product,
             Bitmap bitmap
     ) {
-        if (currentBitmap != null && currentBitmap != bitmap) {
+        if (currentBitmap != null
+                && currentBitmap != bitmap
+                && !currentBitmap.isRecycled()) {
             currentBitmap.recycle();
         }
 
@@ -281,13 +363,19 @@ public class BarcodeScreen extends Activity {
         barcodeInfo.setText(
                 "ชื่อสินค้า: " + product.name
                         + "\nราคา: " + String.format(
-                                Locale.US, "%.2f", product.price
+                                Locale.US,
+                                "%.2f",
+                                product.price
                         ) + " บาท"
                         + "\nบาร์โค้ด: " + product.barcode
                         + "\nมาตรฐาน: Code 128"
         );
 
-        barcodeImage.setImageBitmap(currentBitmap);
+        if (bitmap != null && !bitmap.isRecycled()) {
+            barcodeImage.setImageBitmap(bitmap);
+        } else {
+            barcodeImage.setImageDrawable(null);
+        }
     }
 
     private void refreshPrinters() {
@@ -301,6 +389,7 @@ public class BarcodeScreen extends Activity {
                     printerService.getPairedPrinters();
 
             printerDevices.clear();
+
             if (found != null) {
                 printerDevices.addAll(found);
             }
@@ -315,15 +404,20 @@ public class BarcodeScreen extends Activity {
                 Toast.makeText(
                         this,
                         "ยังไม่พบเครื่องพิมพ์ที่จับคู่ไว้ "
-                                + "กรุณาจับคู่เครื่องพิมพ์ใน Bluetooth ของโทรศัพท์ก่อน",
+                                + "กรุณาจับคู่เครื่องพิมพ์ใน Bluetooth "
+                                + "ของโทรศัพท์ก่อน",
                         Toast.LENGTH_LONG
                 ).show();
             }
+
         } catch (SecurityException e) {
             requestBluetoothPermission();
+
         } catch (Exception e) {
-            showError("ค้นหาเครื่องพิมพ์ไม่สำเร็จ: "
-                    + safeMessage(e));
+            showError(
+                    "ค้นหาเครื่องพิมพ์ไม่สำเร็จ: "
+                            + safeMessage(e)
+            );
         }
     }
 
@@ -338,6 +432,7 @@ public class BarcodeScreen extends Activity {
         }
 
         int position = printerSpinner.getSelectedItemPosition();
+
         if (position < 0 || position >= printerDevices.size()) {
             showError("กรุณาค้นหาและเลือกเครื่องพิมพ์ก่อน");
             return;
@@ -352,13 +447,16 @@ public class BarcodeScreen extends Activity {
 
         Thread thread = new Thread(() -> {
             String error = null;
+
             try {
                 printerService.connect(device.address);
+
             } catch (Exception e) {
                 error = safeMessage(e);
             }
 
             final String resultError = error;
+
             runOnUiThread(() -> {
                 connecting = false;
                 connectButton.setEnabled(true);
@@ -367,17 +465,22 @@ public class BarcodeScreen extends Activity {
                     printerStatus.setText(
                             "เชื่อมต่อแล้ว: " + device.name
                     );
+
                     Toast.makeText(
                             this,
                             "เชื่อมต่อเครื่องพิมพ์สำเร็จ",
                             Toast.LENGTH_SHORT
                     ).show();
+
                 } else {
                     printerStatus.setText(
                             "เชื่อมต่อไม่สำเร็จ: " + resultError
                     );
-                    showError("เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ: "
-                            + resultError);
+
+                    showError(
+                            "เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ: "
+                                    + resultError
+                    );
                 }
 
                 refreshPrinterStatus();
@@ -392,8 +495,18 @@ public class BarcodeScreen extends Activity {
             return;
         }
 
-        if (currentProduct == null || currentBitmap == null) {
-            showError("กรุณาสร้างบาร์โค้ดหรือเลือกสินค้าจากคลังก่อน");
+        if (currentProduct == null) {
+            showError(
+                    "กรุณาสร้างบาร์โค้ดหรือเลือกสินค้าจากคลังก่อน"
+            );
+            return;
+        }
+
+        if (currentBitmap == null || currentBitmap.isRecycled()) {
+            showError(
+                    "ไม่มีภาพบาร์โค้ดสำหรับพิมพ์ "
+                            + "กรุณาเลือกสินค้าจากคลังบาร์โค้ดใหม่"
+            );
             return;
         }
 
@@ -404,16 +517,23 @@ public class BarcodeScreen extends Activity {
         }
 
         final int quantity;
+
         try {
             quantity = Integer.parseInt(
                     quantityInput.getText().toString().trim()
             );
+
             if (quantity < 1 || quantity > 100) {
-                showError("จำนวนสำเนาต้องอยู่ระหว่าง 1 ถึง 100");
+                showError(
+                        "จำนวนสำเนาต้องอยู่ระหว่าง 1 ถึง 100"
+                );
                 return;
             }
+
         } catch (NumberFormatException e) {
-            showError("กรุณาระบุจำนวนสำเนาเป็นตัวเลข 1–100");
+            showError(
+                    "กรุณาระบุจำนวนสำเนาเป็นตัวเลข 1–100"
+            );
             return;
         }
 
@@ -425,6 +545,12 @@ public class BarcodeScreen extends Activity {
                     Bitmap.Config.ARGB_8888,
                     false
             );
+
+            if (printBitmap == null) {
+                showError("เตรียมภาพสำหรับพิมพ์ไม่สำเร็จ");
+                return;
+            }
+
         } catch (Exception e) {
             showError("เตรียมภาพสำหรับพิมพ์ไม่สำเร็จ");
             return;
@@ -432,7 +558,10 @@ public class BarcodeScreen extends Activity {
 
         printing = true;
         printButton.setEnabled(false);
-        printerStatus.setText("กำลังพิมพ์ " + quantity + " สำเนา...");
+
+        printerStatus.setText(
+                "กำลังพิมพ์ " + quantity + " สำเนา..."
+        );
 
         new Thread(() -> {
             String error = null;
@@ -445,8 +574,10 @@ public class BarcodeScreen extends Activity {
                         printBitmap,
                         quantity
                 );
+
             } catch (Exception e) {
                 error = safeMessage(e);
+
             } finally {
                 if (!printBitmap.isRecycled()) {
                     printBitmap.recycle();
@@ -458,16 +589,22 @@ public class BarcodeScreen extends Activity {
             runOnUiThread(() -> {
                 printing = false;
                 printButton.setEnabled(true);
+
                 refreshPrinterStatus();
 
                 if (resultError == null) {
                     Toast.makeText(
                             this,
-                            "ส่งงานพิมพ์แล้ว " + quantity + " สำเนา",
+                            "ส่งงานพิมพ์แล้ว "
+                                    + quantity
+                                    + " สำเนา",
                             Toast.LENGTH_LONG
                     ).show();
+
                 } else {
-                    showError("พิมพ์ไม่สำเร็จ: " + resultError);
+                    showError(
+                            "พิมพ์ไม่สำเร็จ: " + resultError
+                    );
                 }
             });
         }).start();
@@ -479,19 +616,28 @@ public class BarcodeScreen extends Activity {
         }
 
         try {
-            if (printerService != null && printerService.isConnected()) {
-                String address = printerService.getConnectedAddress();
+            if (printerService != null
+                    && printerService.isConnected()) {
+                String address =
+                        printerService.getConnectedAddress();
+
                 printerStatus.setText(
                         "สถานะ: เชื่อมต่อแล้ว"
-                                + (address == null ? "" : "\n" + address)
+                                + (address == null
+                                ? ""
+                                : "\n" + address)
                 );
+
             } else if (!connecting && !printing) {
                 printerStatus.setText(
                         "สถานะ: ยังไม่เชื่อมต่อเครื่องพิมพ์"
                 );
             }
+
         } catch (Exception e) {
-            printerStatus.setText("สถานะ: ตรวจสอบเครื่องพิมพ์ไม่ได้");
+            printerStatus.setText(
+                    "สถานะ: ตรวจสอบเครื่องพิมพ์ไม่ได้"
+            );
         }
     }
 
@@ -510,6 +656,7 @@ public class BarcodeScreen extends Activity {
                     },
                     REQUEST_BLUETOOTH_PERMISSION
             );
+
         } else {
             showError("ไม่สามารถเข้าถึง Bluetooth ได้");
         }
@@ -522,41 +669,62 @@ public class BarcodeScreen extends Activity {
             int[] grantResults
     ) {
         super.onRequestPermissionsResult(
-                requestCode, permissions, grantResults
+                requestCode,
+                permissions,
+                grantResults
         );
 
         if (requestCode == REQUEST_BLUETOOTH_PERMISSION) {
             if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    && grantResults[0]
+                    == PackageManager.PERMISSION_GRANTED) {
                 refreshPrinters();
+
             } else {
-                showError("ต้องอนุญาต Bluetooth เพื่อค้นหาและเชื่อมต่อเครื่องพิมพ์");
+                showError(
+                        "ต้องอนุญาต Bluetooth "
+                                + "เพื่อค้นหาและเชื่อมต่อเครื่องพิมพ์"
+                );
             }
         }
     }
 
-    private void addLabel(LinearLayout root, String text) {
+    private void addLabel(
+            LinearLayout root,
+            String text
+    ) {
         TextView label = new TextView(this);
         label.setText(text);
         label.setTextSize(15);
         label.setTextColor(0xFF172033);
-        label.setTypeface(null, android.graphics.Typeface.BOLD);
+        label.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
 
         LinearLayout.LayoutParams params = matchWrap();
         params.topMargin = dp(8);
+
         root.addView(label, params);
     }
 
-    private void addSectionTitle(LinearLayout root, String text) {
+    private void addSectionTitle(
+            LinearLayout root,
+            String text
+    ) {
         TextView label = new TextView(this);
         label.setText(text);
         label.setTextSize(19);
         label.setTextColor(0xFF172033);
-        label.setTypeface(null, android.graphics.Typeface.BOLD);
+        label.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
 
         LinearLayout.LayoutParams params = matchWrap();
         params.topMargin = dp(12);
         params.bottomMargin = dp(6);
+
         root.addView(label, params);
     }
 
@@ -568,12 +736,16 @@ public class BarcodeScreen extends Activity {
     }
 
     private int dp(int value) {
-        return (int) (value * getResources()
-                .getDisplayMetrics().density + 0.5f);
+        return (int) (
+                value * getResources()
+                        .getDisplayMetrics()
+                        .density + 0.5f
+        );
     }
 
     private String safeMessage(Exception e) {
         String message = e.getMessage();
+
         return message == null || message.trim().isEmpty()
                 ? e.getClass().getSimpleName()
                 : message;
@@ -593,11 +765,12 @@ public class BarcodeScreen extends Activity {
             barcodeImage.setImageDrawable(null);
         }
 
-        if (currentBitmap != null && !currentBitmap.isRecycled()) {
+        if (currentBitmap != null
+                && !currentBitmap.isRecycled()) {
             currentBitmap.recycle();
             currentBitmap = null;
         }
 
         super.onDestroy();
     }
-}
+            }
