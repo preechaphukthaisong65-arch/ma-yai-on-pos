@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.content.ContentValues;
@@ -22,7 +21,7 @@ import java.util.TimeZone;
 public class LocalDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "maeyai_on_pos.db";
-    private static final int DATABASE_VERSION = 5;
+    private static final int DATABASE_VERSION = 6;
 
     private static final TimeZone THAILAND_TIME_ZONE =
             TimeZone.getTimeZone("Asia/Bangkok");
@@ -138,6 +137,8 @@ public class LocalDatabase extends SQLiteOpenHelper {
         );
 
         // บิลขายทั้งเงินสดและเงินเชื่อ
+        // due_date เก็บวันครบกำหนดชำระหนี้
+        // receipt_details_deleted ระบุว่าลบรายละเอียดสินค้าแล้วหรือยัง
         db.execSQL(
                 "CREATE TABLE sales (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -146,7 +147,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
                 "payment_type TEXT NOT NULL CHECK(" +
                 "payment_type IN ('CASH','CREDIT'))," +
                 "status TEXT NOT NULL CHECK(" +
-                "status IN ('PAID','PENDING'))," +
+                "status IN ('PAID','PENDING','CANCELLED','REFUNDED'))," +
                 "customer_id INTEGER," +
                 "subtotal REAL NOT NULL CHECK(subtotal >= 0)," +
                 "service_fee REAL NOT NULL DEFAULT 0 CHECK(service_fee >= 0)," +
@@ -157,6 +158,8 @@ public class LocalDatabase extends SQLiteOpenHelper {
                 "receipt_text TEXT," +
                 "print_status TEXT NOT NULL DEFAULT 'NOT_PRINTED'," +
                 "created_by TEXT," +
+                "due_date TEXT," +
+                "receipt_details_deleted INTEGER NOT NULL DEFAULT 0," +
                 "FOREIGN KEY(customer_id) REFERENCES customers(id)" +
                 ")"
         );
@@ -171,6 +174,10 @@ public class LocalDatabase extends SQLiteOpenHelper {
 
         db.execSQL(
                 "CREATE INDEX idx_sales_customer ON sales(customer_id, status)"
+        );
+
+        db.execSQL(
+                "CREATE INDEX idx_sales_due_date ON sales(due_date)"
         );
 
         // รายการสินค้าในบิล เก็บข้อมูล ณ เวลาขาย
@@ -406,6 +413,34 @@ public class LocalDatabase extends SQLiteOpenHelper {
         if (oldVersion < 5 && newVersion >= 5) {
             createCreditPaymentsTable(db);
         }
+
+        // Migration จากเวอร์ชัน 5 เป็น 6
+        // เพิ่มคอลัมน์ใหม่โดยไม่ลบข้อมูลเดิม
+        if (oldVersion < 6 && newVersion >= 6) {
+
+            if (!columnExists(db, "sales", "due_date")) {
+                db.execSQL(
+                        "ALTER TABLE sales ADD COLUMN due_date TEXT"
+                );
+            }
+
+            if (!columnExists(
+                    db,
+                    "sales",
+                    "receipt_details_deleted"
+            )) {
+                db.execSQL(
+                        "ALTER TABLE sales " +
+                        "ADD COLUMN receipt_details_deleted " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                );
+            }
+
+            db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_sales_due_date " +
+                    "ON sales(due_date)"
+            );
+        }
     }
 
     /**
@@ -435,7 +470,6 @@ public class LocalDatabase extends SQLiteOpenHelper {
         db.beginTransaction();
 
         try {
-            // ตรวจให้แน่ใจว่ามีตารางและค่าเลขเริ่มต้น
             createAppSettingsTable(db);
 
             String value = "2000001";
