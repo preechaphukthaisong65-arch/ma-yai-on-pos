@@ -75,6 +75,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".ManageScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".EditProductPriceScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
@@ -111,6 +116,31 @@
 
         <activity
             android:name=".CreditPaymentHistoryScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".OverdueDebtScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".NotificationScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".CloudSyncStatusScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".PrinterScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".ReceiptReprintScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
 
