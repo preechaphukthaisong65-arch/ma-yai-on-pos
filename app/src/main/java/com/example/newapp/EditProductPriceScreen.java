@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.text.InputType;
@@ -33,6 +34,7 @@ import java.util.UUID;
 public class EditProductPriceScreen extends Activity {
 
     private static final int CAMERA_REQUEST = 820;
+    private static final int NOTIFICATION_REQUEST = 822;
 
     private ProductRepository productRepository;
     private NotificationRepository notificationRepository;
@@ -73,6 +75,8 @@ public class EditProductPriceScreen extends Activity {
         initializeVoice();
         buildScreen();
         screenReady = true;
+
+        requestNotificationPermissionIfNeeded();
     }
 
     private int dp(float value) {
@@ -80,6 +84,23 @@ public class EditProductPriceScreen extends Activity {
                 value * getResources()
                         .getDisplayMetrics().density + 0.5f
         );
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33
+                && ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{
+                            Manifest.permission.POST_NOTIFICATIONS
+                    },
+                    NOTIFICATION_REQUEST
+            );
+        }
     }
 
     private void initializeVoice() {
@@ -342,7 +363,6 @@ public class EditProductPriceScreen extends Activity {
         }
 
         if (root != null) {
-            // เอาปุ่มปิดกล้องที่สร้างในหน้าสแกนออก
             for (int i = root.getChildCount() - 1; i >= 0; i--) {
                 View child = root.getChildAt(i);
 
@@ -486,8 +506,11 @@ public class EditProductPriceScreen extends Activity {
             double displayedOldPrice,
             double newPrice
     ) {
+        final ProductRepository.Product saved;
+        final double oldPrice;
+
         try {
-            // ตรวจข้อมูลล่าสุดอีกครั้ง ป้องกันบันทึกทับข้อมูลที่เปลี่ยนไป
+            // ตรวจข้อมูลล่าสุดอีกครั้งก่อนบันทึก
             ProductRepository.Product current =
                     productRepository.findByBarcode(barcode);
 
@@ -529,38 +552,55 @@ public class EditProductPriceScreen extends Activity {
                 return;
             }
 
+            oldPrice = current.price;
+
             // Repository บันทึกราคากับประวัติใน transaction เดียวกัน
             productRepository.changeSalePrice(barcode, newPrice);
 
-            // อ่านยืนยันจากฐานข้อมูลหลังเปลี่ยนสำเร็จ
-            ProductRepository.Product saved =
-                    productRepository.findByBarcode(barcode);
+            // ยืนยันว่าราคาใหม่อยู่ในฐานข้อมูลแล้ว
+            saved = productRepository.findByBarcode(barcode);
 
             if (saved == null
+                    || !barcode.equals(saved.barcode)
                     || Double.compare(saved.price, newPrice) != 0) {
                 throw new IllegalStateException(
                         "ไม่สามารถยืนยันราคาที่บันทึกได้"
                 );
             }
 
-            selectedProduct = saved;
-
-            productText.setText(
-                    "ชื่อสินค้า: " + saved.name
-                            + "\nบาร์โค้ด: " + saved.barcode
-                            + "\nราคาใหม่: " + money(saved.price) + " บาท"
+        } catch (Exception e) {
+            android.util.Log.e(
+                    "EditProductPrice",
+                    "เปลี่ยนราคาไม่สำเร็จ",
+                    e
             );
 
-            priceInput.setText(money(saved.price));
-            statusText.setText("บันทึกราคาและประวัติสำเร็จ");
+            statusText.setText("บันทึกราคาไม่สำเร็จ");
+            toast("บันทึกราคาไม่สำเร็จ กรุณาตรวจสอบราคาแล้วลองใหม่");
+            return;
+        }
 
-            String message = "เปลี่ยนราคาสินค้า "
-                    + saved.name
-                    + " จาก " + money(current.price)
-                    + " บาท เป็น " + money(saved.price)
-                    + " บาท";
+        // ตั้งสถานะสำเร็จทันทีหลังยืนยันการบันทึกราคา
+        selectedProduct = saved;
 
-            // บันทึกข้อความให้ระบบแจ้งเตือนในแอป
+        productText.setText(
+                "ชื่อสินค้า: " + saved.name
+                        + "\nบาร์โค้ด: " + saved.barcode
+                        + "\nราคาใหม่: " + money(saved.price) + " บาท"
+        );
+
+        priceInput.setText(money(saved.price));
+        statusText.setText("บันทึกราคาและประวัติสำเร็จ");
+
+        String message = "เปลี่ยนราคาสินค้า "
+                + saved.name
+                + " จาก " + money(oldPrice)
+                + " บาท เป็น " + money(saved.price)
+                + " บาท";
+
+        // การแจ้งเตือนเป็นงานแยกจากธุรกรรมราคา
+        // หากแจ้งเตือนผิดพลาด จะไม่รายงานว่าราคาบันทึกล้มเหลว
+        try {
             boolean messageSaved = notificationRepository.addMessage(
                     "PRICE_CHANGED",
                     message
@@ -572,38 +612,41 @@ public class EditProductPriceScreen extends Activity {
                         "บันทึกข้อความแจ้งเตือนในแอปไม่สำเร็จ"
                 );
             }
+        } catch (Exception e) {
+            android.util.Log.e(
+                    "EditProductPrice",
+                    "บันทึกข้อความแจ้งเตือนในแอปไม่สำเร็จ",
+                    e
+            );
+        }
 
-            // Android notification แสดงหลังยืนยันว่าราคาเปลี่ยนแล้ว
+        try {
             int notificationId = (int) (
                     System.currentTimeMillis() & 0x7fffffff
             );
 
-            boolean systemNotificationShown =
-                    notificationService.show(
-                            notificationId,
-                            "แก้ไขราคาสินค้าสำเร็จ",
-                            message
-                    );
+            boolean shown = notificationService.show(
+                    notificationId,
+                    "แก้ไขราคาสินค้าสำเร็จ",
+                    message
+            );
 
-            toast("บันทึกราคาใหม่สำเร็จ");
-
-            if (!systemNotificationShown) {
+            if (!shown) {
                 android.util.Log.i(
                         "EditProductPrice",
-                        "ระบบไม่สามารถแสดง Android notification ได้"
+                        "แสดง Android notification ไม่สำเร็จ "
+                                + "อาจไม่ได้รับอนุญาตแจ้งเตือน"
                 );
             }
-
         } catch (Exception e) {
             android.util.Log.e(
                     "EditProductPrice",
-                    "เปลี่ยนราคาไม่สำเร็จ",
+                    "แสดง Android notification ไม่สำเร็จ",
                     e
             );
-
-            statusText.setText("บันทึกไม่สำเร็จ");
-            toast("บันทึกราคาไม่สำเร็จ กรุณาลองใหม่");
         }
+
+        toast("บันทึกราคาใหม่สำเร็จ");
     }
 
     private void clearSelection() {
@@ -661,12 +704,26 @@ public class EditProductPriceScreen extends Activity {
                 grantResults
         );
 
-        if (requestCode == CAMERA_REQUEST
-                && grantResults.length > 0
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startScanner();
-        } else if (requestCode == CAMERA_REQUEST) {
-            toast("ต้องอนุญาตกล้องเพื่อสแกนบาร์โค้ด");
+        if (requestCode == CAMERA_REQUEST) {
+            if (grantResults.length > 0
+                    && grantResults[0]
+                    == PackageManager.PERMISSION_GRANTED) {
+                startScanner();
+            } else {
+                toast("ต้องอนุญาตกล้องเพื่อสแกนบาร์โค้ด");
+            }
+
+        } else if (requestCode == NOTIFICATION_REQUEST) {
+            if (grantResults.length > 0
+                    && grantResults[0]
+                    == PackageManager.PERMISSION_GRANTED) {
+                toast("อนุญาตการแจ้งเตือนแล้ว");
+            } else {
+                toast(
+                        "ยังปิดการแจ้งเตือนระบบไว้ "
+                                + "แต่ข้อความในแอปจะแสดงได้หากบันทึกสำเร็จ"
+                );
+            }
         }
     }
 
