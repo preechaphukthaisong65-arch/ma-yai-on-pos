@@ -1,11 +1,15 @@
 
 package com.example.newapp;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -13,7 +17,13 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.core.content.ContextCompat;
+
 public class StockScreen extends Activity {
+
+    private static final int NOTIFICATION_REQUEST = 823;
+
+    private AndroidNotificationService notificationService;
 
     private int dp(float value) {
         return Math.round(
@@ -24,7 +34,65 @@ public class StockScreen extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        notificationService = new AndroidNotificationService(this);
+
         buildScreen();
+        syncNotificationPermissionAndStatus();
+    }
+
+    /**
+     * ตรวจสิทธิ์การแจ้งเตือนและซิงก์สถานะสต๊อกต่ำ
+     * ไม่แก้ไขข้อมูลสินค้าและไม่เปลี่ยนโครงสร้างฐานข้อมูล
+     */
+    private void syncNotificationPermissionAndStatus() {
+        if (Build.VERSION.SDK_INT >= 33
+                && ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(
+                    new String[]{
+                            Manifest.permission.POST_NOTIFICATIONS
+                    },
+                    NOTIFICATION_REQUEST
+            );
+            return;
+        }
+
+        syncLowStockSafely();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode == NOTIFICATION_REQUEST
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            syncLowStockSafely();
+        }
+    }
+
+    private void syncLowStockSafely() {
+        try {
+            notificationService.syncLowStockNotification();
+        } catch (Exception e) {
+            Log.w(
+                    "StockScreen",
+                    "ซิงก์การแจ้งเตือนสต๊อกไม่สำเร็จ",
+                    e
+            );
+        }
     }
 
     private void buildScreen() {
