@@ -112,20 +112,9 @@ public class SalesRepository {
     }
 
     /**
-     * บันทึกการขายเงินสดหรือขายเชื่อ
-     *
-     * เงินสด:
-     * - ต้องรับเงินไม่น้อยกว่ายอดสุทธิ
-     * - ไม่มีค่าบริการ 5%
-     * - สถานะ PAID
-     *
-     * ขายเชื่อ:
-     * - ต้องมี customerId ของลูกค้าที่มีอยู่จริง
-     * - คิดค่าบริการ 5% จากยอดสินค้า
-     * - สถานะ PENDING
-     *
-     * เมื่อสำเร็จจะบันทึกบิล รายการสินค้า และตัดสต๊อก
-     * ใน SQLite transaction เดียวกัน
+     * เงินสด: ไม่มีค่าบริการและต้องรับเงินเพียงพอ
+     * ขายเชื่อ: คิดค่าบริการ 5% และต้องเลือกลูกค้า
+     * บันทึกบิล รายการสินค้า และตัดสต๊อกใน transaction เดียวกัน
      */
     public SaleResult createSale(
             List<SaleLineInput> inputLines,
@@ -172,10 +161,11 @@ public class SalesRepository {
             }
 
             double subtotal = 0;
-
             for (PreparedLine line : lines) {
                 subtotal += line.lineTotal;
             }
+
+            subtotal = roundMoney(subtotal);
 
             double fee = PAYMENT_CREDIT.equals(paymentType)
                     ? roundMoney(subtotal * CREDIT_FEE_RATE)
@@ -219,7 +209,9 @@ public class SalesRepository {
             sale.put("service_fee", fee);
             sale.put("total", total);
             sale.put("cash_received", actualCash);
-            sale.put("change_amount", change);
+
+            // ชื่อต้องตรงกับ LocalDatabase.java
+            sale.put("change_due", change);
 
             if (PAYMENT_CASH.equals(paymentType)) {
                 sale.put("paid_at", timestamp);
@@ -236,8 +228,8 @@ public class SalesRepository {
             for (PreparedLine line : lines) {
                 ProductSnapshot product = line.product;
 
-                // ตรวจจำนวนล่าสุดอีกครั้งภายใน transaction
-                Cursor stockCursor = db.query(
+                int currentStock;
+                try (Cursor stockCursor = db.query(
                         "products",
                         new String[]{"stock_qty"},
                         "id = ?",
@@ -246,16 +238,11 @@ public class SalesRepository {
                         null,
                         null,
                         "1"
-                );
-
-                int currentStock;
-                try {
+                )) {
                     if (!stockCursor.moveToFirst()) {
                         return SaleResult.failure("ไม่พบสินค้าในคลัง");
                     }
                     currentStock = stockCursor.getInt(0);
-                } finally {
-                    stockCursor.close();
                 }
 
                 if (currentStock < line.quantity) {
@@ -347,7 +334,6 @@ public class SalesRepository {
             SQLiteDatabase db,
             List<SaleLineInput> inputLines
     ) {
-        // รวมบาร์โค้ดที่สแกนซ้ำให้เป็นจำนวนเดียว
         java.util.LinkedHashMap<String, Integer> quantities =
                 new java.util.LinkedHashMap<>();
 
@@ -397,27 +383,23 @@ public class SalesRepository {
             SQLiteDatabase db,
             String barcode
     ) {
-        Cursor cursor = null;
-
-        try {
-            cursor = db.query(
-                    "products",
-                    new String[]{
-                            "id",
-                            "barcode",
-                            "name",
-                            "unit",
-                            "price",
-                            "stock_qty"
-                    },
-                    "barcode = ?",
-                    new String[]{barcode},
-                    null,
-                    null,
-                    null,
-                    "1"
-            );
-
+        try (Cursor cursor = db.query(
+                "products",
+                new String[]{
+                        "id",
+                        "barcode",
+                        "name",
+                        "unit",
+                        "price",
+                        "stock_qty"
+                },
+                "barcode = ?",
+                new String[]{barcode},
+                null,
+                null,
+                null,
+                "1"
+        )) {
             if (!cursor.moveToFirst()) {
                 return null;
             }
@@ -443,10 +425,6 @@ public class SalesRepository {
             );
 
             return product;
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
     }
 
@@ -454,25 +432,17 @@ public class SalesRepository {
             SQLiteDatabase db,
             Long customerId
     ) {
-        Cursor cursor = null;
-
-        try {
-            cursor = db.query(
-                    "customers",
-                    new String[]{"id"},
-                    "id = ?",
-                    new String[]{String.valueOf(customerId)},
-                    null,
-                    null,
-                    null,
-                    "1"
-            );
-
+        try (Cursor cursor = db.query(
+                "customers",
+                new String[]{"id"},
+                "id = ?",
+                new String[]{String.valueOf(customerId)},
+                null,
+                null,
+                null,
+                "1"
+        )) {
             return cursor.moveToFirst();
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
     }
 
