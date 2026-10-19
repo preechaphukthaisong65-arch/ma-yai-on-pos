@@ -123,7 +123,7 @@ public final class BarcodeRepository {
                 );
             }
 
-            // บันทึกเลขถัดไป ไม่เขียนทับด้วยเลขที่เก่ากว่า
+            // บันทึกเลขถัดไป
             ContentValues settingValues = new ContentValues();
             settingValues.put(
                     "setting_value",
@@ -152,8 +152,6 @@ public final class BarcodeRepository {
                 );
             }
 
-            db.setTransactionSuccessful();
-
             ProductRepository.Product product =
                     new ProductRepository.Product();
 
@@ -167,6 +165,8 @@ public final class BarcodeRepository {
             product.minStock = 0;
             product.createdAt = timestamp;
             product.updatedAt = timestamp;
+
+            db.setTransactionSuccessful();
 
             return product;
 
@@ -209,7 +209,8 @@ public final class BarcodeRepository {
     public List<ProductRepository.Product> search(String query) {
         String keyword = query == null ? "" : query.trim();
 
-        List<ProductRepository.Product> results = new ArrayList<>();
+        List<ProductRepository.Product> results =
+                new ArrayList<>();
 
         if (keyword.isEmpty()) {
             return results;
@@ -353,4 +354,4 @@ public final class BarcodeRepository {
             return product;
         }
     }
-                }
+            }
