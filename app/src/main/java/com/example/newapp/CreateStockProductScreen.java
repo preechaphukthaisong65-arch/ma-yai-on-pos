@@ -16,12 +16,15 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.database.Cursor;
+
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
 public class CreateStockProductScreen extends Activity {
 
     private InventoryRepository inventory;
+    private LocalDatabase database;
 
     private EditText barcodeInput;
     private EditText nameInput;
@@ -41,9 +44,8 @@ public class CreateStockProductScreen extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        inventory = new InventoryRepository(
-                LocalDatabase.getInstance(this)
-        );
+        database = LocalDatabase.getInstance(this);
+        inventory = new InventoryRepository(database);
 
         buildScreen();
     }
@@ -69,22 +71,31 @@ public class CreateStockProductScreen extends Activity {
 
         addLabel(root, "บาร์โค้ดสินค้า");
 
+        barcodeInput = createInput(
+                "กรอกหรือสร้างบาร์โค้ด",
+                InputType.TYPE_CLASS_TEXT
+        );
+        barcodeInput.setSingleLine(true);
+        root.addView(barcodeInput, fieldParams());
+
         LinearLayout barcodeRow = new LinearLayout(this);
         barcodeRow.setOrientation(LinearLayout.HORIZONTAL);
         barcodeRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        barcodeInput = createInput("กรอกบาร์โค้ด", InputType.TYPE_CLASS_TEXT);
-        barcodeInput.setSingleLine(true);
-
+        Button generateButton = createButton("สร้างเลขอัตโนมัติ");
         barcodeRow.addView(
-                barcodeInput,
-                new LinearLayout.LayoutParams(0, dp(54), 1)
+                generateButton,
+                new LinearLayout.LayoutParams(0, dp(50), 1)
         );
+        generateButton.setOnClickListener(v -> generateBarcode());
 
         Button scanButton = createButton("สแกน");
+        LinearLayout.LayoutParams scanParams =
+                new LinearLayout.LayoutParams(0, dp(50), 1);
+        scanParams.leftMargin = dp(8);
+        barcodeRow.addView(scanButton, scanParams);
         scanButton.setOnClickListener(v -> startScanner());
 
-        barcodeRow.addView(scanButton);
         root.addView(barcodeRow, fieldParams());
 
         addLabel(root, "ชื่อสินค้า");
@@ -136,8 +147,10 @@ public class CreateStockProductScreen extends Activity {
 
         TextView help = new TextView(this);
         help.setText(
-                "ระบบจะบันทึกสินค้าและประวัติรับเข้าครั้งแรก " +
-                "พร้อมกัน หากบันทึกไม่สำเร็จจะไม่เก็บรายการที่ไม่สมบูรณ์"
+                "สร้างเลขอัตโนมัติได้จากปุ่มด้านบน " +
+                "ระบบจะตรวจสอบบาร์โค้ดที่มีอยู่ก่อนใช้เลขนั้น " +
+                "และบันทึกสินค้าโดยเก็บประวัติรับเข้าครั้งแรก " +
+                "ในธุรกรรมเดียวกัน"
         );
         help.setTextSize(14);
         help.setTextColor(Color.DKGRAY);
@@ -177,9 +190,9 @@ public class CreateStockProductScreen extends Activity {
     private Button createButton(String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(16);
+        button.setTextSize(15);
         button.setAllCaps(false);
-        button.setMinHeight(dp(52));
+        button.setMinHeight(dp(50));
         return button;
     }
 
@@ -191,6 +204,46 @@ public class CreateStockProductScreen extends Activity {
                 );
         params.bottomMargin = dp(8);
         return params;
+    }
+
+    /**
+     * จองเลขจากฐานข้อมูล แล้วข้ามเลขที่มีสินค้าใช้อยู่แล้ว
+     * การจองแต่ละครั้งบันทึกเลขถัดไปลงฐานข้อมูลทันที
+     */
+    private void generateBarcode() {
+        try {
+            for (int attempt = 0; attempt < 1000; attempt++) {
+                String barcode = database.reserveNextBarcode();
+
+                if (barcode == null || barcode.trim().isEmpty()) {
+                    showMessage("สร้างเลขบาร์โค้ดไม่สำเร็จ");
+                    return;
+                }
+
+                boolean exists = false;
+
+                try (Cursor cursor =
+                             database.findProductByBarcode(barcode)) {
+                    exists = cursor.moveToFirst();
+                }
+
+                if (!exists) {
+                    barcodeInput.setText(barcode);
+                    barcodeInput.setError(null);
+                    showMessage("สร้างบาร์โค้ดแล้ว: " + barcode);
+                    return;
+                }
+            }
+
+            showMessage(
+                    "หาเลขบาร์โค้ดว่างไม่สำเร็จ กรุณาลองใหม่"
+            );
+
+        } catch (Exception e) {
+            showMessage(
+                    "สร้างบาร์โค้ดไม่สำเร็จ กรุณาตรวจสอบฐานข้อมูล"
+            );
+        }
     }
 
     private void startScanner() {
@@ -255,7 +308,7 @@ public class CreateStockProductScreen extends Activity {
         String initialQtyText = textOf(initialQtyInput);
 
         if (barcode.isEmpty()) {
-            barcodeInput.setError("กรุณากรอกหรือสแกนบาร์โค้ด");
+            barcodeInput.setError("กรุณากรอกหรือสร้างบาร์โค้ด");
             return;
         }
 
@@ -395,7 +448,7 @@ public class CreateStockProductScreen extends Activity {
                             "เพิ่มสินค้า \"" + name + "\" สำเร็จ"
                                     + "\nบาร์โค้ด: " + barcode
                                     + "\nจำนวนเริ่มต้น: " + initialQty
-                            + "\nสามารถกลับไปดูสินค้าในคลังได้"
+                                    + "\nสามารถกลับไปดูสินค้าในคลังได้"
                     )
                     .setCancelable(false)
                     .setPositiveButton(
