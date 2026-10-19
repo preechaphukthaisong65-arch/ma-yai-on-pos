@@ -49,6 +49,21 @@ public class CreateStockProductScreen extends Activity {
         notificationService = new AndroidNotificationService(this);
 
         buildScreen();
+
+        // รับบาร์โค้ดที่ส่งมาจากหน้ารับสินค้าเข้าสต๊อก
+        // แล้วกรอกลงช่องบาร์โค้ดให้อัตโนมัติ
+        String prefilledBarcode = getIntent().getStringExtra(
+                "prefill_barcode"
+        );
+
+        if (prefilledBarcode != null
+                && !prefilledBarcode.trim().isEmpty()) {
+            String barcode = prefilledBarcode.trim();
+            barcodeInput.setText(barcode);
+            barcodeInput.setSelection(
+                    barcodeInput.getText().length()
+            );
+        }
     }
 
     private void buildScreen() {
