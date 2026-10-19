@@ -1,8 +1,12 @@
-
 package com.example.newapp;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.ContentValues;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -10,7 +14,13 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 public class StockAlertScreen extends Activity {
+
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 903;
+    private static final int STOCK_NOTIFICATION_BASE_ID = 4000;
 
     private LocalDatabase database;
     private LinearLayout list;
@@ -21,13 +31,16 @@ public class StockAlertScreen extends Activity {
         super.onCreate(savedInstanceState);
 
         database = LocalDatabase.getInstance(this);
+
         buildScreen();
+        requestNotificationPermissionIfNeeded();
         loadLowStock();
     }
 
     private int dp(float value) {
         return (int) (
-                value * getResources().getDisplayMetrics().density + 0.5f
+                value * getResources().getDisplayMetrics().density
+                        + 0.5f
         );
     }
 
@@ -89,14 +102,67 @@ public class StockAlertScreen extends Activity {
         setContentView(scroll);
     }
 
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        ActivityCompat.requestPermissions(
+                this,
+                new String[]{
+                        Manifest.permission.POST_NOTIFICATIONS
+                },
+                NOTIFICATION_PERMISSION_REQUEST
+        );
+    }
+
+    private boolean hasNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) {
+            return true;
+        }
+
+        return ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
+            loadLowStock();
+        }
+    }
+
     private void loadLowStock() {
+        if (database == null || list == null) {
+            return;
+        }
+
         list.removeAllViews();
         summary.setText("กำลังตรวจสอบสต๊อก...");
 
         int count = 0;
 
         try (Cursor cursor = database.getReadableDatabase().rawQuery(
-                "SELECT name, stock_qty, min_stock " +
+                "SELECT id, name, stock_qty, min_stock " +
                 "FROM products " +
                 "WHERE stock_qty <= min_stock " +
                 "ORDER BY stock_qty ASC, name COLLATE NOCASE ASC",
@@ -105,9 +171,22 @@ public class StockAlertScreen extends Activity {
             while (cursor.moveToNext()) {
                 count++;
 
-                String name = cursor.getString(0);
-                int quantity = cursor.getInt(1);
-                int limit = cursor.getInt(2);
+                long productId = cursor.getLong(0);
+                String name = cursor.getString(1);
+                int quantity = cursor.getInt(2);
+                int limit = cursor.getInt(3);
+
+                String productName =
+                        name == null || name.trim().isEmpty()
+                                ? "สินค้าไม่ระบุชื่อ"
+                                : name.trim();
+
+                recordLowStockNotificationIfNeeded(
+                        productId,
+                        productName,
+                        quantity,
+                        limit
+                );
 
                 LinearLayout card = new LinearLayout(this);
                 card.setOrientation(LinearLayout.VERTICAL);
@@ -122,9 +201,7 @@ public class StockAlertScreen extends Activity {
                 params.bottomMargin = dp(5);
 
                 card.addView(text(
-                        name == null || name.trim().isEmpty()
-                                ? "สินค้าไม่ระบุชื่อ"
-                                : name,
+                        productName,
                         16,
                         true
                 ));
@@ -176,6 +253,58 @@ public class StockAlertScreen extends Activity {
                     16,
                     false
             ));
+        }
+    }
+
+    private void recordLowStockNotificationIfNeeded(
+            long productId,
+            String productName,
+            int quantity,
+            int limit
+    ) {
+        if (!hasNotificationPermission()) {
+            return;
+        }
+
+        String today = LocalDatabase.now().substring(0, 10);
+        String eventKey = "LOW_STOCK_" + productId + "_" + today;
+
+        String message =
+                "สินค้า " + productName
+                        + " คงเหลือ " + quantity
+                        + " หน่วย ลิมิตสต๊อก " + limit + " หน่วย";
+
+        SQLiteDatabase db = database.getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+        values.put("event_type", "LOW_STOCK");
+        values.put("message", message);
+        values.put("created_at", LocalDatabase.now());
+        values.put("is_read", 0);
+        values.put("event_key", eventKey);
+
+        long inserted = db.insertWithOnConflict(
+                "notification_messages",
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_IGNORE
+        );
+
+        // แจ้งเฉพาะเมื่อเพิ่มเหตุการณ์ของสินค้านี้ในวันนี้ได้ใหม่
+        // ป้องกันการแจ้งซ้ำเมื่อรีเฟรชหรือเปิดหน้าจอซ้ำ
+        if (inserted != -1) {
+            AndroidNotificationService service =
+                    new AndroidNotificationService(this);
+
+            int notificationId =
+                    STOCK_NOTIFICATION_BASE_ID
+                            + (int) (productId % 1000000L);
+
+            service.show(
+                    notificationId,
+                    "แจ้งเตือนสต๊อกสินค้า",
+                    message
+            );
         }
     }
 
