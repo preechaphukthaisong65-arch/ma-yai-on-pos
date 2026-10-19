@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.content.ContentValues;
@@ -24,8 +23,11 @@ public class SalesRepository {
 
     public SalesRepository(LocalDatabase helper) {
         if (helper == null) {
-            throw new IllegalArgumentException("ฐานข้อมูลห้ามเป็น null");
+            throw new IllegalArgumentException(
+                    "ฐานข้อมูลห้ามเป็น null"
+            );
         }
+
         this.helper = helper;
     }
 
@@ -71,7 +73,14 @@ public class SalesRepository {
 
         static SaleResult failure(String message) {
             return new SaleResult(
-                    false, message, -1, null, 0, 0, 0, 0
+                    false,
+                    message,
+                    -1,
+                    null,
+                    0,
+                    0,
+                    0,
+                    0
             );
         }
 
@@ -102,7 +111,6 @@ public class SalesRepository {
         String name;
         String unit;
         double price;
-        int stockQty;
     }
 
     private static class PreparedLine {
@@ -112,9 +120,18 @@ public class SalesRepository {
     }
 
     /**
-     * เงินสด: ไม่มีค่าบริการและต้องรับเงินเพียงพอ
-     * ขายเชื่อ: คิดค่าบริการ 5% และต้องเลือกลูกค้า
-     * บันทึกบิล รายการสินค้า และตัดสต๊อกใน transaction เดียวกัน
+     * เงินสด:
+     * - ไม่มีค่าบริการ
+     * - ต้องรับเงินเพียงพอ
+     *
+     * ขายเชื่อ:
+     * - คิดค่าบริการ 5%
+     * - ต้องเลือกลูกค้า
+     *
+     * บันทึกบิลและรายการสินค้าใน transaction เดียวกัน
+     *
+     * หมายเหตุ:
+     * เมธอดนี้ไม่ตัดสต๊อกและไม่บันทึก stock movement
      */
     public SaleResult createSale(
             List<SaleLineInput> inputLines,
@@ -123,21 +140,29 @@ public class SalesRepository {
             double cashReceived
     ) {
         if (inputLines == null || inputLines.isEmpty()) {
-            return SaleResult.failure("ไม่มีสินค้าในรายการขาย");
+            return SaleResult.failure(
+                    "ไม่มีสินค้าในรายการขาย"
+            );
         }
 
         if (!PAYMENT_CASH.equals(paymentType)
                 && !PAYMENT_CREDIT.equals(paymentType)) {
-            return SaleResult.failure("ประเภทการชำระเงินไม่ถูกต้อง");
+            return SaleResult.failure(
+                    "ประเภทการชำระเงินไม่ถูกต้อง"
+            );
         }
 
         if (!validMoney(cashReceived)) {
-            return SaleResult.failure("จำนวนเงินที่รับมาไม่ถูกต้อง");
+            return SaleResult.failure(
+                    "จำนวนเงินที่รับมาไม่ถูกต้อง"
+            );
         }
 
         if (PAYMENT_CREDIT.equals(paymentType)
                 && (customerId == null || customerId <= 0)) {
-            return SaleResult.failure("การขายเชื่อต้องเลือกลูกค้า");
+            return SaleResult.failure(
+                    "การขายเชื่อต้องเลือกลูกค้า"
+            );
         }
 
         SQLiteDatabase db = helper.getWritableDatabase();
@@ -149,18 +174,22 @@ public class SalesRepository {
 
             if (PAYMENT_CREDIT.equals(paymentType)
                     && !customerExists(db, customerId)) {
-                return SaleResult.failure("ไม่พบข้อมูลลูกค้า");
-            }
-
-            List<PreparedLine> lines = prepareLines(db, inputLines);
-
-            if (lines == null || lines.isEmpty()) {
                 return SaleResult.failure(
-                        "พบสินค้าไม่ถูกต้องหรือจำนวนสต๊อกไม่เพียงพอ"
+                        "ไม่พบข้อมูลลูกค้า"
                 );
             }
 
-            double subtotal = 0;
+            List<PreparedLine> lines =
+                    prepareLines(db, inputLines);
+
+            if (lines == null || lines.isEmpty()) {
+                return SaleResult.failure(
+                        "พบสินค้าไม่ถูกต้องหรือจำนวนสินค้าไม่ถูกต้อง"
+                );
+            }
+
+            double subtotal = 0.0d;
+
             for (PreparedLine line : lines) {
                 subtotal += line.lineTotal;
             }
@@ -175,7 +204,9 @@ public class SalesRepository {
 
             if (PAYMENT_CASH.equals(paymentType)
                     && cashReceived < total) {
-                return SaleResult.failure("เงินที่รับมาไม่เพียงพอ");
+                return SaleResult.failure(
+                        "เงินที่รับมาไม่เพียงพอ"
+                );
             }
 
             double actualCash = PAYMENT_CASH.equals(paymentType)
@@ -192,6 +223,7 @@ public class SalesRepository {
             ContentValues sale = new ContentValues();
             sale.put("bill_number", billNumber);
             sale.put("payment_type", paymentType);
+
             sale.put(
                     "status",
                     PAYMENT_CASH.equals(paymentType)
@@ -209,8 +241,6 @@ public class SalesRepository {
             sale.put("service_fee", fee);
             sale.put("total", total);
             sale.put("cash_received", actualCash);
-
-            // ชื่อต้องตรงกับ LocalDatabase.java
             sale.put("change_due", change);
 
             if (PAYMENT_CASH.equals(paymentType)) {
@@ -223,33 +253,23 @@ public class SalesRepository {
             sale.put("print_status", "NOT_PRINTED");
             sale.put("created_at", timestamp);
 
-            long saleId = db.insertOrThrow("sales", null, sale);
+            long saleId = db.insertOrThrow(
+                    "sales",
+                    null,
+                    sale
+            );
 
+            if (saleId <= 0) {
+                return SaleResult.failure(
+                        "สร้างบิลไม่สำเร็จ"
+                );
+            }
+
+            // บันทึกเฉพาะรายการสินค้าที่ขาย
+            // ไม่แก้ไข products.stock_qty
+            // ไม่เพิ่มข้อมูล stock_movements
             for (PreparedLine line : lines) {
                 ProductSnapshot product = line.product;
-
-                int currentStock;
-                try (Cursor stockCursor = db.query(
-                        "products",
-                        new String[]{"stock_qty"},
-                        "id = ?",
-                        new String[]{String.valueOf(product.id)},
-                        null,
-                        null,
-                        null,
-                        "1"
-                )) {
-                    if (!stockCursor.moveToFirst()) {
-                        return SaleResult.failure("ไม่พบสินค้าในคลัง");
-                    }
-                    currentStock = stockCursor.getInt(0);
-                }
-
-                if (currentStock < line.quantity) {
-                    return SaleResult.failure(
-                            "สต๊อกไม่เพียงพอสำหรับ " + product.name
-                    );
-                }
 
                 ContentValues item = new ContentValues();
                 item.put("sale_id", saleId);
@@ -261,47 +281,10 @@ public class SalesRepository {
                 item.put("unit_price", product.price);
                 item.put("line_total", line.lineTotal);
 
-                db.insertOrThrow("sale_items", null, item);
-
-                ContentValues stockUpdate = new ContentValues();
-                stockUpdate.put(
-                        "stock_qty",
-                        currentStock - line.quantity
-                );
-                stockUpdate.put("updated_at", timestamp);
-
-                int updated = db.update(
-                        "products",
-                        stockUpdate,
-                        "id = ? AND stock_qty >= ?",
-                        new String[]{
-                                String.valueOf(product.id),
-                                String.valueOf(line.quantity)
-                        }
-                );
-
-                if (updated != 1) {
-                    return SaleResult.failure(
-                            "ตัดสต๊อกไม่สำเร็จ: " + product.name
-                    );
-                }
-
-                ContentValues movement = new ContentValues();
-                movement.put("product_id", product.id);
-                movement.put("operation", "SALE");
-                movement.put("qty_before", currentStock);
-                movement.put(
-                        "qty_after",
-                        currentStock - line.quantity
-                );
-                movement.put("qty_diff", -line.quantity);
-                movement.put("note", "ขายตามบิล " + billNumber);
-                movement.put("created_at", timestamp);
-
                 db.insertOrThrow(
-                        "stock_movements",
+                        "sale_items",
                         null,
-                        movement
+                        item
                 );
             }
 
@@ -317,12 +300,15 @@ public class SalesRepository {
             );
 
         } catch (Exception e) {
+            String message = e.getMessage();
+
             return SaleResult.failure(
-                    "บันทึกการขายไม่สำเร็จ: " +
-                            (e.getMessage() == null
-                                    ? "เกิดข้อผิดพลาด"
-                                    : e.getMessage())
+                    "บันทึกการขายไม่สำเร็จ: "
+                            + (message == null
+                            ? "เกิดข้อผิดพลาด"
+                            : message)
             );
+
         } finally {
             if (transactionStarted) {
                 db.endTransaction();
@@ -337,6 +323,7 @@ public class SalesRepository {
         java.util.LinkedHashMap<String, Integer> quantities =
                 new java.util.LinkedHashMap<>();
 
+        // รวมจำนวนของบาร์โค้ดเดียวกัน
         for (SaleLineInput input : inputLines) {
             if (input == null
                     || input.barcode == null
@@ -346,11 +333,13 @@ public class SalesRepository {
             }
 
             String barcode = input.barcode.trim();
+
             int oldQty = quantities.containsKey(barcode)
                     ? quantities.get(barcode)
                     : 0;
 
             long newQty = (long) oldQty + input.quantity;
+
             if (newQty > Integer.MAX_VALUE) {
                 return null;
             }
@@ -361,17 +350,21 @@ public class SalesRepository {
         List<PreparedLine> result = new ArrayList<>();
 
         for (String barcode : quantities.keySet()) {
-            ProductSnapshot product = findProduct(db, barcode);
+            ProductSnapshot product =
+                    findProduct(db, barcode);
+
             int quantity = quantities.get(barcode);
 
-            if (product == null || product.stockQty < quantity) {
+            if (product == null || quantity <= 0) {
                 return null;
             }
 
             PreparedLine line = new PreparedLine();
             line.product = product;
             line.quantity = quantity;
-            line.lineTotal = roundMoney(product.price * quantity);
+            line.lineTotal = roundMoney(
+                    product.price * quantity
+            );
 
             result.add(line);
         }
@@ -390,8 +383,7 @@ public class SalesRepository {
                         "barcode",
                         "name",
                         "unit",
-                        "price",
-                        "stock_qty"
+                        "price"
                 },
                 "barcode = ?",
                 new String[]{barcode},
@@ -405,23 +397,25 @@ public class SalesRepository {
             }
 
             ProductSnapshot product = new ProductSnapshot();
+
             product.id = cursor.getLong(
                     cursor.getColumnIndexOrThrow("id")
             );
+
             product.barcode = cursor.getString(
                     cursor.getColumnIndexOrThrow("barcode")
             );
+
             product.name = cursor.getString(
                     cursor.getColumnIndexOrThrow("name")
             );
+
             product.unit = cursor.getString(
                     cursor.getColumnIndexOrThrow("unit")
             );
+
             product.price = cursor.getDouble(
                     cursor.getColumnIndexOrThrow("price")
-            );
-            product.stockQty = cursor.getInt(
-                    cursor.getColumnIndexOrThrow("stock_qty")
             );
 
             return product;
@@ -453,7 +447,8 @@ public class SalesRepository {
         ).format(new java.util.Date());
 
         return "POS-" + timestamp + "-"
-                + UUID.randomUUID().toString()
+                + UUID.randomUUID()
+                .toString()
                 .replace("-", "")
                 .substring(0, 8)
                 .toUpperCase(Locale.US);
@@ -468,4 +463,4 @@ public class SalesRepository {
     private double roundMoney(double amount) {
         return Math.round(amount * 100.0d) / 100.0d;
     }
-}
+                }
