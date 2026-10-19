@@ -1,3 +1,4 @@
+
 package com.example.newapp;
 
 import android.app.Activity;
@@ -65,6 +66,20 @@ public class StockScreen extends Activity {
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+        );
+
+        addMenuButton(
+                root,
+                "เพิ่มสินค้าใหม่เข้าคลัง",
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        startActivity(new Intent(
+                                StockScreen.this,
+                                CreateStockProductScreen.class
+                        ));
+                    }
+                }
         );
 
         addMenuButton(
