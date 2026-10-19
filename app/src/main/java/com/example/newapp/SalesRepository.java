@@ -4,9 +4,14 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.UUID;
 
 public class SalesRepository {
@@ -16,8 +21,14 @@ public class SalesRepository {
 
     public static final String STATUS_PAID = "PAID";
     public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_CANCELLED = "CANCELLED";
+    public static final String STATUS_REFUNDED = "REFUNDED";
 
     private static final double CREDIT_FEE_RATE = 0.05d;
+    private static final int CREDIT_DUE_DAYS = 30;
+
+    private static final TimeZone THAILAND_TIME_ZONE =
+            TimeZone.getTimeZone("Asia/Bangkok");
 
     private final LocalDatabase helper;
 
@@ -120,6 +131,8 @@ public class SalesRepository {
     }
 
     /**
+     * บันทึกการขายภายใน transaction เดียวกัน
+     *
      * เงินสด:
      * - ไม่มีค่าบริการ
      * - ต้องรับเงินเพียงพอ
@@ -127,11 +140,12 @@ public class SalesRepository {
      * ขายเชื่อ:
      * - คิดค่าบริการ 5%
      * - ต้องเลือกลูกค้า
+     * - กำหนดวันครบกำหนดชำระ 30 วันหลังวันที่ขาย
      *
-     * บันทึกบิลและรายการสินค้าใน transaction เดียวกัน
-     *
-     * หมายเหตุ:
-     * เมธอดนี้ไม่ตัดสต๊อกและไม่บันทึก stock movement
+     * สำคัญ:
+     * - ไม่ตัด products.stock_qty
+     * - ไม่เพิ่มข้อมูล stock_movements
+     * - ไม่ลบหรือแก้ไขข้อมูลสต๊อก
      */
     public SaleResult createSale(
             List<SaleLineInput> inputLines,
@@ -221,6 +235,7 @@ public class SalesRepository {
             String timestamp = LocalDatabase.now();
 
             ContentValues sale = new ContentValues();
+
             sale.put("bill_number", billNumber);
             sale.put("payment_type", paymentType);
 
@@ -245,11 +260,14 @@ public class SalesRepository {
 
             if (PAYMENT_CASH.equals(paymentType)) {
                 sale.put("paid_at", timestamp);
+                sale.putNull("due_date");
             } else {
                 sale.putNull("paid_at");
+                sale.put("due_date", calculateDueDate());
             }
 
             sale.put("receipt_text", "");
+            sale.put("receipt_details_deleted", 0);
             sale.put("print_status", "NOT_PRINTED");
             sale.put("created_at", timestamp);
 
@@ -266,8 +284,7 @@ public class SalesRepository {
             }
 
             // บันทึกเฉพาะรายการสินค้าที่ขาย
-            // ไม่แก้ไข products.stock_qty
-            // ไม่เพิ่มข้อมูล stock_movements
+            // ห้ามตัดสต๊อกหรือสร้าง stock movement ที่นี่
             for (PreparedLine line : lines) {
                 ProductSnapshot product = line.product;
 
@@ -316,12 +333,34 @@ public class SalesRepository {
         }
     }
 
+    /**
+     * คำนวณวันครบกำหนดชำระสำหรับการขายเชื่อ
+     * โดยใช้เขตเวลาไทยและรูปแบบวันที่ของฐานข้อมูล
+     */
+    private String calculateDueDate() {
+        Calendar calendar = Calendar.getInstance(
+                THAILAND_TIME_ZONE,
+                Locale.US
+        );
+
+        calendar.add(Calendar.DAY_OF_MONTH, CREDIT_DUE_DAYS);
+
+        SimpleDateFormat format = new SimpleDateFormat(
+                "yyyy-MM-dd HH:mm:ss",
+                Locale.US
+        );
+
+        format.setTimeZone(THAILAND_TIME_ZONE);
+
+        return format.format(calendar.getTime());
+    }
+
     private List<PreparedLine> prepareLines(
             SQLiteDatabase db,
             List<SaleLineInput> inputLines
     ) {
-        java.util.LinkedHashMap<String, Integer> quantities =
-                new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, Integer> quantities =
+                new LinkedHashMap<>();
 
         // รวมจำนวนของบาร์โค้ดเดียวกัน
         for (SaleLineInput input : inputLines) {
@@ -355,16 +394,22 @@ public class SalesRepository {
 
             int quantity = quantities.get(barcode);
 
-            if (product == null || quantity <= 0) {
+            if (product == null
+                    || quantity <= 0
+                    || !validMoney(product.price)) {
+                return null;
+            }
+
+            double lineTotal = product.price * quantity;
+
+            if (!validMoney(lineTotal)) {
                 return null;
             }
 
             PreparedLine line = new PreparedLine();
             line.product = product;
             line.quantity = quantity;
-            line.lineTotal = roundMoney(
-                    product.price * quantity
-            );
+            line.lineTotal = roundMoney(lineTotal);
 
             result.add(line);
         }
@@ -441,10 +486,10 @@ public class SalesRepository {
     }
 
     private String createUniqueBillNumber() {
-        String timestamp = new java.text.SimpleDateFormat(
+        String timestamp = new SimpleDateFormat(
                 "yyyyMMddHHmmss",
                 Locale.US
-        ).format(new java.util.Date());
+        ).format(new Date());
 
         return "POS-" + timestamp + "-"
                 + UUID.randomUUID()
@@ -463,4 +508,5 @@ public class SalesRepository {
     private double roundMoney(double amount) {
         return Math.round(amount * 100.0d) / 100.0d;
     }
-                }
+}
+```]]>
