@@ -126,6 +126,20 @@ public class StockScreen extends Activity {
 
         addMenuButton(
                 root,
+                "สินค้าใกล้หมด",
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        startActivity(new Intent(
+                                StockScreen.this,
+                                StockAlertScreen.class
+                        ));
+                    }
+                }
+        );
+
+        addMenuButton(
+                root,
                 "รับสินค้าเข้า",
                 new View.OnClickListener() {
                     @Override
