@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.content.ContentValues;
@@ -13,6 +12,11 @@ public class CreditPaymentRepository {
     private final LocalDatabase database;
 
     public CreditPaymentRepository(LocalDatabase database) {
+        if (database == null) {
+            throw new IllegalArgumentException(
+                    "ฐานข้อมูลห้ามเป็น null"
+            );
+        }
         this.database = database;
     }
 
@@ -36,11 +40,19 @@ public class CreditPaymentRepository {
     }
 
     /**
-     * รับชำระบิลเครดิตเต็มจำนวนด้วยเงินสดเท่านั้น
-     * บันทึกประวัติรับชำระและเปลี่ยนสถานะบิล
-     * ภายใน transaction เดียวกัน
+     * รับชำระบิลเครดิตเต็มจำนวน
+     *
+     * หน้าจอปัจจุบันเรียก payFullBill(saleId)
+     * จึงรับชำระด้วยเงินสดเท่ากับยอดบิล
+     *
+     * บันทึกประวัติรับชำระและอัปเดตบิล
+     * ภายใน Transaction เดียวกัน
      */
     public PaymentResult payFullBill(long saleId) {
+        if (saleId <= 0) {
+            return failure("รหัสบิลไม่ถูกต้อง");
+        }
+
         SQLiteDatabase db = database.getWritableDatabase();
 
         String receiptNumber = "CP-" +
@@ -50,12 +62,14 @@ public class CreditPaymentRepository {
                         .substring(0, 12)
                         .toUpperCase(Locale.US);
 
-        double total;
-        String originalBillNumber;
-
         db.beginTransaction();
 
         try {
+            String originalBillNumber;
+            double total;
+            String paymentType;
+            String status;
+
             try (Cursor cursor = db.rawQuery(
                     "SELECT bill_number, total, payment_type, status " +
                     "FROM sales WHERE id = ? LIMIT 1",
@@ -67,26 +81,29 @@ public class CreditPaymentRepository {
 
                 originalBillNumber = cursor.getString(0);
                 total = cursor.getDouble(1);
-
-                String paymentType = cursor.getString(2);
-                String status = cursor.getString(3);
-
-                if (!"CREDIT".equalsIgnoreCase(paymentType)) {
-                    return failure("บิลนี้ไม่ใช่บิลเครดิต");
-                }
-
-                if (!"PENDING".equalsIgnoreCase(status)) {
-                    return failure("บิลนี้ไม่ได้อยู่ในสถานะค้างชำระ");
-                }
+                paymentType = cursor.getString(2);
+                status = cursor.getString(3);
             }
 
-            if (total <= 0) {
+            if (!"CREDIT".equalsIgnoreCase(paymentType)) {
+                return failure("บิลนี้ไม่ใช่บิลเครดิต");
+            }
+
+            if (!"PENDING".equalsIgnoreCase(status)) {
+                return failure("บิลนี้ไม่ได้อยู่ในสถานะค้างชำระ");
+            }
+
+            if (Double.isNaN(total)
+                    || Double.isInfinite(total)
+                    || total <= 0) {
                 return failure("ยอดบิลไม่ถูกต้อง");
             }
 
+            // หน้าจอเดิมรับชำระเต็มจำนวนโดยไม่รับยอดเงินจากผู้ใช้
+            double cashReceived = total;
+            double change = 0.0d;
             String now = LocalDatabase.now();
 
-            // สร้างข้อความใบเสร็จและเก็บไว้สำหรับเรียกดูภายหลัง
             String receiptText =
                     "ใบเสร็จรับชำระหนี้\n" +
                     "เลขที่ใบเสร็จ: " + receiptNumber + "\n" +
@@ -98,15 +115,24 @@ public class CreditPaymentRepository {
                             total
                     ) +
                     "วิธีชำระ: เงินสด\n" +
-                    "เงินทอน: 0.00 บาท";
+                    String.format(
+                            Locale.US,
+                            "รับเงินสด: %.2f บาท\n",
+                            cashReceived
+                    ) +
+                    String.format(
+                            Locale.US,
+                            "เงินทอน: %.2f บาท",
+                            change
+                    );
 
-            // ใช้ชื่อคอลัมน์ที่มีอยู่จริงใน credit_payments
+            // บันทึกประวัติรับชำระตาม Schema ใน LocalDatabase
             ContentValues payment = new ContentValues();
             payment.put("payment_number", receiptNumber);
             payment.put("sale_id", saleId);
             payment.put("amount", total);
-            payment.put("cash_received", total);
-            payment.put("change_due", 0.0);
+            payment.put("cash_received", cashReceived);
+            payment.put("change_due", change);
             payment.put("paid_at", now);
             payment.put("receipt_text", receiptText);
             payment.put("print_status", "NOT_PRINTED");
@@ -117,9 +143,11 @@ public class CreditPaymentRepository {
                     payment
             );
 
-            // เปลี่ยนสถานะเฉพาะเมื่อบิลยังค้างชำระอยู่
+            // อัปเดตสถานะและยอดรับเงินจริงให้สอดคล้องกับประวัติชำระ
             ContentValues update = new ContentValues();
             update.put("status", "PAID");
+            update.put("cash_received", cashReceived);
+            update.put("change_due", change);
             update.put("paid_at", now);
 
             int updated = db.update(
@@ -132,8 +160,8 @@ public class CreditPaymentRepository {
 
             if (updated != 1) {
                 throw new IllegalStateException(
-                        "สถานะบิลเปลี่ยนไปแล้ว " +
-                        "กรุณาตรวจสอบก่อนรับชำระอีกครั้ง"
+                        "อัปเดตสถานะบิลไม่สำเร็จ " +
+                        "กรุณาตรวจสอบสถานะบิลอีกครั้ง"
                 );
             }
 
@@ -150,7 +178,7 @@ public class CreditPaymentRepository {
             return failure(
                     e.getMessage() == null
                             ? "เกิดข้อผิดพลาดระหว่างรับชำระ"
-                            : e.getMessage()
+                            : "รับชำระไม่สำเร็จ: " + e.getMessage()
             );
 
         } finally {
@@ -160,15 +188,6 @@ public class CreditPaymentRepository {
 
     /**
      * ประวัติรับชำระของบิลหนึ่งใบ
-     *
-     * ใช้ alias เพื่อให้โค้ดที่เรียก Cursor เดิม
-     * อ่านชื่อคอลัมน์ได้เหมือนเดิม
-     *
-     * คอลัมน์ผลลัพธ์:
-     * payment_receipt_number
-     * original_bill_number
-     * amount
-     * created_at
      */
     public Cursor getPaymentHistory(long saleId) {
         SQLiteDatabase db = database.getReadableDatabase();
@@ -189,16 +208,6 @@ public class CreditPaymentRepository {
 
     /**
      * ประวัติรับชำระทั้งหมด
-     * เชื่อมกับบิลต้นฉบับเพื่ออ่านลูกค้าและเลขบิล
-     * โดยไม่อ้างคอลัมน์ที่ไม่มีใน credit_payments
-     *
-     * คอลัมน์ผลลัพธ์:
-     * payment_receipt_number
-     * original_bill_number
-     * amount
-     * created_at
-     * first_name
-     * last_name
      */
     public Cursor getAllPaymentHistory() {
         SQLiteDatabase db = database.getReadableDatabase();
@@ -227,4 +236,4 @@ public class CreditPaymentRepository {
                 0
         );
     }
-}
+    }
