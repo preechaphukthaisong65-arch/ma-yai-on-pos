@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.app.Activity;
@@ -67,6 +66,23 @@ public class ReceiveStockScreen extends Activity {
 
         initializeVoice();
         buildScreen();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // เมื่อกลับจากหน้าสร้างสินค้า ให้ค้นหาบาร์โค้ดเดิมอีกครั้ง
+        // เพื่อเลือกสินค้าที่เพิ่งสร้างและรับสินค้าต่อได้
+        if (barcodeInput != null && currentProduct == null) {
+            String barcode = barcodeInput.getText()
+                    .toString()
+                    .trim();
+
+            if (!barcode.isEmpty()) {
+                findProduct();
+            }
+        }
     }
 
     private void initializeVoice() {
@@ -322,9 +338,9 @@ public class ReceiveStockScreen extends Activity {
             showMessage(
                     "ไม่พบสินค้า สามารถเพิ่มสินค้าใหม่ด้วยบาร์โค้ดนี้ได้"
             );
-            speakThai(
-                    "ไม่พบสินค้า สามารถกดเพิ่มสินค้าใหม่ได้"
-            );
+
+            // ข้อความเสียงตามข้อกำหนดของขั้นตอนเพิ่มสินค้าใหม่
+            speakThai("สินค้าใหม่ค่ะ");
             return;
         }
 
@@ -575,4 +591,4 @@ public class ReceiveStockScreen extends Activity {
 
         super.onDestroy();
     }
-}
+                              }
