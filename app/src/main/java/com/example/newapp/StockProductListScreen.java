@@ -3,17 +3,17 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
 import android.widget.Button;
@@ -43,6 +43,9 @@ public class StockProductListScreen extends Activity {
     private ProductCursorAdapter adapter;
     private Cursor productCursor;
 
+    private TextToSpeech textToSpeech;
+    private boolean voiceReady = false;
+
     private int dp(float value) {
         return Math.round(
                 value * getResources().getDisplayMetrics().density
@@ -57,6 +60,7 @@ public class StockProductListScreen extends Activity {
         productRepository = new ProductRepository(this);
         inventoryRepository = new InventoryRepository(database);
 
+        initializeVoice();
         buildScreen();
     }
 
@@ -137,21 +141,23 @@ public class StockProductListScreen extends Activity {
         adapter = new ProductCursorAdapter();
         productList.setAdapter(adapter);
 
-        productList.setOnItemClickListener((parent, view, position, id) -> {
-            Cursor cursor = productCursor;
+        productList.setOnItemClickListener(
+                (parent, view, position, id) -> {
+                    Cursor cursor = productCursor;
 
-            if (cursor == null || cursor.isClosed()
-                    || !cursor.moveToPosition(position)) {
-                showMessage("ไม่สามารถอ่านข้อมูลสินค้าได้");
-                return;
-            }
+                    if (cursor == null || cursor.isClosed()
+                            || !cursor.moveToPosition(position)) {
+                        showMessage("ไม่สามารถอ่านข้อมูลสินค้าได้");
+                        return;
+                    }
 
-            String barcode = cursor.getString(
-                    cursor.getColumnIndexOrThrow("barcode")
-            );
+                    String barcode = cursor.getString(
+                            cursor.getColumnIndexOrThrow("barcode")
+                    );
 
-            showProductDetails(barcode);
-        });
+                    showProductDetails(barcode);
+                }
+        );
 
         root.addView(
                 productList,
@@ -172,8 +178,8 @@ public class StockProductListScreen extends Activity {
     private LinearLayout.LayoutParams fieldParams() {
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
         params.bottomMargin = dp(7);
@@ -336,11 +342,13 @@ public class StockProductListScreen extends Activity {
                 productRepository.findByBarcode(barcode);
 
         if (product == null) {
+            speakThai("สินค้าใหม่ค่ะ");
             reloadProducts();
             showMessage("ไม่พบสินค้าในคลัง: " + barcode);
             return;
         }
 
+        speakThai(safe(product.name) + "ค่ะ");
         reloadProducts();
         showProductDetails(barcode);
     }
@@ -507,8 +515,85 @@ public class StockProductListScreen extends Activity {
         ).show();
     }
 
+    private void initializeVoice() {
+        textToSpeech = new TextToSpeech(this, status -> {
+            if (status != TextToSpeech.SUCCESS
+                    || textToSpeech == null) {
+                voiceReady = false;
+                return;
+            }
+
+            int languageResult = textToSpeech.setLanguage(
+                    new Locale("th", "TH")
+            );
+
+            voiceReady =
+                    languageResult != TextToSpeech.LANG_MISSING_DATA
+                    && languageResult != TextToSpeech.LANG_NOT_SUPPORTED;
+
+            if (voiceReady && android.os.Build.VERSION.SDK_INT >= 21) {
+                try {
+                    android.speech.tts.Voice femaleThaiVoice = null;
+
+                    for (android.speech.tts.Voice voice
+                            : textToSpeech.getVoices()) {
+                        if (voice == null || voice.getLocale() == null) {
+                            continue;
+                        }
+
+                        String voiceName = voice.getName() == null
+                                ? ""
+                                : voice.getName().toLowerCase(Locale.ROOT);
+
+                        if ("th".equals(voice.getLocale().getLanguage())
+                                && voiceName.contains("female")) {
+                            femaleThaiVoice = voice;
+                            break;
+                        }
+                    }
+
+                    if (femaleThaiVoice != null) {
+                        textToSpeech.setVoice(femaleThaiVoice);
+                    }
+
+                } catch (Exception ignored) {
+                    // ใช้เสียงภาษาไทยเริ่มต้น หากเลือกเสียงผู้หญิงไม่ได้
+                }
+            }
+        });
+    }
+
+    private void speakThai(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return;
+        }
+
+        if (textToSpeech != null && voiceReady) {
+            if (android.os.Build.VERSION.SDK_INT >= 21) {
+                textToSpeech.speak(
+                        message,
+                        TextToSpeech.QUEUE_FLUSH,
+                        null,
+                        "stock_scan_announcement"
+                );
+            } else {
+                textToSpeech.speak(
+                        message,
+                        TextToSpeech.QUEUE_FLUSH,
+                        null
+                );
+            }
+        }
+    }
+
     @Override
     protected void onDestroy() {
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+            textToSpeech = null;
+        }
+
         if (productCursor != null && !productCursor.isClosed()) {
             productCursor.close();
         }
