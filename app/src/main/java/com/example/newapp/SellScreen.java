@@ -845,6 +845,12 @@ public class SellScreen extends Activity {
         } finally {
             db.endTransaction();
         }
+
+        // ซิงก์การแจ้งเตือนหลังธุรกรรมขายจบแล้ว และเฉพาะเมื่อบันทึกสำเร็จ
+        if (saleSaved) {
+            new AndroidNotificationService(this)
+                    .syncLowStockNotification();
+        }
     }
 
     private void showSavedReceipt(String receipt) {
