@@ -35,7 +35,7 @@ public class ReceiptPrinter {
 
         try (Cursor sale = db.rawQuery(
                 "SELECT bill_number, payment_type, status, subtotal, " +
-                "service_fee, total, cash_received, change_amount, " +
+                "service_fee, total, cash_received, change_due, " +
                 "created_at, paid_at, receipt_text " +
                 "FROM sales WHERE id = ? LIMIT 1",
                 new String[]{String.valueOf(saleId)})) {
@@ -88,14 +88,16 @@ public class ReceiptPrinter {
             }
 
             receipt.append("--------------------------------\n");
-            receipt.append("รวมสินค้า: ").append(money.format(subtotal)).append("\n");
+            receipt.append("รวมสินค้า: ")
+                    .append(money.format(subtotal)).append("\n");
 
             if (fee > 0) {
                 receipt.append("ค่าธรรมเนียมเครดิต: ")
                         .append(money.format(fee)).append("\n");
             }
 
-            receipt.append("ยอดสุทธิ: ").append(money.format(total)).append(" บาท\n");
+            receipt.append("ยอดสุทธิ: ")
+                    .append(money.format(total)).append(" บาท\n");
 
             if ("CREDIT".equalsIgnoreCase(paymentType)) {
                 receipt.append("สถานะ: ")
@@ -104,20 +106,19 @@ public class ReceiptPrinter {
                         .append("\n");
 
                 if (paidAt != null && !paidAt.trim().isEmpty()) {
-                    receipt.append("วันที่ชำระ: ").append(paidAt).append("\n");
+                    receipt.append("วันที่ชำระ: ")
+                            .append(paidAt).append("\n");
                 }
             } else {
-                receipt.append("รับเงิน: ").append(money.format(cash)).append("\n");
-                receipt.append("เงินทอน: ").append(money.format(change)).append("\n");
+                receipt.append("รับเงิน: ")
+                        .append(money.format(cash)).append("\n");
+                receipt.append("เงินทอน: ")
+                        .append(money.format(change)).append("\n");
             }
 
             receipt.append("--------------------------------\n");
             receipt.append(center("ขอบคุณที่ใช้บริการ")).append("\n\n\n");
 
-            /*
-             * ถ้ามีข้อความใบเสร็จที่บันทึกไว้ ให้ใช้ข้อความนั้นได้
-             * แต่ถ้าว่าง ให้สร้างข้อความจากรายการในฐานข้อมูลด้านบน
-             */
             String output = savedText == null || savedText.trim().isEmpty()
                     ? receipt.toString()
                     : savedText;
@@ -170,29 +171,40 @@ public class ReceiptPrinter {
 
     public PrintResult printCreditPayment(String paymentReceiptNumber) {
         SQLiteDatabase db = database.getReadableDatabase();
-        StringBuilder receipt = new StringBuilder();
+
+        String sql =
+                "SELECT cp.payment_number, s.bill_number, " +
+                "cp.amount, cp.paid_at " +
+                "FROM credit_payments cp " +
+                "INNER JOIN sales s ON s.id = cp.sale_id " +
+                "WHERE cp.payment_number = ? LIMIT 1";
 
         try (Cursor cursor = db.rawQuery(
-                "SELECT payment_receipt_number, original_bill_number, " +
-                "amount, created_at FROM credit_payments " +
-                "WHERE payment_receipt_number = ? LIMIT 1",
+                sql,
                 new String[]{paymentReceiptNumber})) {
 
             if (!cursor.moveToFirst()) {
                 return new PrintResult(false, "ไม่พบรายการรับชำระ");
             }
 
+            String receiptNo = cursor.getString(0);
+            String originalBill = cursor.getString(1);
+            double amount = cursor.getDouble(2);
+            String paidAt = cursor.getString(3);
+
+            StringBuilder receipt = new StringBuilder();
+
             receipt.append(center("ร้านแม่ใหญ่อ่อน")).append("\n");
             receipt.append(center("ใบเสร็จรับชำระหนี้")).append("\n");
             receipt.append("--------------------------------\n");
             receipt.append("เลขที่ใบเสร็จ: ")
-                    .append(safe(cursor.getString(0))).append("\n");
+                    .append(safe(receiptNo)).append("\n");
             receipt.append("บิลต้นฉบับ: ")
-                    .append(safe(cursor.getString(1))).append("\n");
+                    .append(safe(originalBill)).append("\n");
             receipt.append("วันที่รับชำระ: ")
-                    .append(safe(cursor.getString(3))).append("\n");
+                    .append(safe(paidAt)).append("\n");
             receipt.append("รับเงินสด: ")
-                    .append(money.format(cursor.getDouble(2)))
+                    .append(money.format(amount))
                     .append(" บาท\n");
             receipt.append("--------------------------------\n");
             receipt.append(center("รับชำระเต็มบิลแล้ว")).append("\n");
@@ -209,12 +221,16 @@ public class ReceiptPrinter {
             printer.printText(receipt.toString());
             printer.feed(4);
 
-            return new PrintResult(true, "ส่งใบเสร็จรับชำระไปพิมพ์แล้ว");
+            return new PrintResult(
+                    true,
+                    "ส่งใบเสร็จรับชำระไปพิมพ์แล้ว"
+            );
 
         } catch (Exception e) {
             return new PrintResult(
                     false,
-                    "พิมพ์ใบเสร็จรับชำระไม่สำเร็จ: " + safe(e.getMessage())
+                    "พิมพ์ใบเสร็จรับชำระไม่สำเร็จ: "
+                            + safe(e.getMessage())
             );
         }
     }
