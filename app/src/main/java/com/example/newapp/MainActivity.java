@@ -1,3 +1,4 @@
+
 package com.example.newapp;
 
 import android.app.Activity;
@@ -143,7 +144,7 @@ public class MainActivity extends Activity {
                 row2,
                 "menu_manage",
                 "จัดการร้านค้า",
-                null
+                ManageStoreScreen.class
         );
 
         addImageMenu(
