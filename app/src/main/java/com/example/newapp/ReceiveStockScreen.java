@@ -8,8 +8,10 @@ import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -19,6 +21,8 @@ import android.widget.Toast;
 
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
+
+import java.util.Locale;
 
 public class ReceiveStockScreen extends Activity {
 
@@ -31,8 +35,13 @@ public class ReceiveStockScreen extends Activity {
 
     private TextView productInfo;
     private TextView stockInfo;
+    private Button addNewProductButton;
 
     private ProductInfo currentProduct;
+
+    private TextToSpeech textToSpeech;
+    private boolean voiceReady = false;
+    private String pendingSpeech;
 
     private static class ProductInfo {
         String barcode;
@@ -56,7 +65,65 @@ public class ReceiveStockScreen extends Activity {
         );
         notificationService = new AndroidNotificationService(this);
 
+        initializeVoice();
         buildScreen();
+    }
+
+    private void initializeVoice() {
+        textToSpeech = new TextToSpeech(
+                getApplicationContext(),
+                status -> {
+                    if (status != TextToSpeech.SUCCESS
+                            || textToSpeech == null) {
+                        voiceReady = false;
+                        return;
+                    }
+
+                    int languageResult = textToSpeech.setLanguage(
+                            new Locale("th", "TH")
+                    );
+
+                    voiceReady =
+                            languageResult != TextToSpeech.LANG_MISSING_DATA
+                                    && languageResult
+                                    != TextToSpeech.LANG_NOT_SUPPORTED;
+
+                    if (voiceReady && pendingSpeech != null) {
+                        String message = pendingSpeech;
+                        pendingSpeech = null;
+                        speakThai(message);
+                    }
+                }
+        );
+    }
+
+    private void speakThai(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return;
+        }
+
+        if (textToSpeech == null) {
+            return;
+        }
+
+        if (!voiceReady) {
+            pendingSpeech = message;
+            return;
+        }
+
+        int result = textToSpeech.speak(
+                message,
+                TextToSpeech.QUEUE_FLUSH,
+                null,
+                "receive_stock_voice"
+        );
+
+        if (result == TextToSpeech.ERROR) {
+            android.util.Log.w(
+                    "ReceiveStockScreen",
+                    "อ่านข้อความภาษาไทยไม่สำเร็จ"
+            );
+        }
     }
 
     private void buildScreen() {
@@ -106,6 +173,13 @@ public class ReceiveStockScreen extends Activity {
         Button searchButton = createButton("ค้นหาสินค้า");
         searchButton.setOnClickListener(v -> findProduct());
         root.addView(searchButton, fieldParams());
+
+        addNewProductButton = createButton(
+                "เพิ่มสินค้าใหม่ด้วยบาร์โค้ดนี้"
+        );
+        addNewProductButton.setVisibility(View.GONE);
+        addNewProductButton.setOnClickListener(v -> openCreateProduct());
+        root.addView(addNewProductButton, fieldParams());
 
         productInfo = new TextView(this);
         productInfo.setText("ยังไม่ได้เลือกสินค้า");
@@ -184,16 +258,22 @@ public class ReceiveStockScreen extends Activity {
     }
 
     private void startScanner() {
-        IntentIntegrator integrator =
-                new IntentIntegrator(this);
+        try {
+            IntentIntegrator integrator =
+                    new IntentIntegrator(this);
 
-        integrator.setPrompt("สแกนบาร์โค้ดสินค้า");
-        integrator.setBeepEnabled(true);
-        integrator.setOrientationLocked(false);
-        integrator.setDesiredBarcodeFormats(
-                IntentIntegrator.ONE_D_CODE_TYPES
-        );
-        integrator.initiateScan();
+            integrator.setPrompt("สแกนบาร์โค้ดสินค้า");
+            integrator.setBeepEnabled(true);
+            integrator.setOrientationLocked(false);
+            integrator.setDesiredBarcodeFormats(
+                    IntentIntegrator.ONE_D_CODE_TYPES
+            );
+            integrator.initiateScan();
+
+        } catch (RuntimeException e) {
+            showMessage("เปิดกล้องสแกนบาร์โค้ดไม่สำเร็จ");
+            speakThai("เปิดกล้องสแกนบาร์โค้ดไม่สำเร็จ");
+        }
     }
 
     @Override
@@ -211,14 +291,11 @@ public class ReceiveStockScreen extends Activity {
 
         if (result != null) {
             if (result.getContents() != null) {
-                barcodeInput.setText(result.getContents());
+                String barcode = result.getContents().trim();
+                barcodeInput.setText(barcode);
                 findProduct();
             } else {
-                Toast.makeText(
-                        this,
-                        "ยกเลิกการสแกน",
-                        Toast.LENGTH_SHORT
-                ).show();
+                showMessage("ยกเลิกการสแกน");
             }
         }
     }
@@ -230,6 +307,7 @@ public class ReceiveStockScreen extends Activity {
 
         if (barcode.isEmpty()) {
             barcodeInput.setError("กรุณากรอกบาร์โค้ด");
+            speakThai("กรุณากรอกหรือสแกนบาร์โค้ดสินค้า");
             return;
         }
 
@@ -239,16 +317,19 @@ public class ReceiveStockScreen extends Activity {
             currentProduct = null;
             productInfo.setText("ไม่พบสินค้า: " + barcode);
             stockInfo.setText("สต๊อกปัจจุบัน: -");
+            addNewProductButton.setVisibility(View.VISIBLE);
 
-            Toast.makeText(
-                    this,
-                    "ไม่พบสินค้า กรุณาตรวจสอบบาร์โค้ด",
-                    Toast.LENGTH_LONG
-            ).show();
+            showMessage(
+                    "ไม่พบสินค้า สามารถเพิ่มสินค้าใหม่ด้วยบาร์โค้ดนี้ได้"
+            );
+            speakThai(
+                    "ไม่พบสินค้า สามารถกดเพิ่มสินค้าใหม่ได้"
+            );
             return;
         }
 
         currentProduct = product;
+        addNewProductButton.setVisibility(View.GONE);
 
         productInfo.setText(
                 "ชื่อสินค้า: " + product.name
@@ -264,11 +345,42 @@ public class ReceiveStockScreen extends Activity {
         quantityInput.setText("");
         noteInput.setText("");
 
-        Toast.makeText(
-                this,
-                "ค้นหาสินค้าสำเร็จ",
-                Toast.LENGTH_SHORT
-        ).show();
+        showMessage("ค้นหาสินค้าสำเร็จ");
+        speakThai("พบสินค้า " + product.name);
+    }
+
+    private void openCreateProduct() {
+        String barcode = barcodeInput.getText()
+                .toString()
+                .trim();
+
+        if (barcode.isEmpty()) {
+            barcodeInput.setError("กรุณากรอกบาร์โค้ด");
+            return;
+        }
+
+        try (Cursor cursor = inventory.findProductCursor(barcode)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                showMessage(
+                        "บาร์โค้ดนี้มีสินค้าอยู่แล้ว กรุณาค้นหาสินค้า"
+                );
+                speakThai(
+                        "บาร์โค้ดนี้มีสินค้าอยู่แล้ว กรุณาค้นหาสินค้า"
+                );
+                findProduct();
+                return;
+            }
+        } catch (Exception e) {
+            showMessage("ตรวจสอบบาร์โค้ดไม่สำเร็จ กรุณาลองใหม่");
+            return;
+        }
+
+        Intent intent = new Intent(
+                ReceiveStockScreen.this,
+                CreateStockProductScreen.class
+        );
+        intent.putExtra("prefill_barcode", barcode);
+        startActivity(intent);
     }
 
     private ProductInfo readProduct(String barcode) {
@@ -299,11 +411,9 @@ public class ReceiveStockScreen extends Activity {
             return product;
 
         } catch (Exception e) {
-            Toast.makeText(
-                    this,
-                    "อ่านข้อมูลสินค้าไม่สำเร็จ: " + errorMessage(e),
-                    Toast.LENGTH_LONG
-            ).show();
+            showMessage(
+                    "อ่านข้อมูลสินค้าไม่สำเร็จ: " + errorMessage(e)
+            );
             return null;
 
         } finally {
@@ -315,11 +425,8 @@ public class ReceiveStockScreen extends Activity {
 
     private void confirmReceipt() {
         if (currentProduct == null) {
-            Toast.makeText(
-                    this,
-                    "กรุณาค้นหาสินค้าก่อน",
-                    Toast.LENGTH_SHORT
-            ).show();
+            showMessage("กรุณาค้นหาสินค้าก่อน");
+            speakThai("กรุณาค้นหาสินค้าก่อน");
             return;
         }
 
@@ -329,6 +436,7 @@ public class ReceiveStockScreen extends Activity {
 
         if (qtyText.isEmpty()) {
             quantityInput.setError("กรุณากรอกจำนวนรับเข้า");
+            speakThai("กรุณากรอกจำนวนสินค้าที่รับเข้า");
             return;
         }
 
@@ -339,17 +447,20 @@ public class ReceiveStockScreen extends Activity {
 
             if (receivedQty <= 0) {
                 quantityInput.setError("จำนวนรับเข้าต้องมากกว่า 0");
+                speakThai("จำนวนรับเข้าต้องมากกว่าศูนย์");
                 return;
             }
 
             if ((long) currentProduct.stockQty + receivedQty
                     > Integer.MAX_VALUE) {
                 quantityInput.setError("จำนวนรวมมากเกินไป");
+                speakThai("จำนวนสินค้ารวมมากเกินไป");
                 return;
             }
 
         } catch (NumberFormatException e) {
             quantityInput.setError("จำนวนไม่ถูกต้อง");
+            speakThai("จำนวนสินค้าไม่ถูกต้อง");
             return;
         }
 
@@ -391,16 +502,23 @@ public class ReceiveStockScreen extends Activity {
             );
 
             if (!success) {
-                Toast.makeText(
-                        this,
-                        "รับสินค้าไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองใหม่",
-                        Toast.LENGTH_LONG
-                ).show();
+                showMessage(
+                        "รับสินค้าไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองใหม่"
+                );
+                speakThai("รับสินค้าไม่สำเร็จ กรุณาตรวจสอบข้อมูล");
                 return;
             }
 
-            // ซิงก์สถานะเตือนหลังธุรกรรมรับสินค้าเสร็จสมบูรณ์แล้ว
-            notificationService.syncLowStockNotification();
+            // ซิงก์แจ้งเตือนหลังธุรกรรมรับสินค้าเสร็จสมบูรณ์แล้ว
+            try {
+                notificationService.syncLowStockNotification();
+            } catch (Exception notificationError) {
+                android.util.Log.w(
+                        "ReceiveStockScreen",
+                        "ซิงก์แจ้งเตือนสต๊อกไม่สำเร็จ",
+                        notificationError
+                );
+            }
 
             ProductInfo updated = readProduct(barcode);
 
@@ -422,18 +540,14 @@ public class ReceiveStockScreen extends Activity {
             quantityInput.setText("");
             noteInput.setText("");
 
-            Toast.makeText(
-                    this,
-                    "รับสินค้าเข้าและบันทึกประวัติสำเร็จ",
-                    Toast.LENGTH_LONG
-            ).show();
+            showMessage("รับสินค้าเข้าและบันทึกประวัติสำเร็จ");
+            speakThai("รับสินค้าเข้าเรียบร้อยแล้ว");
 
         } catch (Exception e) {
-            Toast.makeText(
-                    this,
-                    "รับสินค้าไม่สำเร็จ: " + errorMessage(e),
-                    Toast.LENGTH_LONG
-            ).show();
+            showMessage(
+                    "รับสินค้าไม่สำเร็จ: " + errorMessage(e)
+            );
+            speakThai("รับสินค้าไม่สำเร็จ กรุณาลองใหม่");
         }
     }
 
@@ -441,5 +555,24 @@ public class ReceiveStockScreen extends Activity {
         return e.getMessage() == null
                 ? "เกิดข้อผิดพลาด"
                 : e.getMessage();
+    }
+
+    private void showMessage(String message) {
+        Toast.makeText(
+                this,
+                message,
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+            textToSpeech = null;
+        }
+
+        super.onDestroy();
     }
 }
