@@ -1,3 +1,4 @@
+
 package com.example.newapp;
 
 import android.app.Activity;
@@ -23,6 +24,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class StocktakeScreen extends Activity {
 
     private InventoryRepository inventory;
+    private AndroidNotificationService notificationService;
 
     private EditText barcodeInput;
     private EditText countedInput;
@@ -53,6 +55,7 @@ public class StocktakeScreen extends Activity {
         inventory = new InventoryRepository(
                 LocalDatabase.getInstance(this)
         );
+        notificationService = new AndroidNotificationService(this);
 
         buildScreen();
     }
@@ -429,6 +432,9 @@ public class StocktakeScreen extends Activity {
                 return;
             }
 
+            // ซิงก์การแจ้งเตือนหลังบันทึกยอดตรวจนับสำเร็จแล้วเท่านั้น
+            notificationService.syncLowStockNotification();
+
             ProductInfo updated = readProduct(barcode);
 
             if (updated != null) {
@@ -609,4 +615,4 @@ public class StocktakeScreen extends Activity {
                 ? "เกิดข้อผิดพลาด"
                 : e.getMessage();
     }
-            }
+}
