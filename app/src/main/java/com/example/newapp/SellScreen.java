@@ -624,9 +624,11 @@ public class SellScreen extends Activity {
                     android.content.ContentValues customerValues =
                             new android.content.ContentValues();
 
+                    String customerTimestamp = LocalDatabase.now();
                     customerValues.put("first_name", firstName);
                     customerValues.put("last_name", lastName);
-                    customerValues.put("created_at", LocalDatabase.now());
+                    customerValues.put("created_at", customerTimestamp);
+                    customerValues.put("updated_at", customerTimestamp);
 
                     customerId = db.insertOrThrow(
                             "customers",
@@ -681,14 +683,19 @@ public class SellScreen extends Activity {
             saleValues.put("bill_number", billNumber);
             saleValues.put("payment_type", paymentType);
             saleValues.put("status", status);
+
             if (customerId >= 0) {
                 saleValues.put("customer_id", customerId);
             }
+
             saleValues.put("subtotal", sub);
             saleValues.put("service_fee", fee);
             saleValues.put("total", total);
             saleValues.put("cash_received", cashReceived);
-            saleValues.put("change_amount", changeAmount);
+
+            // ชื่อตรงกับคอลัมน์ใน LocalDatabase.java
+            saleValues.put("change_due", changeAmount);
+
             saleValues.put("created_at", LocalDatabase.now());
             saleValues.put(
                     "paid_at",
@@ -707,11 +714,13 @@ public class SellScreen extends Activity {
             receipt.append("ร้านแม่ใหญ่อ่อน POS\n");
             receipt.append("เลขบิล: ").append(billNumber).append('\n');
             receipt.append("ประเภท: ").append(paymentType).append('\n');
+
             if (customerId >= 0) {
                 receipt.append("ลูกค้า: ")
                         .append(firstName).append(' ')
                         .append(lastName).append('\n');
             }
+
             receipt.append("------------------------------\n");
 
             for (CartItem item : cart) {
@@ -741,10 +750,12 @@ public class SellScreen extends Activity {
                 );
 
                 int before;
+
                 try {
                     if (!currentCursor.moveToFirst()) {
                         throw new IllegalStateException("ไม่พบสินค้า");
                     }
+
                     before = currentCursor.getInt(0);
                 } finally {
                     currentCursor.close();
