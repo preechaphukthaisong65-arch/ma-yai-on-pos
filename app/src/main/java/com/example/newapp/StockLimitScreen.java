@@ -19,6 +19,7 @@ import android.widget.Toast;
 public class StockLimitScreen extends Activity {
 
     private InventoryRepository inventory;
+    private AndroidNotificationService notificationService;
 
     private EditText barcodeInput;
     private EditText minStockInput;
@@ -44,6 +45,7 @@ public class StockLimitScreen extends Activity {
         inventory = new InventoryRepository(
                 LocalDatabase.getInstance(this)
         );
+        notificationService = new AndroidNotificationService(this);
 
         buildScreen();
     }
@@ -96,7 +98,7 @@ public class StockLimitScreen extends Activity {
 
         TextView help = new TextView(this);
         help.setText(
-                "เมื่อจำนวนคงเหลือน้อยกว่าหรือเท่ากับลิมิต " +
+                "เมื่อจำนวนคงเหลือน้อยกว่าลิมิต " +
                 "สินค้าจะปรากฏในรายการสินค้าใกล้หมด"
         );
         help.setTextSize(14);
@@ -299,6 +301,9 @@ public class StockLimitScreen extends Activity {
                 ).show();
                 return;
             }
+
+            // ซิงก์การแจ้งเตือนหลังบันทึกลิมิตสำเร็จแล้วเท่านั้น
+            notificationService.syncLowStockNotification();
 
             currentMinStock = newMinStock;
 
