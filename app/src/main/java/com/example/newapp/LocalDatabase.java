@@ -22,7 +22,7 @@ import java.util.TimeZone;
 public class LocalDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "maeyai_on_pos.db";
-    private static final int DATABASE_VERSION = 3;
+    private static final int DATABASE_VERSION = 4;
 
     private static final TimeZone THAILAND_TIME_ZONE =
             TimeZone.getTimeZone("Asia/Bangkok");
@@ -57,7 +57,6 @@ public class LocalDatabase extends SQLiteOpenHelper {
 
     /**
      * เวลาย้อนหลังหนึ่งเดือนตามปฏิทินไทย
-     * ใช้รูปแบบเดียวกับ now() เพื่อให้เปรียบเทียบข้อความวันที่ได้
      */
     public static String oneMonthAgo() {
         Calendar calendar = Calendar.getInstance(THAILAND_TIME_ZONE);
@@ -175,7 +174,6 @@ public class LocalDatabase extends SQLiteOpenHelper {
         );
 
         // รายการสินค้าในบิล เก็บข้อมูล ณ เวลาขาย
-        // เพื่อให้บิลเก่าไม่เปลี่ยนตามราคาสินค้าปัจจุบัน
         db.execSQL(
                 "CREATE TABLE sale_items (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -225,17 +223,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
         );
 
         // เลขรันและการตั้งค่าของแอป
-        db.execSQL(
-                "CREATE TABLE app_settings (" +
-                "setting_key TEXT PRIMARY KEY," +
-                "setting_value TEXT NOT NULL" +
-                ")"
-        );
-
-        ContentValues settings = new ContentValues();
-        settings.put("setting_key", "next_barcode_number");
-        settings.put("setting_value", "2000001");
-        db.insertOrThrow("app_settings", null, settings);
+        createAppSettingsTable(db);
 
         // คิวซิงก์สำหรับการต่อ Cloud ในอนาคต
         createCloudSyncQueueTable(db);
@@ -271,8 +259,6 @@ public class LocalDatabase extends SQLiteOpenHelper {
     /**
      * สร้างตารางข้อความแจ้งเตือน
      * event_key ใช้แยกเหตุการณ์และป้องกันการบันทึกซ้ำ
-     *
-     * event_key อนุญาตให้เป็น NULL เพื่อรองรับข้อมูลเดิม
      */
     private void createNotificationMessagesTable(SQLiteDatabase db) {
         db.execSQL(
@@ -286,7 +272,6 @@ public class LocalDatabase extends SQLiteOpenHelper {
                 ")"
         );
 
-        // SQLite อนุญาตให้มี NULL หลายรายการใน UNIQUE INDEX
         db.execSQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_event_key " +
                 "ON notification_messages(event_key)"
@@ -294,7 +279,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
     }
 
     /**
-     * สร้างคิวซิงก์ในฐานข้อมูลใหม่และฐานข้อมูลเก่า
+     * สร้างตารางคิวซิงก์ในฐานข้อมูลใหม่และฐานข้อมูลเก่า
      * ยังเป็นเพียงคิวภายในเครื่อง ไม่ได้เชื่อมต่อ Cloud จริง
      */
     private void createCloudSyncQueueTable(SQLiteDatabase db) {
@@ -315,8 +300,32 @@ public class LocalDatabase extends SQLiteOpenHelper {
     }
 
     /**
+     * สร้างตารางการตั้งค่าและเพิ่มเลขบาร์โค้ดเริ่มต้น
+     * ใช้ได้ทั้งฐานข้อมูลใหม่และฐานข้อมูลที่อัปเกรดแล้ว
+     * ไม่เขียนทับค่าที่มีอยู่
+     */
+    private void createAppSettingsTable(SQLiteDatabase db) {
+        db.execSQL(
+                "CREATE TABLE IF NOT EXISTS app_settings (" +
+                "setting_key TEXT PRIMARY KEY," +
+                "setting_value TEXT NOT NULL" +
+                ")"
+        );
+
+        ContentValues settings = new ContentValues();
+        settings.put("setting_key", "next_barcode_number");
+        settings.put("setting_value", "2000001");
+
+        db.insertWithOnConflict(
+                "app_settings",
+                null,
+                settings,
+                SQLiteDatabase.CONFLICT_IGNORE
+        );
+    }
+
+    /**
      * ตรวจสอบว่าตารางมีคอลัมน์ที่ระบุหรือไม่
-     * ใช้ก่อน ALTER TABLE เพื่อไม่เพิ่มคอลัมน์ซ้ำ
      */
     private boolean columnExists(
             SQLiteDatabase db,
@@ -354,10 +363,9 @@ public class LocalDatabase extends SQLiteOpenHelper {
         }
 
         // Migration จากเวอร์ชัน 2 เป็น 3
-        // เพิ่มเฉพาะสิ่งที่ขาด โดยรักษาข้อมูลเดิมไว้
         if (oldVersion < 3 && newVersion >= 3) {
+            createNotificationMessagesTable(db);
 
-            // เพิ่ม event_key เฉพาะเมื่อยังไม่มีคอลัมน์นี้
             if (!columnExists(
                     db,
                     "notification_messages",
@@ -375,8 +383,13 @@ public class LocalDatabase extends SQLiteOpenHelper {
                     "ON notification_messages(event_key)"
             );
 
-            // ฐานข้อมูลเวอร์ชันเก่าต้องมีคิวซิงก์ด้วย
             createCloudSyncQueueTable(db);
+        }
+
+        // Migration จากเวอร์ชัน 3 เป็น 4
+        // เพิ่มตารางตั้งค่าเลขบาร์โค้ด หากฐานข้อมูลยังไม่มี
+        if (oldVersion < 4 && newVersion >= 4) {
+            createAppSettingsTable(db);
         }
     }
 
@@ -407,6 +420,9 @@ public class LocalDatabase extends SQLiteOpenHelper {
         db.beginTransaction();
 
         try {
+            // ตรวจให้แน่ใจว่ามีตารางและค่าเลขเริ่มต้น
+            createAppSettingsTable(db);
+
             String value = "2000001";
 
             try (Cursor cursor = db.query(
@@ -420,14 +436,23 @@ public class LocalDatabase extends SQLiteOpenHelper {
             )) {
                 if (cursor.moveToFirst()) {
                     value = cursor.getString(0);
+                } else {
+                    throw new IllegalStateException(
+                            "ไม่พบค่าตั้งต้นเลขบาร์โค้ด"
+                    );
                 }
             }
 
             long current = Long.parseLong(value);
-            String next = Long.toString(current + 1);
+
+            if (current < 2000001L || current == Long.MAX_VALUE) {
+                throw new IllegalStateException(
+                        "เลขบาร์โค้ดถัดไปอยู่นอกช่วงที่รองรับ"
+                );
+            }
 
             ContentValues values = new ContentValues();
-            values.put("setting_value", next);
+            values.put("setting_value", Long.toString(current + 1));
 
             int updated = db.update(
                     "app_settings",
@@ -436,7 +461,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
                     new String[]{"next_barcode_number"}
             );
 
-            if (updated == 0) {
+            if (updated != 1) {
                 throw new IllegalStateException(
                         "ไม่สามารถบันทึกเลขบาร์โค้ดถัดไปได้"
                 );
