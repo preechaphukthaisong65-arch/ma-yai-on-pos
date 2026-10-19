@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.app.Activity;
@@ -372,9 +371,9 @@ public class StockProductListScreen extends Activity {
                         + "\nลิมิตสต๊อก: " + product.minStock
                         + " " + safe(product.unit)
                         + "\nสถานะ: "
-                        + (product.stockQty <= product.minStock
-                        ? "สินค้าใกล้หมด (คงเหลือไม่เกินลิมิต)"
-                        : "จำนวนมากกว่าลิมิต")
+                        + (product.stockQty < product.minStock
+                        ? "ต่ำกว่าลิมิตสต๊อก"
+                        : "ถึงหรือสูงกว่าลิมิตสต๊อก")
                         + "\nอัปเดตล่าสุด: " + safe(product.updatedAt);
 
         new AlertDialog.Builder(this)
@@ -658,12 +657,6 @@ public class StockProductListScreen extends Activity {
                 nameView.setTypeface(null, Typeface.BOLD);
                 nameView.setTextColor(Color.rgb(35, 35, 35));
 
-                TextView barcodeView = new TextView(
-                        StockProductListScreen.this
-                );
-                barcodeView.setTextSize(13);
-                barcodeView.setTextColor(Color.DKGRAY);
-
                 TextView quantityView = new TextView(
                         StockProductListScreen.this
                 );
@@ -671,12 +664,10 @@ public class StockProductListScreen extends Activity {
                 quantityView.setTextColor(Color.rgb(45, 90, 55));
 
                 row.addView(nameView);
-                row.addView(barcodeView);
                 row.addView(quantityView);
 
                 holder = new RowHolder();
                 holder.name = nameView;
-                holder.barcode = barcodeView;
                 holder.quantity = quantityView;
 
                 row.setTag(holder);
@@ -693,32 +684,16 @@ public class StockProductListScreen extends Activity {
                 String name = productCursor.getString(
                         productCursor.getColumnIndexOrThrow("name")
                 );
-                String barcode = productCursor.getString(
-                        productCursor.getColumnIndexOrThrow("barcode")
-                );
                 int quantity = productCursor.getInt(
                         productCursor.getColumnIndexOrThrow("stock_qty")
-                );
-                int minStock = productCursor.getInt(
-                        productCursor.getColumnIndexOrThrow("min_stock")
                 );
                 String unit = productCursor.getString(
                         productCursor.getColumnIndexOrThrow("unit")
                 );
 
                 holder.name.setText(safe(name));
-                holder.barcode.setText("บาร์โค้ด: " + safe(barcode));
                 holder.quantity.setText(
-                        "คงเหลือ " + quantity + " " + safe(unit)
-                                + "  |  ลิมิต " + minStock
-                                + (quantity <= minStock
-                                ? "  •  ใกล้หมด/ถึงลิมิต" : "")
-                );
-
-                holder.quantity.setTextColor(
-                        quantity <= minStock
-                                ? Color.rgb(180, 65, 35)
-                                : Color.rgb(45, 90, 55)
+                        "คงเหลือ: " + quantity + " " + safe(unit)
                 );
             }
 
@@ -728,7 +703,6 @@ public class StockProductListScreen extends Activity {
 
     private static class RowHolder {
         TextView name;
-        TextView barcode;
         TextView quantity;
     }
-}
+            }
