@@ -23,6 +23,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class ReceiveStockScreen extends Activity {
 
     private InventoryRepository inventory;
+    private AndroidNotificationService notificationService;
 
     private EditText barcodeInput;
     private EditText quantityInput;
@@ -53,6 +54,7 @@ public class ReceiveStockScreen extends Activity {
         inventory = new InventoryRepository(
                 LocalDatabase.getInstance(this)
         );
+        notificationService = new AndroidNotificationService(this);
 
         buildScreen();
     }
@@ -396,6 +398,9 @@ public class ReceiveStockScreen extends Activity {
                 ).show();
                 return;
             }
+
+            // ซิงก์สถานะเตือนหลังธุรกรรมรับสินค้าเสร็จสมบูรณ์แล้ว
+            notificationService.syncLowStockNotification();
 
             ProductInfo updated = readProduct(barcode);
 
