@@ -65,6 +65,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".StockAlertScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".ManageStoreScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
