@@ -342,7 +342,7 @@ public class StockProductListScreen extends Activity {
                 productRepository.findByBarcode(barcode);
 
         if (product == null) {
-            speakThai("สินค้าใหม่ค่ะ");
+            speakThai("ไม่พบสินค้าในคลังค่ะ");
             reloadProducts();
             showMessage("ไม่พบสินค้าในคลัง: " + barcode);
             return;
@@ -373,7 +373,7 @@ public class StockProductListScreen extends Activity {
                         + " " + safe(product.unit)
                         + "\nสถานะ: "
                         + (product.stockQty <= product.minStock
-                        ? "ถึงลิมิตหรือสินค้าใกล้หมด"
+                        ? "สินค้าใกล้หมด (คงเหลือไม่เกินลิมิต)"
                         : "จำนวนมากกว่าลิมิต")
                         + "\nอัปเดตล่าสุด: " + safe(product.updatedAt);
 
@@ -712,7 +712,7 @@ public class StockProductListScreen extends Activity {
                         "คงเหลือ " + quantity + " " + safe(unit)
                                 + "  |  ลิมิต " + minStock
                                 + (quantity <= minStock
-                                ? "  •  ถึงลิมิต" : "")
+                                ? "  •  ใกล้หมด/ถึงลิมิต" : "")
                 );
 
                 holder.quantity.setTextColor(
