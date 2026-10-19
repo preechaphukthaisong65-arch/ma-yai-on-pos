@@ -19,7 +19,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/app_icon"
         android:supportsRtl="true"
-        android:theme="@style/Theme.StockProPOS"
+        android:theme="@style/Theme.MaYaiOnPOS"
         tools:targetApi="31">
 
         <activity
