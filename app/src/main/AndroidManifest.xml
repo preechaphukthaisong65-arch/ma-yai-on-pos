@@ -40,6 +40,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".CreateStockProductScreen"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".StocktakeScreen"
             android:screenOrientation="portrait"
             android:exported="false" />
