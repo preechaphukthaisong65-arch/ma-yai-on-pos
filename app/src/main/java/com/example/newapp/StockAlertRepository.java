@@ -1,3 +1,4 @@
+
 package com.example.newapp;
 
 import android.database.Cursor;
@@ -7,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * อ่านรายการสินค้าที่สต๊อกต่ำจากฐานข้อมูลเดิม
+ * อ่านรายการสินค้าที่มีจำนวนต่ำกว่าลิมิตจากฐานข้อมูลเดิม
  * ไม่สร้างหรือลบตาราง และไม่เปลี่ยนโครงสร้างฐานข้อมูล
  */
 public class StockAlertRepository {
@@ -46,11 +47,11 @@ public class StockAlertRepository {
     }
 
     /**
-     * ดึงสินค้าที่จำนวนคงเหลือน้อยกว่าหรือเท่ากับขั้นต่ำ
+     * คืนรายการที่สต๊อกต่ำกว่าลิมิตอย่างเคร่งครัด
+     * จำนวนเท่ากับลิมิตจะไม่ถูกจัดเป็นสินค้าต่ำกว่าลิมิต
      */
     public List<StockAlert> detectNewLowStockEvents() {
         List<StockAlert> alerts = new ArrayList<>();
-
         SQLiteDatabase db = database.getReadableDatabase();
 
         try (Cursor cursor = db.query(
@@ -62,7 +63,7 @@ public class StockAlertRepository {
                         "stock_qty",
                         "min_stock"
                 },
-                "stock_qty <= min_stock",
+                "stock_qty < min_stock",
                 null,
                 null,
                 null,
