@@ -8,8 +8,10 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * ฐานข้อมูล SQLite กลางของร้านแม่ใหญ่อ่อน POS
@@ -20,7 +22,10 @@ import java.util.Locale;
 public class LocalDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "maeyai_on_pos.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
+
+    private static final TimeZone THAILAND_TIME_ZONE =
+            TimeZone.getTimeZone("Asia/Bangkok");
 
     private static volatile LocalDatabase instance;
 
@@ -37,11 +42,34 @@ public class LocalDatabase extends SQLiteOpenHelper {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
 
+    /**
+     * เวลาปัจจุบันในรูปแบบ yyyy-MM-dd HH:mm:ss
+     * กำหนดเขตเวลา Asia/Bangkok (UTC+7)
+     */
     public static String now() {
-        return new SimpleDateFormat(
+        SimpleDateFormat format = new SimpleDateFormat(
                 "yyyy-MM-dd HH:mm:ss",
                 Locale.US
-        ).format(new Date());
+        );
+        format.setTimeZone(THAILAND_TIME_ZONE);
+        return format.format(new Date());
+    }
+
+    /**
+     * เวลาย้อนหลังหนึ่งเดือนตามปฏิทินไทย
+     * ใช้รูปแบบเดียวกับ now() เพื่อให้เปรียบเทียบข้อความวันที่ได้
+     */
+    public static String oneMonthAgo() {
+        Calendar calendar = Calendar.getInstance(THAILAND_TIME_ZONE);
+        calendar.add(Calendar.MONTH, -1);
+
+        SimpleDateFormat format = new SimpleDateFormat(
+                "yyyy-MM-dd HH:mm:ss",
+                Locale.US
+        );
+        format.setTimeZone(THAILAND_TIME_ZONE);
+
+        return format.format(calendar.getTime());
     }
 
     @Override
@@ -210,20 +238,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
         db.insertOrThrow("app_settings", null, settings);
 
         // คิวซิงก์สำหรับการต่อ Cloud ในอนาคต
-        db.execSQL(
-                "CREATE TABLE cloud_sync_queue (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "entity_type TEXT NOT NULL," +
-                "entity_id TEXT NOT NULL," +
-                "operation TEXT NOT NULL," +
-                "payload TEXT," +
-                "status TEXT NOT NULL DEFAULT 'PENDING'," +
-                "attempts INTEGER NOT NULL DEFAULT 0," +
-                "created_at TEXT NOT NULL," +
-                "last_error TEXT," +
-                "UNIQUE(entity_type, entity_id, operation)" +
-                ")"
-        );
+        createCloudSyncQueueTable(db);
 
         // ข้อความแจ้งเตือนจากเหตุการณ์จริงของระบบ
         createNotificationMessagesTable(db);
@@ -255,7 +270,9 @@ public class LocalDatabase extends SQLiteOpenHelper {
 
     /**
      * สร้างตารางข้อความแจ้งเตือน
-     * ไม่ลบข้อความแจ้งเตือนเดิม
+     * event_key ใช้แยกเหตุการณ์และป้องกันการบันทึกซ้ำ
+     *
+     * event_key อนุญาตให้เป็น NULL เพื่อรองรับข้อมูลเดิม
      */
     private void createNotificationMessagesTable(SQLiteDatabase db) {
         db.execSQL(
@@ -264,9 +281,63 @@ public class LocalDatabase extends SQLiteOpenHelper {
                 "message TEXT NOT NULL," +
                 "event_type TEXT NOT NULL," +
                 "created_at TEXT NOT NULL," +
-                "is_read INTEGER NOT NULL DEFAULT 0" +
+                "is_read INTEGER NOT NULL DEFAULT 0," +
+                "event_key TEXT" +
                 ")"
         );
+
+        // SQLite อนุญาตให้มี NULL หลายรายการใน UNIQUE INDEX
+        db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_event_key " +
+                "ON notification_messages(event_key)"
+        );
+    }
+
+    /**
+     * สร้างคิวซิงก์ในฐานข้อมูลใหม่และฐานข้อมูลเก่า
+     * ยังเป็นเพียงคิวภายในเครื่อง ไม่ได้เชื่อมต่อ Cloud จริง
+     */
+    private void createCloudSyncQueueTable(SQLiteDatabase db) {
+        db.execSQL(
+                "CREATE TABLE IF NOT EXISTS cloud_sync_queue (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "entity_type TEXT NOT NULL," +
+                "entity_id TEXT NOT NULL," +
+                "operation TEXT NOT NULL," +
+                "payload TEXT," +
+                "status TEXT NOT NULL DEFAULT 'PENDING'," +
+                "attempts INTEGER NOT NULL DEFAULT 0," +
+                "created_at TEXT NOT NULL," +
+                "last_error TEXT," +
+                "UNIQUE(entity_type, entity_id, operation)" +
+                ")"
+        );
+    }
+
+    /**
+     * ตรวจสอบว่าตารางมีคอลัมน์ที่ระบุหรือไม่
+     * ใช้ก่อน ALTER TABLE เพื่อไม่เพิ่มคอลัมน์ซ้ำ
+     */
+    private boolean columnExists(
+            SQLiteDatabase db,
+            String tableName,
+            String columnName
+    ) {
+        try (Cursor cursor = db.rawQuery(
+                "PRAGMA table_info(" + tableName + ")",
+                null
+        )) {
+            int nameIndex = cursor.getColumnIndex("name");
+
+            while (cursor.moveToNext()) {
+                if (nameIndex >= 0 &&
+                        columnName.equals(cursor.getString(nameIndex))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     @Override
@@ -280,6 +351,32 @@ public class LocalDatabase extends SQLiteOpenHelper {
         if (oldVersion < 2 && newVersion >= 2) {
             createPriceHistoryTable(db);
             createNotificationMessagesTable(db);
+        }
+
+        // Migration จากเวอร์ชัน 2 เป็น 3
+        // เพิ่มเฉพาะสิ่งที่ขาด โดยรักษาข้อมูลเดิมไว้
+        if (oldVersion < 3 && newVersion >= 3) {
+
+            // เพิ่ม event_key เฉพาะเมื่อยังไม่มีคอลัมน์นี้
+            if (!columnExists(
+                    db,
+                    "notification_messages",
+                    "event_key"
+            )) {
+                db.execSQL(
+                        "ALTER TABLE notification_messages " +
+                        "ADD COLUMN event_key TEXT"
+                );
+            }
+
+            db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                    "idx_notification_event_key " +
+                    "ON notification_messages(event_key)"
+            );
+
+            // ฐานข้อมูลเวอร์ชันเก่าต้องมีคิวซิงก์ด้วย
+            createCloudSyncQueueTable(db);
         }
     }
 
