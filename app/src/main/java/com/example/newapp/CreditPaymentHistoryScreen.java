@@ -79,13 +79,20 @@ public class CreditPaymentHistoryScreen extends Activity {
         SQLiteDatabase db = database.getReadableDatabase();
         int count = 0;
 
-        try (Cursor cursor = db.rawQuery(
-                "SELECT cp.payment_receipt_number, cp.original_bill_number, " +
-                "cp.amount, cp.created_at, c.first_name, c.last_name " +
+        String sql =
+                "SELECT " +
+                "cp.payment_number AS payment_receipt_number, " +
+                "s.bill_number AS original_bill_number, " +
+                "cp.amount AS amount, " +
+                "cp.paid_at AS created_at, " +
+                "c.first_name AS first_name, " +
+                "c.last_name AS last_name " +
                 "FROM credit_payments cp " +
-                "LEFT JOIN customers c ON c.id = cp.customer_id " +
-                "ORDER BY cp.created_at DESC",
-                null)) {
+                "INNER JOIN sales s ON s.id = cp.sale_id " +
+                "LEFT JOIN customers c ON c.id = s.customer_id " +
+                "ORDER BY cp.paid_at DESC, cp.id DESC";
+
+        try (Cursor cursor = db.rawQuery(sql, null)) {
 
             while (cursor.moveToNext()) {
                 count++;
