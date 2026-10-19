@@ -22,7 +22,7 @@ import java.util.TimeZone;
 public class LocalDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "maeyai_on_pos.db";
-    private static final int DATABASE_VERSION = 4;
+    private static final int DATABASE_VERSION = 5;
 
     private static final TimeZone THAILAND_TIME_ZONE =
             TimeZone.getTimeZone("Asia/Bangkok");
@@ -202,25 +202,7 @@ public class LocalDatabase extends SQLiteOpenHelper {
         createPriceHistoryTable(db);
 
         // การชำระหนี้แต่ละครั้ง เชื่อมกับบิลต้นฉบับ
-        db.execSQL(
-                "CREATE TABLE credit_payments (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "payment_number TEXT NOT NULL UNIQUE," +
-                "sale_id INTEGER NOT NULL," +
-                "amount REAL NOT NULL CHECK(amount >= 0)," +
-                "cash_received REAL NOT NULL CHECK(cash_received >= 0)," +
-                "change_due REAL NOT NULL DEFAULT 0 CHECK(change_due >= 0)," +
-                "paid_at TEXT NOT NULL," +
-                "receipt_text TEXT," +
-                "print_status TEXT NOT NULL DEFAULT 'NOT_PRINTED'," +
-                "FOREIGN KEY(sale_id) REFERENCES sales(id)" +
-                ")"
-        );
-
-        db.execSQL(
-                "CREATE INDEX idx_credit_payments_sale " +
-                "ON credit_payments(sale_id, paid_at)"
-        );
+        createCreditPaymentsTable(db);
 
         // เลขรันและการตั้งค่าของแอป
         createAppSettingsTable(db);
@@ -253,6 +235,32 @@ public class LocalDatabase extends SQLiteOpenHelper {
         db.execSQL(
                 "CREATE INDEX IF NOT EXISTS idx_price_history_product " +
                 "ON price_history(product_id, changed_at)"
+        );
+    }
+
+    /**
+     * สร้างตารางการชำระหนี้และดัชนี
+     * ใช้ได้กับฐานข้อมูลใหม่และฐานข้อมูลเดิมที่ยังไม่มีตาราง
+     */
+    private void createCreditPaymentsTable(SQLiteDatabase db) {
+        db.execSQL(
+                "CREATE TABLE IF NOT EXISTS credit_payments (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "payment_number TEXT NOT NULL UNIQUE," +
+                "sale_id INTEGER NOT NULL," +
+                "amount REAL NOT NULL CHECK(amount >= 0)," +
+                "cash_received REAL NOT NULL CHECK(cash_received >= 0)," +
+                "change_due REAL NOT NULL DEFAULT 0 CHECK(change_due >= 0)," +
+                "paid_at TEXT NOT NULL," +
+                "receipt_text TEXT," +
+                "print_status TEXT NOT NULL DEFAULT 'NOT_PRINTED'," +
+                "FOREIGN KEY(sale_id) REFERENCES sales(id)" +
+                ")"
+        );
+
+        db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_credit_payments_sale " +
+                "ON credit_payments(sale_id, paid_at)"
         );
     }
 
@@ -390,6 +398,13 @@ public class LocalDatabase extends SQLiteOpenHelper {
         // เพิ่มตารางตั้งค่าเลขบาร์โค้ด หากฐานข้อมูลยังไม่มี
         if (oldVersion < 4 && newVersion >= 4) {
             createAppSettingsTable(db);
+        }
+
+        // Migration จากเวอร์ชัน 4 เป็น 5
+        // เพิ่มตารางการชำระหนี้ให้ฐานข้อมูลเดิมที่ยังไม่มี
+        // ไม่ลบหรือเขียนทับข้อมูลเดิม
+        if (oldVersion < 5 && newVersion >= 5) {
+            createCreditPaymentsTable(db);
         }
     }
 
