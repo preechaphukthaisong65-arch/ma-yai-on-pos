@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.app.Activity;
@@ -134,9 +133,7 @@ public class StocktakeScreen extends Activity {
         countedInput = new EditText(this);
         countedInput.setSingleLine(true);
         countedInput.setHint("กรอกจำนวนจริงที่นับได้");
-        countedInput.setInputType(
-                InputType.TYPE_CLASS_NUMBER
-        );
+        countedInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         root.addView(countedInput, fieldLayoutParams());
 
         addLabel(root, "หมายเหตุ (ถ้ามี)");
@@ -369,9 +366,7 @@ public class StocktakeScreen extends Activity {
             countedQty = Integer.parseInt(qtyText);
 
             if (countedQty < 0) {
-                countedInput.setError(
-                        "จำนวนต้องไม่ติดลบ"
-                );
+                countedInput.setError("จำนวนต้องไม่ติดลบ");
                 return;
             }
 
@@ -382,12 +377,16 @@ public class StocktakeScreen extends Activity {
             return;
         }
 
+        long difference =
+                (long) countedQty - currentProduct.stockQty;
+
         String message =
                 "สินค้า: " + currentProduct.name
                         + "\nสต๊อกเดิม: " + currentProduct.stockQty
                         + "\nยอดที่นับได้: " + countedQty
                         + "\nผลต่าง: "
-                        + (countedQty - currentProduct.stockQty)
+                        + (difference > 0 ? "+" : "")
+                        + difference
                         + "\n\nยืนยันบันทึกยอดตรวจนับหรือไม่?";
 
         new AlertDialog.Builder(this)
@@ -413,11 +412,22 @@ public class StocktakeScreen extends Activity {
                 .trim();
 
         try {
-            inventory.stocktake(
+            boolean success = inventory.stocktake(
                     barcode,
                     countedQty,
                     note
             );
+
+            // ห้ามแจ้งว่าสำเร็จ หาก Repository บันทึกไม่สำเร็จ
+            if (!success) {
+                Toast.makeText(
+                        this,
+                        "บันทึกการตรวจนับไม่สำเร็จ "
+                                + "ยอดสต๊อกเดิมยังคงอยู่ กรุณาลองใหม่",
+                        Toast.LENGTH_LONG
+                ).show();
+                return;
+            }
 
             ProductInfo updated = readProduct(barcode);
 
@@ -437,6 +447,7 @@ public class StocktakeScreen extends Activity {
             }
 
             countedInput.setText("");
+            noteInput.setText("");
 
             Toast.makeText(
                     this,
@@ -496,7 +507,7 @@ public class StocktakeScreen extends Activity {
                             cursor.getColumnIndexOrThrow("qty_after")
                     );
 
-                    int diff = cursor.getInt(
+                    long diff = cursor.getLong(
                             cursor.getColumnIndexOrThrow("qty_diff")
                     );
 
@@ -529,9 +540,7 @@ public class StocktakeScreen extends Activity {
                     list.addView(item);
 
                     View divider = new View(this);
-                    divider.setBackgroundColor(
-                            Color.LTGRAY
-                    );
+                    divider.setBackgroundColor(Color.LTGRAY);
 
                     list.addView(
                             divider,
@@ -600,4 +609,4 @@ public class StocktakeScreen extends Activity {
                 ? "เกิดข้อผิดพลาด"
                 : e.getMessage();
     }
-}
+            }
