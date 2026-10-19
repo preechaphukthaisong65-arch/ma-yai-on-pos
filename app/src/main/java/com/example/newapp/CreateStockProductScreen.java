@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.app.Activity;
@@ -25,6 +24,7 @@ public class CreateStockProductScreen extends Activity {
 
     private InventoryRepository inventory;
     private LocalDatabase database;
+    private AndroidNotificationService notificationService;
 
     private EditText barcodeInput;
     private EditText nameInput;
@@ -46,6 +46,7 @@ public class CreateStockProductScreen extends Activity {
 
         database = LocalDatabase.getInstance(this);
         inventory = new InventoryRepository(database);
+        notificationService = new AndroidNotificationService(this);
 
         buildScreen();
     }
@@ -440,6 +441,17 @@ public class CreateStockProductScreen extends Activity {
                         "หรือข้อมูลไม่ถูกต้อง"
                 );
                 return;
+            }
+
+            // ซิงก์แจ้งเตือนหลังสร้างสินค้าและบันทึกสต๊อกเริ่มต้นสำเร็จเท่านั้น
+            try {
+                notificationService.syncLowStockNotification();
+            } catch (Exception notificationError) {
+                android.util.Log.w(
+                        "CreateStockProduct",
+                        "ซิงก์แจ้งเตือนสต๊อกไม่สำเร็จ",
+                        notificationError
+                );
             }
 
             new AlertDialog.Builder(this)
