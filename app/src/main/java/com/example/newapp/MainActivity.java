@@ -162,7 +162,7 @@ public class MainActivity extends Activity {
                 row2,
                 "menu_history",
                 "ประวัติการขาย",
-                null
+                HistoryScreen.class
         );
 
         addImageMenu(
