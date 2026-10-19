@@ -186,8 +186,6 @@ public class InventoryRepository {
                 return false;
             }
 
-            long difference = (long) countedQty - product.stockQty;
-
             ContentValues update = new ContentValues();
             update.put("stock_qty", countedQty);
             update.put("updated_at", LocalDatabase.now());
@@ -248,7 +246,8 @@ public class InventoryRepository {
     }
 
     /**
-     * รายการสินค้าที่จำนวนคงเหลือน้อยกว่าหรือเท่ากับลิมิต
+     * รายการสินค้าที่จำนวนคงเหลือน้อยกว่าลิมิตอย่างเคร่งครัด
+     * จำนวนเท่ากับลิมิตจะไม่ถือว่าต่ำกว่าลิมิต
      * ผู้เรียกต้องปิด Cursor หลังใช้งาน
      */
     public Cursor getLowStockProducts() {
@@ -264,7 +263,7 @@ public class InventoryRepository {
                         "min_stock",
                         "unit"
                 },
-                "stock_qty <= min_stock",
+                "stock_qty < min_stock",
                 null,
                 null,
                 null,
