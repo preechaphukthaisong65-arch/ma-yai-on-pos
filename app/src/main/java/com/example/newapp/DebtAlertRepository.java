@@ -10,17 +10,24 @@ public class DebtAlertRepository {
     private final LocalDatabase database;
 
     public DebtAlertRepository(LocalDatabase database) {
+        if (database == null) {
+            throw new IllegalArgumentException(
+                    "ฐานข้อมูลห้ามเป็น null"
+            );
+        }
         this.database = database;
     }
 
     /**
-     * คำนวณวันตัดยอดโดยใช้เวลาประเทศไทยจาก LocalDatabase
-     * ใช้เกณฑ์เดียวกันทั้งการนับบิล ยอดหนี้ และรายการบิล
+     * ใช้เวลาประเทศไทย UTC+7 จาก LocalDatabase
      */
     private String getOverdueCutoff() {
         return LocalDatabase.oneMonthAgo();
     }
 
+    /**
+     * นับเฉพาะบิลเครดิตที่ยังค้างชำระและขายมาแล้วอย่างน้อยหนึ่งเดือน
+     */
     public int countOverdueBills() {
         SQLiteDatabase db = database.getReadableDatabase();
         String cutoff = getOverdueCutoff();
@@ -30,11 +37,15 @@ public class DebtAlertRepository {
                 "WHERE payment_type = 'CREDIT' " +
                 "AND status = 'PENDING' " +
                 "AND datetime(created_at) <= datetime(?)",
-                new String[]{cutoff})) {
+                new String[]{cutoff}
+        )) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
     }
 
+    /**
+     * รวมยอดบิลเครดิตที่ยังค้างชำระเกินหนึ่งเดือน
+     */
     public double getOverdueAmount() {
         SQLiteDatabase db = database.getReadableDatabase();
         String cutoff = getOverdueCutoff();
@@ -44,20 +55,20 @@ public class DebtAlertRepository {
                 "WHERE payment_type = 'CREDIT' " +
                 "AND status = 'PENDING' " +
                 "AND datetime(created_at) <= datetime(?)",
-                new String[]{cutoff})) {
+                new String[]{cutoff}
+        )) {
             return cursor.moveToFirst() ? cursor.getDouble(0) : 0;
         }
     }
 
     /**
-     * บันทึกข้อความเตือนเมื่อมีหนี้เกินหนึ่งเดือน
-     * event_key ต้องมี UNIQUE index ใน notification_messages
-     * เพื่อป้องกันข้อความเตือนซ้ำในวันเดียวกัน
+     * บันทึกการแจ้งเตือนหนี้เกินหนึ่งเดือนวันละหนึ่งรายการ
+     * event_key มี UNIQUE index ในฐานข้อมูล
+     * event_type ต้องถูกบันทึกด้วยเพราะเป็น NOT NULL
      */
     public boolean recordOverdueAlertIfNeeded() {
-        SQLiteDatabase db = database.getWritableDatabase();
-
         int count = countOverdueBills();
+
         if (count <= 0) {
             return false;
         }
@@ -67,13 +78,16 @@ public class DebtAlertRepository {
         String eventKey = "OVERDUE_DEBT_" + today;
 
         ContentValues values = new ContentValues();
-        values.put("event_key", eventKey);
+        values.put("event_type", "OVERDUE_DEBT");
         values.put(
                 "message",
                 "มีบิลเครดิตค้างเกินหนึ่งเดือน " + count + " บิล"
         );
         values.put("created_at", now);
         values.put("is_read", 0);
+        values.put("event_key", eventKey);
+
+        SQLiteDatabase db = database.getWritableDatabase();
 
         long result = db.insertWithOnConflict(
                 "notification_messages",
@@ -82,9 +96,14 @@ public class DebtAlertRepository {
                 SQLiteDatabase.CONFLICT_IGNORE
         );
 
+        // คืน true เมื่อบันทึกแถวใหม่สำเร็จ
+        // หากมีการแจ้งเตือนของวันนี้แล้ว จะไม่เพิ่มรายการซ้ำ
         return result != -1;
     }
 
+    /**
+     * รายการบิลเครดิตค้างเกินหนึ่งเดือน เรียงจากเก่าที่สุดก่อน
+     */
     public Cursor getOverdueBills() {
         SQLiteDatabase db = database.getReadableDatabase();
         String cutoff = getOverdueCutoff();
