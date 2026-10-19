@@ -3,6 +3,7 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -18,6 +19,8 @@ public class MainActivity extends Activity {
 
     private long lastBackPressedTime = 0;
     private static final long BACK_PRESS_INTERVAL = 2000;
+
+    private TextView priceNotificationText;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -114,6 +117,28 @@ public class MainActivity extends Activity {
 
         page.addView(ticker);
 
+        // แสดงเฉพาะเมื่อมีข้อความแจ้งเตือนการเปลี่ยนราคาที่บันทึกสำเร็จ
+        priceNotificationText = new TextView(this);
+        priceNotificationText.setTextColor(Color.rgb(35, 80, 45));
+        priceNotificationText.setTextSize(14);
+        priceNotificationText.setPadding(
+                dp(10), dp(8), dp(10), dp(8)
+        );
+        priceNotificationText.setBackgroundColor(
+                Color.rgb(235, 247, 235)
+        );
+        priceNotificationText.setVisibility(View.GONE);
+
+        LinearLayout.LayoutParams notificationParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+        notificationParams.topMargin = dp(4);
+        notificationParams.bottomMargin = dp(4);
+
+        page.addView(priceNotificationText, notificationParams);
+
         // แถวเมนู 3 แถว แถวละ 2 เมนู
         LinearLayout row1 = makeRow();
         LinearLayout row2 = makeRow();
@@ -172,7 +197,6 @@ public class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
-        // ตั้งค่าเต็มหน้าจออีกครั้งหลังสร้างหน้าจอ
         setupSystemBars();
     }
 
@@ -180,8 +204,65 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        // ให้แถบระบบกลับไปซ่อนเมื่อกลับเข้าแอป
         setupSystemBars();
+        refreshPriceNotification();
+    }
+
+    // อ่านข้อความจากฐานข้อมูลเดิม ไม่สร้างฐานข้อมูลใหม่
+    private void refreshPriceNotification() {
+        if (priceNotificationText == null) {
+            return;
+        }
+
+        try {
+            LocalDatabase database =
+                    LocalDatabase.getInstance(this);
+
+            NotificationRepository repository =
+                    new NotificationRepository(database);
+
+            try (Cursor cursor = repository.getLatestMessages(100)) {
+                while (cursor.moveToNext()) {
+                    String eventType = cursor.getString(
+                            cursor.getColumnIndexOrThrow("event_type")
+                    );
+
+                    if (!"PRICE_CHANGED".equals(eventType)) {
+                        continue;
+                    }
+
+                    String message = cursor.getString(
+                            cursor.getColumnIndexOrThrow("message")
+                    );
+
+                    String createdAt = cursor.getString(
+                            cursor.getColumnIndexOrThrow("created_at")
+                    );
+
+                    priceNotificationText.setText(
+                            "แจ้งเตือนการเปลี่ยนราคา\n"
+                                    + (message == null ? "" : message)
+                                    + "\nเวลา: "
+                                    + (createdAt == null ? "-" : createdAt)
+                    );
+
+                    priceNotificationText.setVisibility(View.VISIBLE);
+                    return;
+                }
+            }
+
+            priceNotificationText.setVisibility(View.GONE);
+
+        } catch (Exception e) {
+            android.util.Log.e(
+                    "MainActivity",
+                    "อ่านการแจ้งเตือนราคาไม่สำเร็จ",
+                    e
+            );
+
+            // หากอ่านแจ้งเตือนไม่ได้ ไม่รบกวนการใช้เมนูหลัก
+            priceNotificationText.setVisibility(View.GONE);
+        }
     }
 
     // สร้างแถวเมนู
@@ -204,7 +285,6 @@ public class MainActivity extends Activity {
         tile.setGravity(Gravity.CENTER);
         tile.setPadding(dp(3), dp(3), dp(3), dp(3));
 
-        // รูปเมนู
         ImageView image = new ImageView(this);
 
         int imageId = getResources().getIdentifier(
@@ -228,7 +308,6 @@ public class MainActivity extends Activity {
                 )
         );
 
-        // ชื่อเมนู
         TextView caption = new TextView(this);
         caption.setText(label);
         caption.setTextColor(Color.rgb(35, 45, 55));
@@ -244,7 +323,6 @@ public class MainActivity extends Activity {
                 )
         );
 
-        // การกดเมนู
         tile.setOnClickListener(v -> {
             if (target != null) {
                 startActivity(
