@@ -28,7 +28,8 @@ public class CloudSyncManager {
     }
 
     /**
-     * เพิ่มงานลงคิวภายในเครื่อง ยังไม่ได้ส่งข้อมูลออกอินเทอร์เน็ต
+     * เพิ่มงานลงคิวภายในเครื่อง
+     * ยังไม่ได้ส่งข้อมูลออกอินเทอร์เน็ต
      */
     public QueueResult enqueue(
             String entityType,
@@ -46,10 +47,12 @@ public class CloudSyncManager {
         SQLiteDatabase db = database.getWritableDatabase();
 
         ContentValues values = new ContentValues();
-        values.put("entity_type", entityType);
-        values.put("entity_id", entityId);
-        values.put("payload_json", payload == null ? "{}" : payload.toString());
-        values.put("sync_status", "PENDING");
+        values.put("entity_type", entityType.trim());
+        values.put("entity_id", entityId.trim());
+        values.put("operation", "UPSERT");
+        values.put("payload", payload == null ? "{}" : payload.toString());
+        values.put("status", "PENDING");
+        values.put("attempts", 0);
         values.put("created_at", LocalDatabase.now());
         values.put("last_error", "");
 
@@ -76,7 +79,7 @@ public class CloudSyncManager {
 
         try (Cursor cursor = db.rawQuery(
                 "SELECT COUNT(*) FROM cloud_sync_queue " +
-                "WHERE sync_status = 'PENDING'",
+                "WHERE status = 'PENDING'",
                 null)) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
@@ -87,7 +90,7 @@ public class CloudSyncManager {
 
         try (Cursor cursor = db.rawQuery(
                 "SELECT COUNT(*) FROM cloud_sync_queue " +
-                "WHERE sync_status = 'FAILED'",
+                "WHERE status = 'FAILED'",
                 null)) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
@@ -105,9 +108,9 @@ public class CloudSyncManager {
         SQLiteDatabase db = database.getReadableDatabase();
 
         return db.rawQuery(
-                "SELECT _id, entity_type, entity_id, sync_status, " +
-                "created_at, last_error " +
-                "FROM cloud_sync_queue ORDER BY _id DESC",
+                "SELECT id, entity_type, entity_id, operation, " +
+                "payload, status, attempts, created_at, last_error " +
+                "FROM cloud_sync_queue ORDER BY id DESC",
                 null
         );
     }
