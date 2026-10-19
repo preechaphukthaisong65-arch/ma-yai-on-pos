@@ -12,8 +12,8 @@ import java.util.Locale;
 /**
  * จัดการข้อมูลบาร์โค้ดผ่านฐานข้อมูลหลักของแอป
  *
- * ไม่สร้างฐานข้อมูลแยก
- * สร้างหมายเลขและบันทึกสินค้าใน transaction เดียวกัน
+ * ใช้ฐานข้อมูลเดียวร่วมกับระบบ POS
+ * สร้างเลขและบันทึกสินค้าใน transaction เดียวกัน
  */
 public final class BarcodeRepository {
 
@@ -27,10 +27,10 @@ public final class BarcodeRepository {
     }
 
     /**
-     * สร้างหมายเลขบาร์โค้ดและบันทึกสินค้าแบบ atomic
+     * สร้างเลขบาร์โค้ดและบันทึกสินค้าแบบ atomic
      *
-     * หากการบันทึกสินค้าไม่สำเร็จ การเลื่อนเลขจะถูก rollback
-     * หมายเลขถูกสร้างโดยระบบเท่านั้น ผู้ใช้กำหนดเองไม่ได้
+     * หากบันทึกไม่สำเร็จ การเปลี่ยนแปลงฐานข้อมูลจะ rollback
+     * หากเลขซ้ำ จะข้ามไปหาเลขถัดไป
      */
     public ProductRepository.Product createProduct(
             String name,
@@ -60,29 +60,42 @@ public final class BarcodeRepository {
                 nextNumber = FIRST_BARCODE_NUMBER;
             }
 
-            String barcode = String.format(
-                    Locale.US,
-                    "%07d",
-                    nextNumber
-            );
+            String barcode;
 
-            // ตรวจสอบเลขซ้ำก่อนบันทึก
-            try (Cursor cursor = db.query(
-                    "products",
-                    new String[]{"id"},
-                    "barcode = ?",
-                    new String[]{barcode},
-                    null,
-                    null,
-                    null,
-                    "1"
-            )) {
-                if (cursor.moveToFirst()) {
+            // ข้ามเลขที่มีสินค้าใช้อยู่แล้ว
+            while (true) {
+                if (nextNumber == Long.MAX_VALUE) {
                     throw new IllegalStateException(
-                            "พบหมายเลขบาร์โค้ดซ้ำในฐานข้อมูล: "
-                                    + barcode
+                            "เลขบาร์โค้ดหมดช่วงที่รองรับ"
                     );
                 }
+
+                barcode = String.format(
+                        Locale.US,
+                        "%07d",
+                        nextNumber
+                );
+
+                boolean exists;
+
+                try (Cursor cursor = db.query(
+                        "products",
+                        new String[]{"id"},
+                        "barcode = ?",
+                        new String[]{barcode},
+                        null,
+                        null,
+                        null,
+                        "1"
+                )) {
+                    exists = cursor.moveToFirst();
+                }
+
+                if (!exists) {
+                    break;
+                }
+
+                nextNumber++;
             }
 
             String timestamp = LocalDatabase.now();
@@ -110,6 +123,7 @@ public final class BarcodeRepository {
                 );
             }
 
+            // บันทึกเลขถัดไป ไม่เขียนทับด้วยเลขที่เก่ากว่า
             ContentValues settingValues = new ContentValues();
             settingValues.put(
                     "setting_value",
@@ -202,7 +216,6 @@ public final class BarcodeRepository {
         }
 
         SQLiteDatabase db = database.getReadableDatabase();
-
         String pattern = "%" + keyword + "%";
 
         try (Cursor cursor = db.query(
@@ -269,7 +282,7 @@ public final class BarcodeRepository {
     }
 
     /**
-     * เรียกข้อมูลสินค้าเดิมจากหมายเลขบาร์โค้ด
+     * ค้นหาสินค้าด้วยบาร์โค้ดแบบตรงตัว
      */
     public ProductRepository.Product findByBarcode(String barcode) {
         if (barcode == null || barcode.trim().isEmpty()) {
@@ -340,4 +353,4 @@ public final class BarcodeRepository {
             return product;
         }
     }
-}
+                }
