@@ -105,6 +105,7 @@ public class ManageStoreScreen extends Activity {
                 )
         );
 
+        // แก้ไขราคาสินค้า
         root.addView(makeMenuButton(
                 "แก้ไขราคาสินค้า",
                 () -> {
@@ -116,6 +117,7 @@ public class ManageStoreScreen extends Activity {
                 }
         ));
 
+        // ค้นหาประวัติการแก้ไขราคา
         root.addView(makeMenuButton(
                 "ค้นหาประวัติการแก้ไขราคา",
                 () -> {
@@ -127,6 +129,34 @@ public class ManageStoreScreen extends Activity {
                 }
         ));
 
+        // ตั้งค่าเครื่องพิมพ์ใบเสร็จ
+        root.addView(makeMenuButton(
+                "ตั้งค่าเครื่องพิมพ์ใบเสร็จ",
+                () -> startActivity(new Intent(
+                        ManageStoreScreen.this,
+                        PrinterScreen.class
+                ))
+        ));
+
+        // ข้อความแจ้งเตือน
+        root.addView(makeMenuButton(
+                "ข้อความแจ้งเตือน",
+                () -> startActivity(new Intent(
+                        ManageStoreScreen.this,
+                        NotificationScreen.class
+                ))
+        ));
+
+        // สถานะสำรองข้อมูล
+        root.addView(makeMenuButton(
+                "สถานะสำรองข้อมูล",
+                () -> startActivity(new Intent(
+                        ManageStoreScreen.this,
+                        CloudSyncStatusScreen.class
+                ))
+        ));
+
+        // กลับ
         root.addView(makeMenuButton(
                 "กลับ",
                 this::finish
