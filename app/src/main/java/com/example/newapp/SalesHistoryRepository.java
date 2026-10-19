@@ -1,6 +1,7 @@
 
 package com.example.newapp;
 
+import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
@@ -16,8 +17,33 @@ public class SalesHistoryRepository {
     }
 
     /**
-     * ประวัติบิลที่ชำระแล้วในช่วง 30 วันล่าสุด
-     * ใช้ paid_at เป็นวันเริ่มนับสำหรับบิลเชื่อที่ชำระภายหลัง
+     * ประวัติการขาย 30 วันล่าสุด
+     * ยึดวันที่ขาย created_at และแสดงทุกสถานะ
+     */
+    public Cursor getRecentBills() {
+        SQLiteDatabase db = helper.getReadableDatabase();
+
+        return db.rawQuery(
+                "SELECT s.id, s.bill_number, s.payment_type, s.status, " +
+                        "s.customer_id, " +
+                        "COALESCE(c.first_name, '') AS first_name, " +
+                        "COALESCE(c.last_name, '') AS last_name, " +
+                        "s.subtotal, s.service_fee, s.total, " +
+                        "s.cash_received, s.change_due, " +
+                        "s.created_at, s.paid_at, s.print_status " +
+                        "FROM sales s " +
+                        "LEFT JOIN customers c ON c.id = s.customer_id " +
+                        "WHERE date(s.created_at) >= " +
+                        "date('now', '+7 hours', '-29 days') " +
+                        "AND date(s.created_at) <= date('now', '+7 hours') " +
+                        "ORDER BY s.created_at DESC, s.id DESC",
+                null
+        );
+    }
+
+    /**
+     * ประวัติบิลที่ชำระแล้วใน 30 วันล่าสุด
+     * ยังคง API เดิมไว้เพื่อไม่กระทบหน้าที่เรียกใช้
      */
     public Cursor getRecentPaidBills() {
         SQLiteDatabase db = helper.getReadableDatabase();
@@ -29,14 +55,14 @@ public class SalesHistoryRepository {
                         "FROM sales " +
                         "WHERE status = 'PAID' " +
                         "AND COALESCE(paid_at, created_at) >= " +
-                        "datetime('now', '-30 days') " +
-                        "ORDER BY COALESCE(paid_at, created_at) DESC",
+                        "datetime('now', '+7 hours', '-30 days') " +
+                        "ORDER BY COALESCE(paid_at, created_at) DESC, id DESC",
                 null
         );
     }
 
     /**
-     * บิลค้างชำระทั้งหมด ไม่จำกัดอายุบิล
+     * บิลเครดิตที่ยังค้างชำระทั้งหมด
      */
     public Cursor getAllPendingCreditBills() {
         SQLiteDatabase db = helper.getReadableDatabase();
@@ -57,12 +83,13 @@ public class SalesHistoryRepository {
                 null,
                 null,
                 null,
-                "created_at ASC"
+                "created_at ASC, id ASC"
         );
     }
 
     /**
-     * รายละเอียดรายการสินค้าในบิล
+     * รายละเอียดสินค้าในบิล
+     * ใช้คอลัมน์ id ซึ่งมีอยู่จริงในตาราง sale_items
      */
     public Cursor getSaleItems(long saleId) {
         SQLiteDatabase db = helper.getReadableDatabase();
@@ -70,6 +97,7 @@ public class SalesHistoryRepository {
         return db.query(
                 "sale_items",
                 new String[]{
+                        "id",
                         "barcode",
                         "product_name",
                         "unit",
@@ -81,7 +109,7 @@ public class SalesHistoryRepository {
                 new String[]{String.valueOf(saleId)},
                 null,
                 null,
-                "_id ASC"
+                "id ASC"
         );
     }
 
@@ -103,7 +131,8 @@ public class SalesHistoryRepository {
                         "service_fee",
                         "total",
                         "cash_received",
-                        "change_amount",
+                        "change_due",
+                        "created_at",
                         "paid_at",
                         "receipt_text",
                         "print_status"
@@ -121,7 +150,6 @@ public class SalesHistoryRepository {
 
     /**
      * บันทึกสถานะการพิมพ์โดยไม่เปลี่ยนยอดขาย
-     * ใช้ PRINTED หรือ FAILED ตามผลที่เครื่องพิมพ์รายงาน
      */
     public boolean updatePrintStatus(long saleId, String status) {
         if (saleId <= 0
@@ -132,9 +160,7 @@ public class SalesHistoryRepository {
         }
 
         SQLiteDatabase db = helper.getWritableDatabase();
-
-        android.content.ContentValues values =
-                new android.content.ContentValues();
+        ContentValues values = new ContentValues();
         values.put("print_status", status);
 
         return db.update(
