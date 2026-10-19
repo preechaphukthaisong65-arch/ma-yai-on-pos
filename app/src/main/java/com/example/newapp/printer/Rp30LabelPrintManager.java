@@ -1,3 +1,4 @@
+
 package com.example.newapp.printer;
 
 import android.graphics.Bitmap;
@@ -17,14 +18,13 @@ public final class Rp30LabelPrintManager {
 
     private static final int MAX_COPIES = 100;
 
-    private final Rp30LabelRenderer renderer;
     private final Rp30PrinterAdapter printerAdapter;
 
     /**
      * สร้างตัวจัดการพิมพ์ด้วยความกว้างเริ่มต้น
      *
-     * ความกว้าง 576 จุดเป็นค่าเริ่มต้นทั่วไปของเครื่องพิมพ์
-     * 80 มม. ยังต้องตรวจสอบกับ RP30 รุ่นจริง
+     * 576 จุดเป็นค่าเริ่มต้นทั่วไปของเครื่องพิมพ์ 80 มม.
+     * ต้องตรวจสอบความละเอียดจริงของ RP30 ก่อนใช้งาน
      */
     public Rp30LabelPrintManager(
             PrinterService printerService
@@ -54,7 +54,6 @@ public final class Rp30LabelPrintManager {
             );
         }
 
-        this.renderer = new Rp30LabelRenderer();
         this.printerAdapter = new Rp30PrinterAdapter(
                 printerService,
                 widthDots
