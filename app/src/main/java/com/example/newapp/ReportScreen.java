@@ -100,30 +100,7 @@ public class ReportScreen extends Activity {
                         matchWrap()
                 );
             } else {
-                int billCount = readInt(cursor, "bill_count");
-                double subtotal = readDouble(cursor, "subtotal");
-                double serviceFee = readDouble(cursor, "service_fee");
-                double total = readDouble(cursor, "total_sales");
-
-                content.addView(
-                        makeText("จำนวนบิลที่ชำระแล้ว: " + billCount + " บิล"),
-                        matchWrap()
-                );
-
-                content.addView(
-                        makeText("ยอดรวมสินค้า: " + money(subtotal) + " บาท"),
-                        matchWrap()
-                );
-
-                content.addView(
-                        makeText("ค่าบริการขายเชื่อ: " + money(serviceFee) + " บาท"),
-                        matchWrap()
-                );
-
-                content.addView(
-                        makeText("ยอดรวมสุทธิ: " + money(total) + " บาท"),
-                        matchWrap()
-                );
+                addSalesSummaryDetails(cursor);
             }
         } catch (Exception e) {
             showError("อ่านรายงานไม่สำเร็จ", e);
@@ -134,6 +111,58 @@ public class ReportScreen extends Activity {
         }
 
         addButton("กลับเมนูรายงาน", this::showMenu);
+    }
+
+    private void addSalesSummaryDetails(Cursor cursor) {
+        int billCount = readInt(cursor, "bill_count");
+        int paidBillCount = readInt(cursor, "paid_bill_count");
+        int pendingBillCount = readInt(cursor, "pending_bill_count");
+
+        double subtotal = readDouble(cursor, "subtotal");
+        double serviceFee = readDouble(cursor, "service_fee");
+        double total = readDouble(cursor, "total_sales");
+        double paidSales = readDouble(cursor, "paid_sales");
+        double pendingSales = readDouble(cursor, "pending_sales");
+
+        content.addView(
+                makeText("จำนวนบิลทั้งหมด: " + billCount + " บิล"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("บิลที่ชำระแล้ว: " + paidBillCount + " บิล"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("บิลค้างชำระ: " + pendingBillCount + " บิล"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("ยอดรวมสินค้า: " + money(subtotal) + " บาท"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("ค่าบริการขายเชื่อ: " + money(serviceFee) + " บาท"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("ยอดขายรวมทุกบิล: " + money(total) + " บาท"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("ยอดบิลที่ชำระแล้ว: " + money(paidSales) + " บาท"),
+                matchWrap()
+        );
+
+        content.addView(
+                makeText("ยอดบิลค้างชำระ: " + money(pendingSales) + " บาท"),
+                matchWrap()
+        );
     }
 
     private void showDateRangeForm() {
@@ -189,32 +218,7 @@ public class ReportScreen extends Activity {
                         matchWrap()
                 );
             } else {
-                content.addView(
-                        makeText("จำนวนบิล: "
-                                + readInt(cursor, "bill_count")),
-                        matchWrap()
-                );
-
-                content.addView(
-                        makeText("ยอดสินค้า: "
-                                + money(readDouble(cursor, "subtotal"))
-                                + " บาท"),
-                        matchWrap()
-                );
-
-                content.addView(
-                        makeText("ค่าบริการ: "
-                                + money(readDouble(cursor, "service_fee"))
-                                + " บาท"),
-                        matchWrap()
-                );
-
-                content.addView(
-                        makeText("ยอดรวมสุทธิ: "
-                                + money(readDouble(cursor, "total_sales"))
-                                + " บาท"),
-                        matchWrap()
-                );
+                addSalesSummaryDetails(cursor);
             }
         } catch (Exception e) {
             showError("อ่านรายงานช่วงวันที่ไม่สำเร็จ", e);
