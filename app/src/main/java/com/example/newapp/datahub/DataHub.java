@@ -775,6 +775,22 @@ public class DataHub {
             completeOperation(callback, 0, 1, "ไม่พบรหัสร้านค้า");
             return;
         }
+        try {
+            for (JSONObject selected : selectedBills) {
+                if (selected == null) {
+                    completeOperation(callback, 0, 1, "พบบิลที่ไม่มีข้อมูล");
+                    return;
+                }
+                JSONObject current = localStore.getRecord(checkedStore, selected.optString("recordId", ""));
+                if (current == null || current.optLong("revision", -1L) != selected.optLong("revision", -2L)) {
+                    completeOperation(callback, 0, 1, "ข้อมูลบิลในเครื่องเปลี่ยนไป กรุณาค้นหาบิลใหม่ก่อนรับชำระ");
+                    return;
+                }
+            }
+        } catch (Exception error) {
+            completeOperation(callback, 0, 1, "ตรวจสอบข้อมูลบิลในเครื่องไม่สำเร็จ");
+            return;
+        }
         String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
         cloudBackupService.commitCreditPayment(checkedStore, selectedBills, receivedAmount, deviceId,
                 new CloudBackupService.CreditPaymentCallback() {
