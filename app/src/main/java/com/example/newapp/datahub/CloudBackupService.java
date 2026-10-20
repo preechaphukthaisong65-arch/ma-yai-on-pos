@@ -127,7 +127,7 @@ public class CloudBackupService {
                     if (cloudUpdatedAt == null || cloudUpdatedAt.longValue() != incomingUpdatedAt
                             || !record.optString("dataType", "").equals(existing.getString("dataType"))
                             || !(cloudPayload instanceof Map)
-                            || !((Map<?, ?>) cloudPayload).equals(incomingPayload)) {
+                            || !deepEquals(cloudPayload, incomingPayload)) {
                         throw new IllegalStateException("Conflicting content at the same cloud revision; refusing overwrite");
                     }
                     return null;
@@ -277,6 +277,33 @@ public class CloudBackupService {
 
     private void failDelete(DeleteCallback callback, String message) {
         if (callback != null) callback.onFailure(message);
+    }
+
+    private boolean deepEquals(Object left, Object right) {
+        if (left == right) return true;
+        if (left == null || right == null) return false;
+        if (left instanceof Number && right instanceof Number) {
+            return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) == 0;
+        }
+        if (left instanceof Map && right instanceof Map) {
+            Map<?, ?> a = (Map<?, ?>) left;
+            Map<?, ?> b = (Map<?, ?>) right;
+            if (!a.keySet().equals(b.keySet())) return false;
+            for (Object key : a.keySet()) {
+                if (!deepEquals(a.get(key), b.get(key))) return false;
+            }
+            return true;
+        }
+        if (left instanceof List && right instanceof List) {
+            List<?> a = (List<?>) left;
+            List<?> b = (List<?>) right;
+            if (a.size() != b.size()) return false;
+            for (int i = 0; i < a.size(); i++) {
+                if (!deepEquals(a.get(i), b.get(i))) return false;
+            }
+            return true;
+        }
+        return left.equals(right);
     }
 
     private JSONObject getPayload(JSONObject record) {
