@@ -99,7 +99,15 @@ public final class StartupActivity extends Activity {
         setBusy(true);
         status.setText("กำลังเชื่อมต่อ Firebase และตรวจสอบข้อมูลสำรอง…");
 
-        FirebaseAuth auth = FirebaseAuth.getInstance();
+        final FirebaseAuth auth;
+        try {
+            auth = FirebaseAuth.getInstance();
+        } catch (RuntimeException error) {
+            showFailure("ยังไม่ได้ตั้งค่า Firebase ในแอป กรุณาเพิ่ม google-services.json "
+                    + "และตรวจสอบ Firebase project ก่อนใช้งานระบบสำรองข้อมูล");
+            return;
+        }
+
         if (auth.getCurrentUser() != null) {
             restore(storeId);
         } else {
@@ -112,20 +120,25 @@ public final class StartupActivity extends Activity {
     }
 
     private void restore(String storeId) {
-        DataHub.getInstance(getApplicationContext()).restoreMissingRecords(
-                storeId,
-                (restored, skipped, failed, message) -> runOnUiThread(() -> {
-                    if (failed > 0) {
-                        showFailure(message + " กรุณาตรวจสอบอินเทอร์เน็ตและสิทธิ์ Firebase แล้วลองใหม่");
-                        return;
-                    }
-                    StoreIdentity.save(this, storeId);
-                    StoreIdentity.markInitialRestoreComplete(this);
-                    status.setText("ตรวจสอบข้อมูลสำรองแล้ว: กู้คืน " + restored
-                            + " รายการ, ข้ามรายการเดิม " + skipped + " รายการ");
-                    openMain();
-                })
-        );
+        try {
+            DataHub.getInstance(getApplicationContext()).restoreMissingRecords(
+                    storeId,
+                    (restored, skipped, failed, message) -> runOnUiThread(() -> {
+                        if (failed > 0) {
+                            showFailure(message + " กรุณาตรวจสอบอินเทอร์เน็ตและสิทธิ์ Firebase แล้วลองใหม่");
+                            return;
+                        }
+                        StoreIdentity.save(this, storeId);
+                        StoreIdentity.markInitialRestoreComplete(this);
+                        status.setText("ตรวจสอบข้อมูลสำรองแล้ว: กู้คืน " + restored
+                                + " รายการ, ข้ามรายการเดิม " + skipped + " รายการ");
+                        openMain();
+                    })
+            );
+        } catch (RuntimeException error) {
+            showFailure("เริ่มระบบฐานข้อมูลกลางไม่ได้ กรุณาตรวจสอบการตั้งค่า Firebase: "
+                    + safeMessage(error));
+        }
     }
 
     private void showFailure(String message) {
