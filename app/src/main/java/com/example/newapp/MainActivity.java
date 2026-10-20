@@ -164,7 +164,11 @@ public class MainActivity extends Activity {
             managementNotice.setVisibility(View.GONE);
             return;
         }
-        if (!new StockSalesRepository(this).lowStockProducts().isEmpty()) {
+        StockSalesRepository stockRepository = new StockSalesRepository(this);
+        if (!StockLimitNotifier.isReconciled(this, storeId)) {
+            StockLimitNotifier.reconcileIfNeeded(this, storeId, stockRepository.products());
+        }
+        if (StockLimitNotifier.hasAnyLowStock(this, storeId)) {
             managementNotice.setText("มีสินค้า ต่ำกว่า ลิมิตสต๊อก");
             managementNotice.setVisibility(View.VISIBLE);
             return;
