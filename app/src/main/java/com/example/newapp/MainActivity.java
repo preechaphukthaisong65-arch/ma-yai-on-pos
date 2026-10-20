@@ -190,6 +190,15 @@ public class MainActivity extends Activity {
         }));
     }
 
+    @Override
+    protected void onDestroy() {
+        if (deviceSessionListener != null) {
+            deviceSessionListener.remove();
+            deviceSessionListener = null;
+        }
+        super.onDestroy();
+    }
+
     private void refreshManagementNotice() {
         if (managementNotice == null) return;
         String storeId = StoreIdentity.get(this);
