@@ -195,12 +195,41 @@ public final class StockSalesRepository {
     }
 
     /** Confirm a sale and its stock ledger in one local SQLite transaction. The bill ID makes retries idempotent. */
-    public boolean confirmSale(String billId, JSONObject billPayload, List<JSONObject> soldProducts,
+    public synchronized boolean confirmSale(String billId, JSONObject billPayload, List<JSONObject> soldProducts,
             List<Double> quantities, JSONObject receiptPayload) {
-        if (!isReady() || billId == null || billPayload == null || soldProducts == null
-                || quantities == null || soldProducts.size() != quantities.size()) return false;
+        if (!isReady() || billId == null || billId.trim().isEmpty() || billPayload == null
+                || receiptPayload == null || soldProducts == null || quantities == null
+                || soldProducts.size() != quantities.size() || soldProducts.isEmpty()) return false;
         if (hub.getRecord(storeId, billId) != null) return false;
         try {
+            // Validate every line against the latest stored product before preparing any writes.
+            List<JSONObject> currentProducts = new ArrayList<>();
+            List<JSONObject> updatedPayloads = new ArrayList<>();
+            List<Double> beforeQuantities = new ArrayList<>();
+            List<Double> afterQuantities = new ArrayList<>();
+            for (int i = 0; i < soldProducts.size(); i++) {
+                JSONObject product = soldProducts.get(i);
+                Double quantityValue = quantities.get(i);
+                if (product == null || quantityValue == null) return false;
+                double qty = quantityValue;
+                if (!Double.isFinite(qty) || qty <= 0d) return false;
+                String productId = product.optString("recordId", "");
+                if (productId.trim().isEmpty()) return false;
+                JSONObject current = hub.getRecord(storeId, productId);
+                if (current == null || !PRODUCT.equals(current.optString("dataType"))) return false;
+                JSONObject p = new JSONObject(payload(current).toString());
+                double before = p.optDouble("stockQuantity", 0d);
+                if (!Double.isFinite(before) || before < 0d || qty > before + 0.000001d) return false;
+                double after = before - qty;
+                if (after < 0d && after > -0.000001d) after = 0d;
+                if (after < 0d) return false;
+                p.put("stockQuantity", after);
+                p.put("updatedAt", System.currentTimeMillis());
+                currentProducts.add(current);
+                updatedPayloads.add(p);
+                beforeQuantities.add(before);
+                afterQuantities.add(after);
+            }
             List<JSONObject> records = new ArrayList<>();
             records.add(record(billId, "sale_bill", billPayload));
             records.add(record("receipt:" + billId, "receipt", receiptPayload));
@@ -212,25 +241,17 @@ public final class StockSalesRepository {
             saleAudit.put("createdAt", System.currentTimeMillis());
             saleAudit.put("customerRecordId", billPayload.optString("customerRecordId", ""));
             records.add(record(newId("sale_history"), "sale_history", saleAudit));
-            for (int i = 0; i < soldProducts.size(); i++) {
-                JSONObject product = soldProducts.get(i);
-                double qty = quantities.get(i);
-                if (product == null || qty <= 0) return false;
-                JSONObject current = hub.getRecord(storeId, product.optString("recordId"));
-                if (current == null || !PRODUCT.equals(current.optString("dataType"))) return false;
-                JSONObject p = new JSONObject(payload(current).toString());
-                double before = p.optDouble("stockQuantity", 0d);
-                double after = before - qty;
-                p.put("stockQuantity", after);
-                p.put("updatedAt", System.currentTimeMillis());
-                records.add(record(current.optString("recordId"), PRODUCT, p));
-                records.add(history(current, "ขายสินค้า", before, after, "ใบขาย " + billId));
+            for (int i = 0; i < currentProducts.size(); i++) {
+                JSONObject current = currentProducts.get(i);
+                records.add(record(current.optString("recordId"), PRODUCT, updatedPayloads.get(i)));
+                records.add(history(current, "ขายสินค้า", beforeQuantities.get(i),
+                        afterQuantities.get(i), "ใบขาย " + billId));
             }
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) {
                 invalidateProductCache();
-                for (int i = 0; i < soldProducts.size(); i++) {
-                    JSONObject latest = hub.getRecord(storeId, soldProducts.get(i).optString("recordId"));
+                for (int i = 0; i < currentProducts.size(); i++) {
+                    JSONObject latest = hub.getRecord(storeId, currentProducts.get(i).optString("recordId"));
                     if (latest != null) StockLimitNotifier.updateState(storeId, latest.optString("recordId"),
                             stock(latest) <= limit(latest), stock(latest), limit(latest));
                 }
