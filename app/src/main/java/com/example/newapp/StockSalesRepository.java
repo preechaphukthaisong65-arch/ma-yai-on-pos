@@ -208,6 +208,52 @@ public final class StockSalesRepository {
         } catch (Exception e) { return false; }
     }
 
+    /** Full-bill-only cash payment for selected credit invoices, preserving original receipts. */
+    public boolean payCreditBills(List<JSONObject> selectedBills, double received) {
+        if (!isReady() || selectedBills == null || selectedBills.isEmpty() || received < 0) return false;
+        try {
+            double due = 0d;
+            List<JSONObject> refreshed = new ArrayList<>();
+            for (JSONObject old : selectedBills) {
+                if (old == null) return false;
+                JSONObject current = hub.getRecord(storeId, old.optString("recordId"));
+                JSONObject p = current == null ? null : current.optJSONObject("payload");
+                if (p == null || !"credit".equals(p.optString("paymentType"))
+                        || !"ค้างชำระ".equals(p.optString("paymentStatus"))) return false;
+                due += p.optDouble("total", 0d);
+                refreshed.add(current);
+            }
+            if (Math.abs(due - received) > 0.009d) return false;
+            String paymentId = newId("credit_payment");
+            long now = System.currentTimeMillis();
+            org.json.JSONArray ids = new org.json.JSONArray();
+            List<JSONObject> records = new ArrayList<>();
+            for (JSONObject current : refreshed) {
+                JSONObject p = new JSONObject(current.optJSONObject("payload").toString());
+                p.put("paymentStatus", "จ่ายแล้ว");
+                p.put("paidAt", now);
+                p.put("lastPaymentId", paymentId);
+                records.add(record(current.optString("recordId"), "sale_bill", p));
+                ids.put(current.optString("recordId"));
+            }
+            JSONObject payment = new JSONObject();
+            payment.put("paymentId", paymentId); payment.put("paidAt", now);
+            payment.put("amount", due); payment.put("paymentMethod", "cash");
+            payment.put("billIds", ids);
+            records.add(record(paymentId, "credit_payment", payment));
+            JSONObject receipt = new JSONObject();
+            receipt.put("receiptId", "receipt:" + paymentId); receipt.put("paymentId", paymentId);
+            receipt.put("receiptType", "ใบเสร็จรับชำระหนี้"); receipt.put("createdAt", now);
+            receipt.put("total", due); receipt.put("billIds", ids); receipt.put("printStatus", "pending");
+            records.add(record("receipt:" + paymentId, "receipt", receipt));
+            JSONObject history = new JSONObject();
+            history.put("paymentId", paymentId); history.put("paidAt", now); history.put("amount", due);
+            history.put("billIds", ids); history.put("eventType", "credit_payment");
+            records.add(record(newId("credit_payment_history"), "credit_payment_history", history));
+            return hub.saveRecordsAtomically(storeId, records);
+        } catch (Exception e) { return false; }
+    }
+
     public List<JSONObject> customers() { return records("credit_customer"); }
 
     public JSONObject findCustomer(String firstName, String lastName) {
