@@ -62,8 +62,12 @@ public final class DeviceSessionManager {
             return null;
         }
         return sessionDoc(storeId.trim()).addSnapshotListener((snapshot, error) -> {
-            if (error != null || snapshot == null || !snapshot.exists()) {
-                // Fail closed while online when the session cannot be verified.
+            if (error != null || snapshot == null) {
+                // Preserve cached/offline work when connectivity is unavailable.
+                // The listener will re-check the server session when connectivity returns.
+                return;
+            }
+            if (!snapshot.exists()) {
                 callback.onActiveChanged(false);
                 return;
             }
