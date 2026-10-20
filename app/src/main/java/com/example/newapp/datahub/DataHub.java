@@ -528,7 +528,26 @@ public class DataHub {
                                             );
 
                                     if (existing != null) {
-                                        skipped++;
+                                        // An existing local record is not automatically "the same"
+                                        // as its cloud counterpart. Keep local data untouched and
+                                        // flag mismatched revisions/content for manual reconciliation.
+                                        boolean identical = existing.optString("dataType", "")
+                                                        .equals(record.optString("dataType", ""))
+                                                && existing.optLong("revision", 0L)
+                                                        == record.optLong("revision", 0L)
+                                                && existing.optLong("updatedAt", 0L)
+                                                        == record.optLong("updatedAt", 0L)
+                                                && existing.optJSONObject("payload") != null
+                                                && record.optJSONObject("payload") != null
+                                                && existing.optJSONObject("payload").toString()
+                                                        .equals(record.optJSONObject("payload").toString());
+                                        if (identical) {
+                                            skipped++;
+                                        } else {
+                                            // Do not overwrite either copy. Count as a restore conflict
+                                            // so the caller cannot report a clean restore.
+                                            failed++;
+                                        }
                                     } else {
                                         failed++;
                                     }
