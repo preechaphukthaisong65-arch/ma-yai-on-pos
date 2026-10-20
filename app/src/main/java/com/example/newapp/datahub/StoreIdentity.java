@@ -9,6 +9,7 @@ public final class StoreIdentity {
     private static final String KEY_STORE_ID = "store_id";
     private static final String KEY_INITIAL_RESTORE = "initial_restore_complete";
     private static final String KEY_OWNER_UID = "owner_uid";
+    private static final String KEY_DEVICE_ID = "device_id";
 
     private StoreIdentity() { }
 
@@ -38,6 +39,17 @@ public final class StoreIdentity {
     public static String getOwnerUid(Context context) {
         if (context == null) return "";
         return prefs(context).getString(KEY_OWNER_UID, "").trim();
+    }
+
+    /** Stable per-install identifier; generated once and preserved across app restarts. */
+    public static synchronized String getOrCreateDeviceId(Context context) {
+        if (context == null) throw new IllegalArgumentException("context must not be null");
+        SharedPreferences preferences = prefs(context);
+        String id = preferences.getString(KEY_DEVICE_ID, "").trim();
+        if (!id.isEmpty()) return id;
+        id = java.util.UUID.randomUUID().toString();
+        preferences.edit().putString(KEY_DEVICE_ID, id).commit();
+        return id;
     }
 
     public static boolean isConfigured(Context context) {
