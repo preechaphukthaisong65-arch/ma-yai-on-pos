@@ -76,29 +76,33 @@ public class BarcodeScreen extends Activity {
         saving = true;
         synchronized (CREATE_LOCK) {
             try {
-                List<JSONObject> records = hub.getRecordsByType(storeId, "barcode_item");
-                long max = 0;
-                for (JSONObject record : records) {
+                // Generated barcodes are saved as product records so the existing scanner,
+                // sales flow, stock ledger and product search can use them immediately.
+                List<JSONObject> products = hub.getRecordsByType(storeId, "product");
+                List<JSONObject> barcodeItems = hub.getRecordsByType(storeId, "barcode_item");
+                long max = 0L;
+                for (JSONObject record : products) {
                     JSONObject p = record.optJSONObject("payload");
                     if (p == null) continue;
-                    String value = p.optString("barcode", "");
-                    try { max = Math.max(max, Long.parseLong(value)); } catch (NumberFormatException ignored) { }
+                    try { max = Math.max(max, Long.parseLong(p.optString("barcode", ""))); }
+                    catch (NumberFormatException ignored) { }
+                }
+                for (JSONObject record : barcodeItems) {
+                    JSONObject p = record.optJSONObject("payload");
+                    if (p == null) continue;
+                    try { max = Math.max(max, Long.parseLong(p.optString("barcode", ""))); }
+                    catch (NumberFormatException ignored) { }
                 }
                 String code;
                 do {
                     max++;
                     code = String.format(Locale.US, "%012d", max);
-                } while (hub.getRecord(storeId, "barcode_item:" + code) != null
-                        || barcodeExists(records, code));
-                JSONObject payload = new JSONObject();
-                payload.put("barcode", code);
-                payload.put("name", name);
-                payload.put("price", price);
-                payload.put("createdAt", System.currentTimeMillis());
-                payload.put("barcodeFormat", "CODE_128");
-                boolean saved = hub.saveRecord(storeId, "barcode_item:" + code, "barcode_item", 1, 1, payload);
+                } while (barcodeExists(products, code) || barcodeExists(barcodeItems, code));
+
+                StockSalesRepository repository = new StockSalesRepository(this);
+                boolean saved = repository.createProduct(name, code, price, 0d, "ชิ้น", 0d, 0d);
                 if (!saved) {
-                    Toast.makeText(this, "บันทึกบาร์โค้ดไม่สำเร็จ กรุณาลองอีกครั้ง", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "บันทึกสินค้าและบาร์โค้ดไม่สำเร็จ กรุณาตรวจสอบคลังสินค้าแล้วลองอีกครั้ง", Toast.LENGTH_LONG).show();
                     return;
                 }
                 lastBarcode = code;
@@ -116,7 +120,7 @@ public class BarcodeScreen extends Activity {
     private boolean barcodeExists(List<JSONObject> records, String code) {
         for (JSONObject record : records) {
             JSONObject payload = record.optJSONObject("payload");
-            if (payload != null && code.equals(payload.optString("barcode", ""))) return true;
+            if (payload != null && code.equals(payload.optString("barcode", "").trim())) return true;
         }
         return false;
     }
