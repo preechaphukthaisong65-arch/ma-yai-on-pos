@@ -229,6 +229,13 @@ public class MainActivity extends Activity {
             managementNotice.setTextColor(Color.rgb(45, 90, 55));
             managementNotice.setOnClickListener(null);
         }
+        int duplicateBarcodes = dataHub.getDuplicateBarcodeCount(storeId);
+        if (duplicateBarcodes > 0) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append("⚠ พบบาร์โค้ดซ้ำ ").append(duplicateBarcodes)
+                    .append(" รายการ — เก็บข้อมูลเดิมไว้ กรุณาตรวจสอบก่อนใช้บาร์โค้ดเหล่านี้");
+            managementNotice.setTextColor(Color.rgb(170, 80, 0));
+        }
         List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
                 .getRecordsByType(storeId, "app_notification");
         if (!notices.isEmpty()) {
