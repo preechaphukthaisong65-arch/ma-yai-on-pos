@@ -166,7 +166,8 @@ public final class StockSalesRepository {
         List<JSONObject> out = new ArrayList<>();
         for (JSONObject p : products()) {
             JSONObject d = payload(p);
-            if (d.has("stockQuantity") && d.has("stockLimit")\n                    && d.optDouble("stockQuantity", 0d) <= d.optDouble("stockLimit", 0d)) out.add(p);
+            if (d.has("stockQuantity") && d.has("stockLimit")
+                    && d.optDouble("stockQuantity", 0d) <= d.optDouble("stockLimit", 0d)) out.add(p);
         }
         out.sort(Comparator.comparingDouble(this::stock));
         return out;
