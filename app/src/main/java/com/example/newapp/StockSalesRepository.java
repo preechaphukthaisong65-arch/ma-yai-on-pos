@@ -119,7 +119,7 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>(); records.add(productRecord);
             records.add(record(newId("stock_history"), STOCK_HISTORY, h));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
-            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(id, initialQuantity <= stockLimit, initialQuantity, stockLimit); }
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, id, initialQuantity <= stockLimit, initialQuantity, stockLimit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -135,7 +135,7 @@ public final class StockSalesRepository {
             records.add(history(product, "รับสินค้า", before, after, "รับเข้า +" + quantity));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             double limit = p.optDouble("stockLimit", 0d);
-            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(product.optString("recordId"), after <= limit, after, limit); }
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, product.optString("recordId"), after <= limit, after, limit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -151,7 +151,7 @@ public final class StockSalesRepository {
             records.add(history(product, "ตรวจนับสต๊อก", before, actual, "นับจริง " + actual));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             double limit = p.optDouble("stockLimit", 0d);
-            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(product.optString("recordId"), actual <= limit, actual, limit); }
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, product.optString("recordId"), actual <= limit, actual, limit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -164,7 +164,7 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>();
             records.add(record(product.optString("recordId"), PRODUCT, p));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
-            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(product.optString("recordId"),
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, product.optString("recordId"),
                     stock(product) <= newLimit, stock(product), newLimit); }
             return saved;
         } catch (Exception e) { return false; }
@@ -231,7 +231,7 @@ public final class StockSalesRepository {
                 invalidateProductCache();
                 for (int i = 0; i < soldProducts.size(); i++) {
                     JSONObject latest = hub.getRecord(storeId, soldProducts.get(i).optString("recordId"));
-                    if (latest != null) StockLimitNotifier.updateState(latest.optString("recordId"),
+                    if (latest != null) StockLimitNotifier.updateState(storeId, latest.optString("recordId"),
                             stock(latest) <= limit(latest), stock(latest), limit(latest));
                 }
             }
