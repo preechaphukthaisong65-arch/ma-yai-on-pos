@@ -10,13 +10,23 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Conservative retention pass. Unknown types and unsynced records are preserved. */
+/**
+ * Conservative automatic retention.
+ * Only explicitly approved record types are eligible for deletion.
+ * Unknown types and unsynced records are preserved.
+ */
 public final class RetentionManager {
-    private static final long DAY_MS=24L*60L*60L*1000L;
-    private static final long PAID_BILL_RETENTION_MS=30L*DAY_MS;
-    private static final String PREFS="pos_retention_policy", LAST_RUN="last_run_at";
-    private RetentionManager() {}
+    private static final long DAY_MS = 24L * 60L * 60L * 1000L;
+    private static final long PAID_BILL_RETENTION_MS = 30L * DAY_MS;
+    private static final String PREFS = "pos_retention_policy";
+    private static final String LAST_RUN = "last_run_at";
+    private static final long DELETE_CALLBACK_TIMEOUT_MINUTES = 3L;
+
+    private RetentionManager() { }
 
     public static void runIfDue(Context context) {
         Context app = context.getApplicationContext();
@@ -25,21 +35,27 @@ public final class RetentionManager {
         worker.start();
     }
 
-    /** Runs from WorkManager and waits for cloud delete callbacks before finishing. */
+    /**
+     * Runs from WorkManager. Serializes runs and records the last successful
+     * completion only; failed or timed-out deletions remain eligible for retry.
+     */
     public static boolean runIfDueAndWait(Context context) {
         Context app = context.getApplicationContext();
         String storeId = StoreIdentity.get(app);
         if (storeId == null || storeId.trim().isEmpty()) return true;
+
         SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        long now = System.currentTimeMillis();
         synchronized (RetentionManager.class) {
-            long last = prefs.getLong(LAST_RUN, 0L);
-            if (last > 0L && now - last < DAY_MS) return true;
-            prefs.edit().putLong(LAST_RUN, now).apply();
+            long now = System.currentTimeMillis();
+            long lastSuccessfulRun = prefs.getLong(LAST_RUN, 0L);
+            if (lastSuccessfulRun > 0L && now - lastSuccessfulRun < DAY_MS) return true;
+
+            boolean success = new RetentionManager().run(app, storeId.trim());
+            if (success) {
+                prefs.edit().putLong(LAST_RUN, System.currentTimeMillis()).apply();
+            }
+            return success;
         }
-        boolean success = new RetentionManager().run(app, storeId.trim());
-        if (!success) prefs.edit().putLong(LAST_RUN, 0L).apply();
-        return success;
     }
 
     private boolean run(Context context, String storeId) {
@@ -48,6 +64,9 @@ public final class RetentionManager {
         long billCutoff = now - PAID_BILL_RETENTION_MS;
         long salesCutoff = calendarCutoff(now, Calendar.YEAR, -1);
         long editCutoff = calendarCutoff(now, Calendar.MONTH, -6);
+
+        // Do not delete a paid bill until a complete sale snapshot exists locally
+        // and has been backed up successfully.
         if (!ensureSaleHistory(hub, storeId)) return false;
 
         List<DeleteCandidate> candidates = new ArrayList<>();
@@ -60,36 +79,55 @@ public final class RetentionManager {
                 paidAt = p.optLong("createdAt", 0L);
             }
             if (paidAt > 0L && paidAt <= billCutoff) {
-                candidates.add(new DeleteCandidate(bill.optString("recordId"), "sale_bill", billCutoff));
+                String recordId = bill.optString("recordId", "").trim();
+                if (!recordId.isEmpty()) {
+                    candidates.add(new DeleteCandidate(recordId, "sale_bill", billCutoff));
+                }
             }
         }
+
         for (JSONObject history : hub.getRecordsByType(storeId, "sale_history")) {
             JSONObject p = history.optJSONObject("payload");
             if (p == null) continue;
             long createdAt = p.optLong("createdAt", 0L);
-            if (createdAt > 0L && createdAt <= salesCutoff) {
-                candidates.add(new DeleteCandidate(history.optString("recordId"), "sale_history", salesCutoff));
+            String recordId = history.optString("recordId", "").trim();
+            if (createdAt > 0L && createdAt <= salesCutoff && !recordId.isEmpty()) {
+                candidates.add(new DeleteCandidate(recordId, "sale_history", salesCutoff));
             }
         }
+
         // price_history is the explicit price-edit history. Keep stock_history as a stock ledger.
         for (JSONObject history : hub.getRecordsByType(storeId, "price_history")) {
             JSONObject p = history.optJSONObject("payload");
             if (p == null) continue;
             long changedAt = p.optLong("changedAt", 0L);
-            if (changedAt > 0L && changedAt <= editCutoff) {
-                candidates.add(new DeleteCandidate(history.optString("recordId"), "price_history", editCutoff));
+            String recordId = history.optString("recordId", "").trim();
+            if (changedAt > 0L && changedAt <= editCutoff && !recordId.isEmpty()) {
+                candidates.add(new DeleteCandidate(recordId, "price_history", editCutoff));
             }
         }
 
         if (candidates.isEmpty()) return true;
-        java.util.concurrent.CountDownLatch latch =
-                new java.util.concurrent.CountDownLatch(candidates.size());
+
+        CountDownLatch latch = new CountDownLatch(candidates.size());
+        AtomicBoolean allSucceeded = new AtomicBoolean(true);
         for (DeleteCandidate candidate : candidates) {
-            hub.deleteExpiredRecord(storeId, candidate.recordId, candidate.dataType, candidate.cutoff,
-                    (deleted, message) -> latch.countDown());
+            try {
+                hub.deleteExpiredRecord(storeId, candidate.recordId, candidate.dataType, candidate.cutoff,
+                        (deleted, message) -> {
+                            if (!deleted) allSucceeded.set(false);
+                            latch.countDown();
+                        });
+            } catch (RuntimeException error) {
+                allSucceeded.set(false);
+                latch.countDown();
+            }
         }
+
         try {
-            return latch.await(3, java.util.concurrent.TimeUnit.MINUTES);
+            boolean allCallbacksCompleted = latch.await(
+                    DELETE_CALLBACK_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            return allCallbacksCompleted && allSucceeded.get();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return false;
@@ -100,6 +138,7 @@ public final class RetentionManager {
         final String recordId;
         final String dataType;
         final long cutoff;
+
         DeleteCandidate(String recordId, String dataType, long cutoff) {
             this.recordId = recordId;
             this.dataType = dataType;
@@ -107,47 +146,61 @@ public final class RetentionManager {
         }
     }
 
-    private long calendarCutoff(long now,int field,int amount) {
-        Calendar c=Calendar.getInstance(); c.setTimeInMillis(now); c.add(field,amount); return c.getTimeInMillis();
+    private long calendarCutoff(long now, int field, int amount) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(now);
+        c.add(field, amount);
+        return c.getTimeInMillis();
     }
 
-    private boolean ensureSaleHistory(DataHub hub,String storeId) {
-        List<JSONObject> histories=hub.getRecordsByType(storeId,"sale_history");
-        Map<String,JSONObject> byBill=new HashMap<>();
-        for(JSONObject history:histories) {
-            JSONObject p=history.optJSONObject("payload");
-            if(p==null) continue;
-            String id=p.optString("billId","").trim();
-            if(!id.isEmpty()&&!byBill.containsKey(id)) byBill.put(id,history);
+    private boolean ensureSaleHistory(DataHub hub, String storeId) {
+        List<JSONObject> histories = hub.getRecordsByType(storeId, "sale_history");
+        Map<String, JSONObject> byBill = new HashMap<>();
+        for (JSONObject history : histories) {
+            JSONObject p = history.optJSONObject("payload");
+            if (p == null) continue;
+            String id = p.optString("billId", "").trim();
+            if (!id.isEmpty() && !byBill.containsKey(id)) byBill.put(id, history);
         }
-        List<JSONObject> updates=new ArrayList<>();
-        for(JSONObject bill:hub.getRecordsByType(storeId,"sale_bill")) {
-            JSONObject bp=bill.optJSONObject("payload");
-            String billId=bill.optString("recordId","").trim();
-            if(bp==null||billId.isEmpty()||bp.optLong("createdAt",0L)<=0L) continue;
-            JSONObject existing=byBill.get(billId);
-            JSONObject old=existing==null?null:existing.optJSONObject("payload");
+
+        List<JSONObject> updates = new ArrayList<>();
+        for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
+            JSONObject bp = bill.optJSONObject("payload");
+            String billId = bill.optString("recordId", "").trim();
+            if (bp == null || billId.isEmpty() || bp.optLong("createdAt", 0L) <= 0L) continue;
+
+            JSONObject existing = byBill.get(billId);
+            JSONObject old = existing == null ? null : existing.optJSONObject("payload");
             try {
-                JSONObject hp=old==null?new JSONObject():new JSONObject(old.toString());
-                hp.put("billId",billId); hp.put("eventType","sale_confirmed");
-                hp.put("paymentType",bp.optString("paymentType",""));
-                hp.put("paymentStatus",bp.optString("paymentStatus",""));
-                hp.put("total",bp.optDouble("total",0d));
-                hp.put("createdAt",bp.optLong("createdAt",0L));
-                hp.put("customerRecordId",bp.optString("customerRecordId",""));
-                hp.put("saleSnapshot",new JSONObject(bp.toString()));
-                if(old!=null&&hp.toString().equals(old.toString())) continue;
-                JSONObject r=new JSONObject();
-                r.put("recordId",existing==null?"sale_history:retention:"+billId:existing.optString("recordId"));
-                r.put("dataType","sale_history"); r.put("schemaVersion",1);
-                r.put("updatedAt",System.currentTimeMillis());
-                r.put("revision",existing==null?1L:existing.optLong("revision",1L)+1L);
-                r.put("payload",hp); updates.add(r);
-            } catch(Exception error) { return false; }
+                JSONObject hp = old == null ? new JSONObject() : new JSONObject(old.toString());
+                hp.put("billId", billId);
+                hp.put("eventType", "sale_confirmed");
+                hp.put("paymentType", bp.optString("paymentType", ""));
+                hp.put("paymentStatus", bp.optString("paymentStatus", ""));
+                hp.put("total", bp.optDouble("total", 0d));
+                hp.put("createdAt", bp.optLong("createdAt", 0L));
+                hp.put("customerRecordId", bp.optString("customerRecordId", ""));
+                hp.put("saleSnapshot", new JSONObject(bp.toString()));
+                if (old != null && hp.toString().equals(old.toString())) continue;
+
+                JSONObject r = new JSONObject();
+                r.put("recordId", existing == null ? "sale_history:retention:" + billId
+                        : existing.optString("recordId"));
+                r.put("dataType", "sale_history");
+                r.put("schemaVersion", 1);
+                r.put("updatedAt", System.currentTimeMillis());
+                r.put("revision", existing == null ? 1L : existing.optLong("revision", 1L) + 1L);
+                r.put("payload", hp);
+                updates.add(r);
+            } catch (Exception error) {
+                return false;
+            }
         }
-        for(int start=0;start<updates.size();start+=50) {
-            int end=Math.min(updates.size(),start+50);
-            if(!hub.saveRecordsAtomically(storeId, new ArrayList<>(updates.subList(start,end)))) return false;
+
+        for (int start = 0; start < updates.size(); start += 50) {
+            int end = Math.min(updates.size(), start + 50);
+            if (!hub.saveRecordsAtomically(storeId,
+                    new ArrayList<>(updates.subList(start, end)))) return false;
         }
         return true;
     }
