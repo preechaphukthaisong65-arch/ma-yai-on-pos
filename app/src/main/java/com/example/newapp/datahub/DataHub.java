@@ -153,6 +153,43 @@ public class DataHub {
         }
     }
 
+    /** Persist related domain records in one SQLite transaction, then queue cloud backup. */
+    public synchronized boolean saveRecordsAtomically(String storeId, List<JSONObject> records) {
+        if (isBlank(storeId) || records == null || records.isEmpty()) return false;
+        String checkedStore = storeId.trim();
+        try {
+            java.util.List<JSONObject> prepared = new java.util.ArrayList<>();
+            for (JSONObject input : records) {
+                if (input == null) return false;
+                String recordId = input.optString("recordId", "").trim();
+                String dataType = input.optString("dataType", "").trim();
+                JSONObject payload = input.optJSONObject("payload");
+                if (recordId.isEmpty() || dataType.isEmpty() || payload == null) return false;
+                JSONObject previous = localStore.getRecord(checkedStore, recordId);
+                JSONObject record = new JSONObject();
+                record.put("storeId", checkedStore);
+                record.put("recordId", recordId);
+                record.put("dataType", dataType);
+                record.put("schemaVersion", Math.max(1, input.optInt("schemaVersion", 1)));
+                record.put("updatedAt", Math.max(1L, input.optLong("updatedAt", System.currentTimeMillis())));
+                record.put("revision", Math.max(input.optLong("revision", 1L),
+                        previous == null ? 1L : previous.optLong("revision", 0L) + 1L));
+                record.put("payload", payload);
+                record.put("syncStatus", SYNC_PENDING);
+                prepared.add(record);
+            }
+            if (!localStore.saveRecordsAtomically(prepared)) return false;
+            StoreIdentity.save(appContext, checkedStore);
+            refreshStatus(checkedStore);
+            backupPendingRecords(checkedStore, null);
+            BackupRetryScheduler.schedule(appContext, checkedStore);
+            return true;
+        } catch (Exception error) {
+            dataHubStatus.setStatus(SYNC_FAILED, "บันทึกข้อมูลรายการที่เกี่ยวข้องไม่สำเร็จ");
+            return false;
+        }
+    }
+
     /**
      * Atomically update a product price and append a history and home notice
      * record in the existing hub_records table.
