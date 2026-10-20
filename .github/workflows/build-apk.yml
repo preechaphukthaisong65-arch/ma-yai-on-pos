@@ -6,11 +6,13 @@ on:
     branches:
       - main
       - feature/complete-missing-menus
+      - feat/owner-email-auth
   pull_request:
     branches:
       - main
       - feature/manage-store-price
       - feature/warehouse-sales
+      - feature/complete-missing-menus
 
 permissions:
   contents: read
