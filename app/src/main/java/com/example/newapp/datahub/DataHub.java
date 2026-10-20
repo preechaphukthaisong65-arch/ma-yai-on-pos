@@ -762,6 +762,18 @@ public class DataHub {
         }
     }
 
+    public void reserveBarcode(String storeId, String barcode, OperationCallback callback) {
+        String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
+        cloudBackupService.reserveBarcode(storeId, barcode, deviceId, new CloudBackupService.BackupCallback() {
+            @Override public void onSuccess() {
+                if (callback != null) callback.onComplete(1, 0, "จองบาร์โค้ดสำเร็จ");
+            }
+            @Override public void onFailure(String message) {
+                if (callback != null) callback.onComplete(0, 1, message);
+            }
+        });
+    }
+
     public DataHubStatus getStatus() {
         return dataHubStatus;
     }
