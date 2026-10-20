@@ -780,7 +780,7 @@ public class DataHub {
                 new CloudBackupService.CreditPaymentCallback() {
                     @Override public void onSuccess(List<JSONObject> committedRecords) {
                         try {
-                            boolean saved = localStore.saveRecordsAtomically(checkedStore, committedRecords);
+                            boolean saved = localStore.saveRecordsAtomically(committedRecords);
                             if (!saved) {
                                 completeOperation(callback, 0, 1,
                                         "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่เพื่อกู้คืนและตรวจสอบ ห้ามรับเงินซ้ำ");
