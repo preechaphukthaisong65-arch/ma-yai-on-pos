@@ -13,7 +13,13 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.example.newapp.datahub.DataHub;
+import com.example.newapp.datahub.StoreIdentity;
+import org.json.JSONObject;
+import java.util.List;
+
 public class MainActivity extends Activity {
+    private TextView managementNotice;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -107,6 +113,14 @@ public class MainActivity extends Activity {
         ticker.setPadding(dp(4), dp(8), dp(4), dp(8));
         page.addView(ticker);
 
+        // Notification summary for successful store-management changes.
+        managementNotice = new TextView(this);
+        managementNotice.setTextColor(Color.rgb(45, 90, 55));
+        managementNotice.setTextSize(13);
+        managementNotice.setPadding(dp(8), dp(6), dp(8), dp(6));
+        managementNotice.setVisibility(View.GONE);
+        page.addView(managementNotice);
+
         // เมนูหลัก 6 ปุ่ม
         LinearLayout row1 = makeRow();
         LinearLayout row2 = makeRow();
@@ -132,6 +146,7 @@ public class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
+        refreshManagementNotice();
         setupSystemBars();
     }
 
@@ -139,6 +154,30 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         setupSystemBars();
+        refreshManagementNotice();
+    }
+
+    private void refreshManagementNotice() {
+        if (managementNotice == null) return;
+        String storeId = StoreIdentity.get(this);
+        if (storeId.isEmpty()) {
+            managementNotice.setVisibility(View.GONE);
+            return;
+        }
+        List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
+                .getRecordsByType(storeId, "app_notification");
+        if (notices.isEmpty()) {
+            managementNotice.setVisibility(View.GONE);
+            return;
+        }
+        JSONObject payload = notices.get(0).optJSONObject("payload");
+        String message = payload == null ? "" : payload.optString("message", "");
+        if (message.trim().isEmpty()) {
+            managementNotice.setVisibility(View.GONE);
+            return;
+        }
+        managementNotice.setText("แจ้งเตือน: " + message);
+        managementNotice.setVisibility(View.VISIBLE);
     }
 
     private LinearLayout makeRow() {
@@ -204,6 +243,11 @@ public class MainActivity extends Activity {
                         1f
                 )
         );
+
+        if ("จัดการร้านค้า".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, ManageStoreScreen.class)));
+        }
     }
 
     private void addSpace(
