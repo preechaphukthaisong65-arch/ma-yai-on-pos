@@ -100,6 +100,7 @@ public class CloudBackupService {
             );
             cloudRecord.put("payload", jsonToMap(payload));
             cloudRecord.put("uploadedBy", user.getUid());
+            cloudRecord.put("deviceId", record.optString("deviceId", ""));
 
             com.google.firebase.firestore.DocumentReference document =
                     firestore.collection(COLLECTION_BACKUPS)
