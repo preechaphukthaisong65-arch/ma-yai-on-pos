@@ -7,6 +7,7 @@ This work is isolated on `feature/datahub-backup-restore`. It must not change th
 - SQLite is the local source of truth for records saved through `DataHub`.
 - Backup records are stored in Firestore under `dataHubBackups/{storeId}/records/{recordId}`.
 - Local records remain pending/failed when an upload fails; WorkManager retries when network connectivity is available.
+- Retry work checks the store-scoped pending count and repeats bounded batches, so records beyond the first 500 are not stranded after a successful first batch.
 - Local and cloud revisions are checked to avoid an older upload overwriting a newer revision.
 - Restore inserts only missing records and does not overwrite records already present locally.
 - The startup screen asks for a store code before attempting the initial restore.
