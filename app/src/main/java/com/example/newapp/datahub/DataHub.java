@@ -151,6 +151,16 @@ public class DataHub {
     }
 
     /**
+     * Number of records for one store that still need a successful cloud backup.
+     */
+    public int getPendingBackupCount(String storeId) {
+        if (storeId == null || storeId.trim().isEmpty()) {
+            return 0;
+        }
+        return localStore.getPendingCount(storeId.trim());
+    }
+
+    /**
      * สำรองรายการ pending หรือ failed ของร้านที่ระบุ
      */
     public void backupPendingRecords(
