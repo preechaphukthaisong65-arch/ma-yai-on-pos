@@ -20,6 +20,7 @@ public final class StartupActivity extends Activity {
     private EditText storeCode;
     private TextView status;
     private Button action;
+    private Button continueOffline;
     private ProgressBar progress;
     private boolean busy;
 
@@ -90,6 +91,23 @@ public final class StartupActivity extends Activity {
         buttonParams.topMargin = pad / 2;
         root.addView(action, buttonParams);
 
+        continueOffline = new Button(this);
+        continueOffline.setText("ใช้งานต่อแบบออฟไลน์");
+        continueOffline.setVisibility(View.GONE);
+        continueOffline.setOnClickListener(v -> {
+            String code = storeCode.getText().toString().trim();
+            if (code.isEmpty()) {
+                status.setText("กรุณาใส่รหัสประจำร้านก่อนใช้งานออฟไลน์");
+                return;
+            }
+            StoreIdentity.save(this, code);
+            status.setText("เข้าใช้งานแบบออฟไลน์แล้ว ระบบจะลองกู้คืนอีกครั้งเมื่อเปิดแอปใหม่");
+            openMain();
+        });
+        LinearLayout.LayoutParams offlineParams = new LinearLayout.LayoutParams(-1, -2);
+        offlineParams.topMargin = pad / 3;
+        root.addView(continueOffline, offlineParams);
+
         setContentView(root);
     }
 
@@ -146,6 +164,7 @@ public final class StartupActivity extends Activity {
             busy = false;
             setBusy(false);
             status.setText(message == null ? "ดำเนินการไม่สำเร็จ" : message);
+            continueOffline.setVisibility(View.VISIBLE);
         });
     }
 
@@ -158,6 +177,8 @@ public final class StartupActivity extends Activity {
         progress.setVisibility(value ? View.VISIBLE : View.GONE);
         action.setEnabled(!value);
         storeCode.setEnabled(!value);
+        continueOffline.setEnabled(!value);
+        if (value) continueOffline.setVisibility(View.GONE);
         action.setText(value ? "กำลังดำเนินการ…" : "เชื่อมต่อและกู้คืนข้อมูล");
     }
 
