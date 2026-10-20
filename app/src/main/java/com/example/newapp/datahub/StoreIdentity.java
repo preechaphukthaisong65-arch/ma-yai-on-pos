@@ -7,28 +7,35 @@ import android.content.SharedPreferences;
 public final class StoreIdentity {
     private static final String PREFS = "ma_yai_on_pos_store";
     private static final String KEY_STORE_ID = "store_id";
+    private static final String KEY_INITIAL_RESTORE = "initial_restore_complete";
 
     private StoreIdentity() { }
+
+    private static SharedPreferences prefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
 
     public static void save(Context context, String storeId) {
         if (context == null || storeId == null || storeId.trim().isEmpty()) {
             throw new IllegalArgumentException("รหัสร้านค้าต้องไม่ว่าง");
         }
-        context.getApplicationContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_STORE_ID, storeId.trim())
-                .apply();
+        prefs(context).edit().putString(KEY_STORE_ID, storeId.trim()).apply();
     }
 
     public static String get(Context context) {
         if (context == null) return "";
-        return context.getApplicationContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_STORE_ID, "").trim();
+        return prefs(context).getString(KEY_STORE_ID, "").trim();
     }
 
     public static boolean isConfigured(Context context) {
         return !get(context).isEmpty();
+    }
+
+    public static boolean isInitialRestoreComplete(Context context) {
+        return prefs(context).getBoolean(KEY_INITIAL_RESTORE, false);
+    }
+
+    public static void markInitialRestoreComplete(Context context) {
+        prefs(context).edit().putBoolean(KEY_INITIAL_RESTORE, true).apply();
     }
 }
