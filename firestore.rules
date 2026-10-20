@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInVerified() {
+      return request.auth != null
+        && request.auth.token.email_verified == true;
+    }
+
+    // Ownership records are provisioned by a trusted administrator using
+    // Firebase Console or Admin SDK. The Android client cannot claim a shop.
+    function ownsStore(storeId) {
+      return signedInVerified()
+        && exists(/databases/$(database)/documents/storeOwners/$(storeId))
+        && get(/databases/$(database)/documents/storeOwners/$(storeId)).data.ownerUid
+          == request.auth.uid;
+    }
+
+    match /storeOwners/{storeId} {
+      allow read: if ownsStore(storeId);
+      allow create, update, delete: if false;
+    }
+
+    match /dataHubBackups/{storeId}/records/{recordId} {
+      allow read: if ownsStore(storeId)
+        && (!('storeId' in resource.data) || resource.data.storeId == storeId)
+        && (!('recordId' in resource.data) || resource.data.recordId == recordId);
+
+      allow create, update: if ownsStore(storeId)
+        && request.resource.data.storeId == storeId
+        && request.resource.data.recordId == recordId
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.revision is int
+        && request.resource.data.revision > 0
+        && request.resource.data.payload is map;
+
+      allow delete: if ownsStore(storeId)
+        && (!('storeId' in resource.data) || resource.data.storeId == storeId)
+        && (!('recordId' in resource.data) || resource.data.recordId == recordId);
+    }
+
+    // Deny all other client access by default, including ownership claims
+    // and unrelated collections until each collection receives an explicit
+    // reviewed rule.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
