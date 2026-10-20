@@ -610,7 +610,8 @@ public class DataHub {
     private boolean isRetentionEligible(String storeId, JSONObject record, JSONObject payload, long cutoff) {
         String type = record.optString("dataType", "");
         if ("sale_bill".equals(type)) {
-            if (!"จ่ายแล้ว".equals(payload.optString("paymentStatus"))) return false;
+            if (!"จ่ายแล้ว".equals(payload.optString("paymentStatus"))
+                    || payload.optDouble("remainingBalance", 0d) > 0.009d) return false;
             long paidAt = payload.optLong("paidAt", 0L);
             if (paidAt <= 0L && "cash".equals(payload.optString("paymentType"))) paidAt = payload.optLong("createdAt", 0L);
             return paidAt > 0L && paidAt <= cutoff
