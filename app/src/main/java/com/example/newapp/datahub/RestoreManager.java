@@ -1,69 +1,75 @@
 package com.example.newapp.datahub;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
-/**
- * ตรวจสอบข้อมูลก่อนกู้คืน
- *
- * เวอร์ชันนี้ยังไม่เขียนข้อมูลลง LocalStore
- */
-public final class RestoreManager {
-
-    private final BackupManager backupManager;
-
-    public RestoreManager() {
-        backupManager = new BackupManager();
-    }
+public class RestoreManager {
 
     /**
-     * ตรวจสอบข้อมูลสำรองและร้านเจ้าของข้อมูล
+     * Validate that a backup record can be restored to the requested store.
+     *
+     * This method only validates data.
+     * It does not write to the database or modify stock.
      */
-    public boolean canRestore(
-            JSONObject record,
-            String expectedStoreId
-    ) {
-        if (record == null
-                || expectedStoreId == null
-                || expectedStoreId.trim().isEmpty()) {
+    public boolean canRestore(JSONObject record, String expectedStoreId) {
+        if (record == null || expectedStoreId == null) {
             return false;
         }
 
-        if (!backupManager.isValidRecord(record)) {
+        String checkedStoreId = expectedStoreId.trim();
+        if (checkedStoreId.isEmpty()) {
             return false;
         }
 
-        String recordStoreId =
-                record.optString("storeId", "");
+        String recordId = record.optString("recordId", "").trim();
+        String storeId = record.optString("storeId", "").trim();
+        String dataType = record.optString("dataType", "").trim();
 
-        return expectedStoreId.trim().equals(recordStoreId);
+        if (recordId.isEmpty()
+                || storeId.isEmpty()
+                || dataType.isEmpty()) {
+            return false;
+        }
+
+        if (!checkedStoreId.equals(storeId)) {
+            return false;
+        }
+
+        int schemaVersion = record.optInt("schemaVersion", 0);
+        if (schemaVersion < 1) {
+            return false;
+        }
+
+        Object payload = record.opt("payload");
+        if (!(payload instanceof JSONObject)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
-     * สร้างสำเนาข้อมูลที่ผ่านการตรวจสอบแล้ว
-     * ไม่แก้ไข record ต้นฉบับ
+     * Prepare a validated backup record for restore.
+     *
+     * The returned object is a copy. The original record is not modified.
      */
     public JSONObject prepareRestore(
             JSONObject record,
             String expectedStoreId
-    ) throws JSONException {
-
+    ) {
         if (!canRestore(record, expectedStoreId)) {
-            throw new IllegalArgumentException(
-                    "ข้อมูลไม่ผ่านการตรวจสอบสำหรับกู้คืน"
-            );
+            return null;
         }
 
-        JSONObject restored = new JSONObject(
-                record.toString()
-        );
+        try {
+            JSONObject restored = new JSONObject(record.toString());
 
-        // ข้อมูลที่กู้คืนต้องตรวจสอบสถานะการซิงก์ใหม่
-        restored.put(
-                "syncStatus",
-                DataHub.SYNC_PENDING
-        );
+            restored.put("storeId", expectedStoreId.trim());
+            restored.put("syncStatus", DataHub.SYNC_SYNCED);
 
-        return restored;
+            return restored;
+
+        } catch (Exception error) {
+            return null;
+        }
     }
 }
