@@ -223,6 +223,9 @@ public class DataHub {
             long now = Math.max(1L, changedAt);
             JSONObject productRecord = buildManagementRecord(checkedStore, productRecordId.trim(),
                     "product", current.optLong("revision", 0L) + 1L, now, updatedProduct);
+            // Reject a price edit if another local action changed this product
+            // between the read above and the SQLite transaction.
+            productRecord.put("expectedRevision", current.optLong("revision", 0L));
             JSONObject history = new JSONObject();
             history.put("productRecordId", productRecordId.trim());
             history.put("productName", productName);
