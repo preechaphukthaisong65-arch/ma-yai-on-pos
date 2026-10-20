@@ -220,7 +220,19 @@ public final class StartupActivity extends Activity {
     }
 
     private void restoreForOwner(FirebaseAuth auth, FirebaseUser user, String storeId) {
-        status.setText("กำลังตรวจสอบสิทธิ์ร้านและกู้คืนข้อมูลสำรอง…");
+        status.setText("กำลังตรวจสอบสิทธิ์เครื่องที่ใช้งาน…");
+        String deviceId = StoreIdentity.getOrCreateDeviceId(getApplicationContext());
+        new com.example.newapp.datahub.DeviceSessionManager().claim(storeId, deviceId, (claimed, message) -> runOnUiThread(() -> {
+            if (!claimed) {
+                showFailure("ไม่สามารถรับสิทธิ์ใช้งานร้านได้: " + message);
+                return;
+            }
+            restoreAfterSessionClaim(auth, user, storeId);
+        }));
+    }
+
+    private void restoreAfterSessionClaim(FirebaseAuth auth, FirebaseUser user, String storeId) {
+        status.setText("กำลังกู้คืนข้อมูลสำรอง…");
         try {
             DataHub.getInstance(getApplicationContext()).restoreMissingRecords(
                     storeId,
