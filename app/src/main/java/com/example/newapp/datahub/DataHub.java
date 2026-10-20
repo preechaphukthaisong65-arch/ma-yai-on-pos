@@ -17,9 +17,11 @@ public class DataHub {
     private final LocalStore localStore;
     private final CloudBackupService cloudBackupService;
     private final DataHubStatus dataHubStatus;
+    private final Context appContext;
 
     private DataHub(Context context) {
-        localStore = new LocalStore(context.getApplicationContext());
+        appContext = context.getApplicationContext();
+        localStore = new LocalStore(appContext);
         cloudBackupService = new CloudBackupService();
         dataHubStatus = new DataHubStatus();
     }
@@ -94,6 +96,7 @@ public class DataHub {
                 // เริ่มสำรองรายการที่รออยู่ในร้านนี้โดยอัตโนมัติ
                 // ความล้มเหลวของ Cloud จะไม่ลบข้อมูลที่บันทึกในเครื่อง
                 backupPendingRecords(checkedStoreId, null);
+                BackupRetryScheduler.schedule(appContext, checkedStoreId);
             }
 
             return saved;
