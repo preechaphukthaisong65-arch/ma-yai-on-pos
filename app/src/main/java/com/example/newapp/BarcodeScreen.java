@@ -84,7 +84,12 @@ public class BarcodeScreen extends Activity {
                     String value = p.optString("barcode", "");
                     try { max = Math.max(max, Long.parseLong(value)); } catch (NumberFormatException ignored) { }
                 }
-                String code = String.format(Locale.US, "%012d", max + 1);
+                String code;
+                do {
+                    max++;
+                    code = String.format(Locale.US, "%012d", max);
+                } while (hub.getRecord(storeId, "barcode_item:" + code) != null
+                        || barcodeExists(records, code));
                 JSONObject payload = new JSONObject();
                 payload.put("barcode", code);
                 payload.put("name", name);
@@ -106,6 +111,14 @@ public class BarcodeScreen extends Activity {
                 saving = false;
             }
         }
+    }
+
+    private boolean barcodeExists(List<JSONObject> records, String code) {
+        for (JSONObject record : records) {
+            JSONObject payload = record.optJSONObject("payload");
+            if (payload != null && code.equals(payload.optString("barcode", ""))) return true;
+        }
+        return false;
     }
 
     private void showCreated() {
