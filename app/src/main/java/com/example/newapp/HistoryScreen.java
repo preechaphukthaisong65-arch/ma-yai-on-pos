@@ -43,10 +43,7 @@ public class HistoryScreen extends Activity {
 
     private long dateOf(JSONObject record) {
         JSONObject p = record == null ? null : record.optJSONObject("payload");
-        if (p == null) return 0L;
-        long date = p.optLong("paidAt", 0L);
-        if (date <= 0) date = p.optLong("createdAt", 0L);
-        return date;
+        return p == null ? 0L : p.optLong("createdAt", 0L);
     }
 
     private String dateText(long time) {
@@ -78,8 +75,9 @@ public class HistoryScreen extends Activity {
             count++;
             String name = p.optString("customerName", "");
             String label = "จ่ายแล้ว".equals(status) ? "จ่ายแล้ว" : "ค้างชำระ".equals(status) ? "ค้างชำระ" : status;
-            root.addView(POSUi.text(this, "บิล: " + bill.optString("recordId") + "\nวันที่: "
-                    + dateText(dateOf(bill)) + "\nสถานะ: " + label + "\nลูกค้า: "
+            root.addView(POSUi.text(this, "บิล: " + bill.optString("recordId") + "\nวันที่ขาย: "
+                    + dateText(p.optLong("createdAt", 0L)) + "\nวันที่ชำระ: "
+                    + dateText(p.optLong("paidAt", 0L)) + "\nสถานะ: " + label + "\nลูกค้า: "
                     + (name.isEmpty() ? "ไม่ระบุ" : name) + "\nยอด: "
                     + money(p.optDouble("total", 0d)) + " บาท", 15));
             POSUi.button(this, root, "ดูรายละเอียดบิล", () -> showBillDetail(bill));
@@ -92,11 +90,11 @@ public class HistoryScreen extends Activity {
         if (p == null) return;
         root = POSUi.page(this, "รายละเอียดบิล");
         root.addView(POSUi.text(this, "เลขบิล: " + bill.optString("recordId"), 16));
-        root.addView(POSUi.text(this, "วันที่: " + dateText(dateOf(bill)), 15));
+        root.addView(POSUi.text(this, "วันที่ขาย: " + dateText(p.optLong("createdAt", 0L)), 15));
+        root.addView(POSUi.text(this, "วันที่ชำระ: " + dateText(p.optLong("paidAt", 0L)), 15));
         root.addView(POSUi.text(this, "สถานะ: " + p.optString("paymentStatus", "ไม่ระบุสถานะ"), 15));
         root.addView(POSUi.text(this, "ประเภท: " + p.optString("paymentType", "ไม่ระบุ"), 15));
         root.addView(POSUi.text(this, "ยอดรวม: " + money(p.optDouble("total", 0d)) + " บาท", 18));
-        root.addView(POSUi.text(this, "วันที่ชำระ: " + dateText(p.optLong("paidAt", 0L)), 15));
         org.json.JSONArray items = p.optJSONArray("items");
         if (items != null) for (int i=0;i<items.length();i++) {
             JSONObject item = items.optJSONObject(i);
