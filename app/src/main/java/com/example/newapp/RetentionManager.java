@@ -19,53 +19,91 @@ public final class RetentionManager {
     private RetentionManager() {}
 
     public static void runIfDue(Context context) {
-        Context app=context.getApplicationContext();
-        String storeId=StoreIdentity.get(app);
-        if(storeId==null||storeId.trim().isEmpty()) return;
-        SharedPreferences prefs=app.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
-        long now=System.currentTimeMillis();
-        synchronized(RetentionManager.class) {
-            long last=prefs.getLong(LAST_RUN,0L);
-            if(last>0L&&now-last<DAY_MS) return;
-            prefs.edit().putLong(LAST_RUN,now).apply();
-        }
-        Thread worker=new Thread(()->new RetentionManager().run(app,storeId.trim()),"pos-data-retention");
-        worker.setDaemon(true); worker.start();
+        Context app = context.getApplicationContext();
+        Thread worker = new Thread(() -> runIfDueAndWait(app), "pos-data-retention");
+        worker.setDaemon(true);
+        worker.start();
     }
 
-    private void run(Context context,String storeId) {
-        DataHub hub=DataHub.getInstance(context);
-        long now=System.currentTimeMillis();
-        long billCutoff=now-PAID_BILL_RETENTION_MS;
-        long salesCutoff=calendarCutoff(now,Calendar.YEAR,-1);
-        long editCutoff=calendarCutoff(now,Calendar.MONTH,-6);
-        if(!ensureSaleHistory(hub,storeId)) return;
+    /** Runs from WorkManager and waits for cloud delete callbacks before finishing. */
+    public static boolean runIfDueAndWait(Context context) {
+        Context app = context.getApplicationContext();
+        String storeId = StoreIdentity.get(app);
+        if (storeId == null || storeId.trim().isEmpty()) return true;
+        SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        long now = System.currentTimeMillis();
+        synchronized (RetentionManager.class) {
+            long last = prefs.getLong(LAST_RUN, 0L);
+            if (last > 0L && now - last < DAY_MS) return true;
+            prefs.edit().putLong(LAST_RUN, now).apply();
+        }
+        boolean success = new RetentionManager().run(app, storeId.trim());
+        if (!success) prefs.edit().putLong(LAST_RUN, 0L).apply();
+        return success;
+    }
 
-        for(JSONObject bill:hub.getRecordsByType(storeId,"sale_bill")) {
-            JSONObject p=bill.optJSONObject("payload");
-            if(p==null||!"จ่ายแล้ว".equals(p.optString("paymentStatus"))) continue;
-            long paidAt=p.optLong("paidAt",0L);
-            if(paidAt<=0L&&"cash".equals(p.optString("paymentType"))) paidAt=p.optLong("createdAt",0L);
-            if(paidAt>0L&&paidAt<=billCutoff) {
-                hub.deleteExpiredRecord(storeId,bill.optString("recordId"),"sale_bill",billCutoff,(deleted,message)->{});
+    private boolean run(Context context, String storeId) {
+        DataHub hub = DataHub.getInstance(context);
+        long now = System.currentTimeMillis();
+        long billCutoff = now - PAID_BILL_RETENTION_MS;
+        long salesCutoff = calendarCutoff(now, Calendar.YEAR, -1);
+        long editCutoff = calendarCutoff(now, Calendar.MONTH, -6);
+        if (!ensureSaleHistory(hub, storeId)) return false;
+
+        List<DeleteCandidate> candidates = new ArrayList<>();
+        for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
+            JSONObject p = bill.optJSONObject("payload");
+            if (p == null || !"จ่ายแล้ว".equals(p.optString("paymentStatus"))
+                    || p.optDouble("remainingBalance", 0d) > 0.009d) continue;
+            long paidAt = p.optLong("paidAt", 0L);
+            if (paidAt <= 0L && "cash".equals(p.optString("paymentType"))) {
+                paidAt = p.optLong("createdAt", 0L);
+            }
+            if (paidAt > 0L && paidAt <= billCutoff) {
+                candidates.add(new DeleteCandidate(bill.optString("recordId"), "sale_bill", billCutoff));
             }
         }
-        for(JSONObject history:hub.getRecordsByType(storeId,"sale_history")) {
-            JSONObject p=history.optJSONObject("payload");
-            if(p==null) continue;
-            long createdAt=p.optLong("createdAt",0L);
-            if(createdAt>0L&&createdAt<=salesCutoff) {
-                hub.deleteExpiredRecord(storeId,history.optString("recordId"),"sale_history",salesCutoff,(deleted,message)->{});
+        for (JSONObject history : hub.getRecordsByType(storeId, "sale_history")) {
+            JSONObject p = history.optJSONObject("payload");
+            if (p == null) continue;
+            long createdAt = p.optLong("createdAt", 0L);
+            if (createdAt > 0L && createdAt <= salesCutoff) {
+                candidates.add(new DeleteCandidate(history.optString("recordId"), "sale_history", salesCutoff));
             }
         }
-        // price_history is the explicit edit-history type. Keep stock_history as a ledger.
-        for(JSONObject history:hub.getRecordsByType(storeId,"price_history")) {
-            JSONObject p=history.optJSONObject("payload");
-            if(p==null) continue;
-            long changedAt=p.optLong("changedAt",0L);
-            if(changedAt>0L&&changedAt<=editCutoff) {
-                hub.deleteExpiredRecord(storeId,history.optString("recordId"),"price_history",editCutoff,(deleted,message)->{});
+        // price_history is the explicit price-edit history. Keep stock_history as a stock ledger.
+        for (JSONObject history : hub.getRecordsByType(storeId, "price_history")) {
+            JSONObject p = history.optJSONObject("payload");
+            if (p == null) continue;
+            long changedAt = p.optLong("changedAt", 0L);
+            if (changedAt > 0L && changedAt <= editCutoff) {
+                candidates.add(new DeleteCandidate(history.optString("recordId"), "price_history", editCutoff));
             }
+        }
+
+        if (candidates.isEmpty()) return true;
+        java.util.concurrent.CountDownLatch latch =
+                new java.util.concurrent.CountDownLatch(candidates.size());
+        for (DeleteCandidate candidate : candidates) {
+            hub.deleteExpiredRecord(storeId, candidate.recordId, candidate.dataType, candidate.cutoff,
+                    (deleted, message) -> latch.countDown());
+        }
+        try {
+            return latch.await(3, java.util.concurrent.TimeUnit.MINUTES);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private static final class DeleteCandidate {
+        final String recordId;
+        final String dataType;
+        final long cutoff;
+        DeleteCandidate(String recordId, String dataType, long cutoff) {
+            this.recordId = recordId;
+            this.dataType = dataType;
+            this.cutoff = cutoff;
         }
     }
 
