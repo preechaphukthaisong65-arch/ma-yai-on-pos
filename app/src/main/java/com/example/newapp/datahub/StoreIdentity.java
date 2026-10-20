@@ -8,6 +8,7 @@ public final class StoreIdentity {
     private static final String PREFS = "ma_yai_on_pos_store";
     private static final String KEY_STORE_ID = "store_id";
     private static final String KEY_INITIAL_RESTORE = "initial_restore_complete";
+    private static final String KEY_OWNER_UID = "owner_uid";
 
     private StoreIdentity() { }
 
@@ -25,6 +26,18 @@ public final class StoreIdentity {
     public static String get(Context context) {
         if (context == null) return "";
         return prefs(context).getString(KEY_STORE_ID, "").trim();
+    }
+
+    public static void saveOwnerUid(Context context, String ownerUid) {
+        if (context == null || ownerUid == null || ownerUid.trim().isEmpty()) {
+            throw new IllegalArgumentException("รหัสบัญชีเจ้าของร้านต้องไม่ว่าง");
+        }
+        prefs(context).edit().putString(KEY_OWNER_UID, ownerUid.trim()).apply();
+    }
+
+    public static String getOwnerUid(Context context) {
+        if (context == null) return "";
+        return prefs(context).getString(KEY_OWNER_UID, "").trim();
     }
 
     public static boolean isConfigured(Context context) {
