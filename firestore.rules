@@ -22,9 +22,9 @@ service cloud.firestore {
     }
 
     match /dataHubBackups/{storeId}/records/{recordId} {
-      allow read: if ownsStore(storeId)
-        && (!('storeId' in resource.data) || resource.data.storeId == storeId)
-        && (!('recordId' in resource.data) || resource.data.recordId == recordId);
+      // The store-scoped path plus owner mapping is the authorization boundary.
+      // Client-side restore additionally validates embedded IDs against this path.
+      allow read: if ownsStore(storeId);
 
       allow create, update: if ownsStore(storeId)
         && request.resource.data.storeId == storeId
