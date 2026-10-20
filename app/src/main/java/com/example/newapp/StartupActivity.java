@@ -248,6 +248,9 @@ public final class StartupActivity extends Activity {
                         StoreIdentity.markInitialRestoreComplete(this);
                         status.setText("ยืนยันบัญชีแล้ว: กู้คืน " + restored
                                 + " รายการ, ข้ามรายการเดิม " + skipped + " รายการ");
+                        if (message != null && message.contains("บาร์โค้ดซ้ำ")) {
+                            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show();
+                        }
                         openMain();
                     })
             );
