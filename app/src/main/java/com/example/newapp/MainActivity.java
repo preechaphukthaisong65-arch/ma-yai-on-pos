@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         setupSystemBars();
-        RetentionManager.runIfDue(getApplicationContext());
+        RetentionScheduler.schedule(getApplicationContext());
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
