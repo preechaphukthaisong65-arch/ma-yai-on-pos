@@ -49,6 +49,11 @@ public class ReceiptReprintScreen extends Activity {
         if(items!=null)for(int i=0;i<items.length();i++){JSONObject x=items.optJSONObject(i);if(x==null)continue;
             s.append("<p>").append(escape(x.optString("name","สินค้า"))).append(" × ").append(x.optDouble("quantity",0))
                     .append("<br>").append(String.format(Locale.US,"%.2f",x.optDouble("lineTotal",0))).append(" บาท</p>");}
+        if(p.has("customerName"))s.append("<p>ลูกค้า: ").append(escape(p.optString("customerName",""))).append("</p>");
+        if(p.has("subtotal"))s.append("<p>ยอดสินค้า: ").append(String.format(Locale.US,"%.2f",p.optDouble("subtotal",0))).append(" บาท</p>");
+        if(p.optDouble("serviceFee",0)>0)s.append("<p>ค่าบริการ: ").append(String.format(Locale.US,"%.2f",p.optDouble("serviceFee",0))).append(" บาท</p>");
+        JSONArray billIds=p.optJSONArray("billIds");
+        if(billIds!=null){s.append("<p>ชำระบิลเดิม:</p>");for(int i=0;i<billIds.length();i++)s.append("<p>").append(escape(billIds.optString(i,""))).append("</p>");}
         s.append("<hr><h3>รวม ").append(String.format(Locale.US,"%.2f",p.optDouble("total",0))).append(" บาท</h3>");
         s.append("<p>").append(escape(p.optString("paymentStatus",""))).append("</p></body></html>");return s.toString();
     }
