@@ -61,7 +61,7 @@ final class BarcodePrintAdapter extends PrintDocumentAdapter {
     @Override
     public void onWrite(PageRange[] pages, ParcelFileDescriptor destination,
             CancellationSignal cancellationSignal, WriteResultCallback callback) {
-        PdfDocument document = null;
+        PrintedPdfDocument document = null;
         try {
             document = new PrintedPdfDocument(context, attributes);
             for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
