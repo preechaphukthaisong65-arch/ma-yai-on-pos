@@ -247,6 +247,12 @@ public class MainActivity extends Activity {
         if ("จัดการร้านค้า".equals(label)) {
             tile.setOnClickListener(v ->
                     startActivity(new Intent(MainActivity.this, ManageStoreScreen.class)));
+        } else if ("ขายสินค้า".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, SellScreen.class)));
+        } else if ("คลังสินค้า".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, StockScreen.class)));
         }
     }
 
