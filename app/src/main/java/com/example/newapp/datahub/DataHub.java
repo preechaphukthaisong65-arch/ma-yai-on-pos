@@ -87,7 +87,19 @@ public class DataHub {
             record.put("dataType", dataType.trim());
             record.put("schemaVersion", Math.max(1, schemaVersion));
             record.put("updatedAt", System.currentTimeMillis());
-            record.put("revision", Math.max(1L, revision));
+
+            // Always advance the local revision when replacing an existing
+            // record, even if a caller accidentally reuses an old revision.
+            JSONObject previous = localStore.getRecord(
+                    checkedStoreId, recordId.trim()
+            );
+            long previousRevision = previous == null
+                    ? 0L : previous.optLong("revision", 0L);
+            long nextRevision = Math.max(
+                    Math.max(1L, revision),
+                    previousRevision + 1L
+            );
+            record.put("revision", nextRevision);
             record.put("payload", payload);
             record.put("syncStatus", SYNC_PENDING);
 
