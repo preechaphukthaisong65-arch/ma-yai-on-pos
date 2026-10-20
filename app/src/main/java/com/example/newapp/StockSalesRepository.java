@@ -254,7 +254,7 @@ public final class StockSalesRepository {
             JSONObject receipt = new JSONObject();
             receipt.put("receiptId", "receipt:" + paymentId); receipt.put("paymentId", paymentId);
             receipt.put("receiptType", "ใบเสร็จรับชำระหนี้"); receipt.put("createdAt", now);
-            receipt.put("total", due); receipt.put("billIds", ids); receipt.put("printStatus", "pending");
+            receipt.put("total", due); receipt.put("billIds", ids); receipt.put("paymentStatus", "จ่ายแล้ว"); receipt.put("printStatus", "pending");
             records.add(record("receipt:" + paymentId, "receipt", receipt));
             JSONObject history = new JSONObject();
             history.put("paymentId", paymentId); history.put("paidAt", now); history.put("amount", due);
