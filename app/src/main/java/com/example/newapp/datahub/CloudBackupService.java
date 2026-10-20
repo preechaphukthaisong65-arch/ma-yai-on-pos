@@ -265,6 +265,7 @@ public class CloudBackupService {
                 localRecord.put("dataType", "sale_bill");
                 localRecord.put("schemaVersion", cloud.getLong("schemaVersion") == null ? 1 : cloud.getLong("schemaVersion"));
                 localRecord.put("revision", newRevision);
+                localRecord.put("expectedRevision", newRevision - 1L);
                 localRecord.put("updatedAt", now);
                 localRecord.put("payload", new JSONObject(oldPayload));
                 committed.add(localRecord);
