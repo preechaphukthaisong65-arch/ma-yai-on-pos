@@ -155,6 +155,33 @@ public class CloudBackupService {
         }
     }
 
+    /** Reserve a barcode atomically so two online installations cannot claim the same value. */
+    public void reserveBarcode(String storeId, String barcode, String deviceId, BackupCallback callback) {
+        String store = storeId == null ? "" : storeId.trim();
+        String code = barcode == null ? "" : barcode.trim();
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || store.isEmpty() || code.isEmpty()) {
+            failBackup(callback, "ข้อมูลร้านค้าหรือบาร์โค้ดไม่ถูกต้อง");
+            return;
+        }
+        if (deviceId == null || deviceId.trim().isEmpty()) { failBackup(callback, "ไม่พบรหัสเครื่อง"); return; }
+        DocumentReference reservation = firestore.collection("storeBarcodeReservations")
+                .document(store).collection("barcodes").document(code);
+        Map<String, Object> data = new HashMap<>();
+        data.put("storeId", store);
+        data.put("barcode", code);
+        data.put("ownerUid", user.getUid());
+        data.put("deviceId", deviceId);
+        data.put("createdAt", System.currentTimeMillis());
+        firestore.runTransaction(transaction -> {
+            DocumentSnapshot existing = transaction.get(reservation);
+            if (existing.exists()) throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+            transaction.set(reservation, data);
+            return null;
+        }).addOnSuccessListener(unused -> { if (callback != null) callback.onSuccess(); })
+          .addOnFailureListener(error -> failBackup(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+    }
+
     /**
      * Download all backup records belonging to one store.
      */
