@@ -109,7 +109,7 @@ public final class RetentionManager {
         }
         for(int start=0;start<updates.size();start+=50) {
             int end=Math.min(updates.size(),start+50);
-            if(!hub.saveRecordsAtomically(new ArrayList<>(updates.subList(start,end)))) return false;
+            if(!hub.saveRecordsAtomically(storeId, new ArrayList<>(updates.subList(start,end)))) return false;
         }
         return true;
     }
