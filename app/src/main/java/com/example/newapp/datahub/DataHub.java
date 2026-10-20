@@ -178,6 +178,11 @@ public class DataHub {
                 record.put("updatedAt", Math.max(1L, input.optLong("updatedAt", System.currentTimeMillis())));
                 record.put("revision", Math.max(input.optLong("revision", 1L),
                         previous == null ? 1L : previous.optLong("revision", 0L) + 1L));
+                // Internal compare-and-set metadata is consumed by LocalStore and
+                // never persisted in the user payload or SQLite columns.
+                if (input.has("expectedRevision")) {
+                    record.put("expectedRevision", input.optLong("expectedRevision", -1L));
+                }
                 record.put("payload", payload);
                 record.put("syncStatus", SYNC_PENDING);
                 prepared.add(record);
