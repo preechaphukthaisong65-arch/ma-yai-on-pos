@@ -236,6 +236,7 @@ public class CloudBackupService {
 
             List<JSONObject> committed = new ArrayList<>();
             List<Map<String, Object>> changedBillMaps = new ArrayList<>();
+            List<DocumentReference> changedBillRefs = new ArrayList<>();
             org.json.JSONArray billIds = new org.json.JSONArray();
             org.json.JSONArray allocations = new org.json.JSONArray();
             long remainingPayment = receivedCents;
@@ -246,6 +247,7 @@ public class CloudBackupService {
                 long balance = Math.round((((Number) (oldPayload.containsKey("remainingBalance")
                         ? oldPayload.get("remainingBalance") : oldPayload.get("total"))).doubleValue()) * 100d);
                 long allocated = Math.min(balance, remainingPayment);
+                if (allocated <= 0L) continue;
                 long newBalance = balance - allocated;
                 oldPayload.put("remainingBalance", newBalance / 100d);
                 oldPayload.put("paymentStatus", newBalance == 0L ? "จ่ายแล้ว" : "ค้างชำระ");
@@ -259,6 +261,7 @@ public class CloudBackupService {
                 full.put("deviceId", deviceId);
                 full.put("uploadedBy", user.getUid());
                 changedBillMaps.add(full);
+                changedBillRefs.add(billRefs.get(i));
 
                 JSONObject localRecord = new JSONObject();
                 localRecord.put("recordId", cloud.getString("recordId"));
@@ -335,7 +338,7 @@ public class CloudBackupService {
                 artifactMaps.add(cloudRecord);
             }
 
-            for (int i = 0; i < billRefs.size(); i++) transaction.set(billRefs.get(i), changedBillMaps.get(i));
+            for (int i = 0; i < changedBillRefs.size(); i++) transaction.set(changedBillRefs.get(i), changedBillMaps.get(i));
             for (int i = 0; i < artifactMaps.size(); i++) {
                 transaction.set(firestore.collection(COLLECTION_BACKUPS).document(store)
                         .collection(COLLECTION_RECORDS).document(ids[i]), artifactMaps.get(i));
