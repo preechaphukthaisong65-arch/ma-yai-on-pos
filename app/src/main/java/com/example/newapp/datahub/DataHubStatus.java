@@ -1,107 +1,40 @@
 package com.example.newapp.datahub;
 
-/**
- * สถานะของระบบ DataHub
- */
-public final class DataHubStatus {
+public class DataHubStatus {
 
-    public enum ConnectionState {
-        UNKNOWN,
-        ONLINE,
-        OFFLINE
-    }
+    private String status = DataHub.SYNC_PENDING;
+    private String message = "ระบบสำรองข้อมูลพร้อมใช้งาน";
+    private long updatedAt = System.currentTimeMillis();
 
-    public enum BackupState {
-        IDLE,
-        PENDING,
-        RUNNING,
-        SUCCESS,
-        FAILED
-    }
-
-    private ConnectionState connectionState =
-            ConnectionState.UNKNOWN;
-
-    private BackupState backupState =
-            BackupState.IDLE;
-
-    private int pendingCount = 0;
-
-    private String lastMessage = "";
-
-    private long lastUpdatedAt = 0L;
-
-    public DataHubStatus() {
-    }
-
-    public synchronized ConnectionState getConnectionState() {
-        return connectionState;
-    }
-
-    public synchronized void setConnectionState(
-            ConnectionState state
-    ) {
-        if (state == null) {
-            state = ConnectionState.UNKNOWN;
+    public synchronized void setStatus(String newStatus, String newMessage) {
+        if (newStatus == null || newStatus.trim().isEmpty()) {
+            status = DataHub.SYNC_FAILED;
+        } else {
+            status = newStatus.trim();
         }
 
-        connectionState = state;
-        touch();
+        message = newMessage == null ? "" : newMessage.trim();
+        updatedAt = System.currentTimeMillis();
     }
 
-    public synchronized BackupState getBackupState() {
-        return backupState;
+    public synchronized String getStatus() {
+        return status;
     }
 
-    public synchronized void setBackupState(
-            BackupState state
-    ) {
-        if (state == null) {
-            state = BackupState.IDLE;
-        }
-
-        backupState = state;
-        touch();
+    public synchronized String getMessage() {
+        return message;
     }
 
-    public synchronized int getPendingCount() {
-        return pendingCount;
-    }
-
-    public synchronized void setPendingCount(int count) {
-        pendingCount = Math.max(0, count);
-        touch();
-
-        if (pendingCount > 0
-                && backupState == BackupState.IDLE) {
-            backupState = BackupState.PENDING;
-        }
-    }
-
-    public synchronized String getLastMessage() {
-        return lastMessage;
-    }
-
-    public synchronized void setLastMessage(
-            String message
-    ) {
-        lastMessage = message == null ? "" : message;
-        touch();
-    }
-
-    public synchronized long getLastUpdatedAt() {
-        return lastUpdatedAt;
+    public synchronized long getUpdatedAt() {
+        return updatedAt;
     }
 
     public synchronized boolean hasPendingBackup() {
-        return pendingCount > 0;
+        return DataHub.SYNC_PENDING.equals(status)
+                || DataHub.SYNC_FAILED.equals(status);
     }
 
-    public synchronized boolean isOnline() {
-        return connectionState == ConnectionState.ONLINE;
-    }
-
-    private void touch() {
-        lastUpdatedAt = System.currentTimeMillis();
+    public synchronized boolean isSynced() {
+        return DataHub.SYNC_SYNCED.equals(status);
     }
 }
