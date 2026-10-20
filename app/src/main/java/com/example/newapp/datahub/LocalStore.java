@@ -268,6 +268,36 @@ public final class LocalStore extends SQLiteOpenHelper {
         return records;
     }
 
+    /** Read records of a type for one store, newest first. */
+    public synchronized List<JSONObject> getRecordsByType(String storeId, String dataType) throws JSONException {
+        if (isBlank(storeId) || isBlank(dataType)) throw new IllegalArgumentException("storeId/dataType must not be blank");
+        List<JSONObject> records = new ArrayList<>();
+        Cursor cursor = getReadableDatabase().query(TABLE_RECORDS, null,
+                COL_STORE_ID + " = ? AND " + COL_DATA_TYPE + " = ?",
+                new String[]{storeId.trim(), dataType.trim()}, null, null, COL_UPDATED_AT + " DESC");
+        try { while (cursor.moveToNext()) records.add(readRecord(cursor)); }
+        finally { cursor.close(); }
+        return records;
+    }
+
+    /** Save related records atomically; any failure rolls the whole transaction back. */
+    public synchronized boolean saveRecordsAtomically(List<JSONObject> records) {
+        if (records == null || records.isEmpty()) return false;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (JSONObject record : records) {
+                if (record == null || !saveRecord(record)) return false;
+            }
+            db.setTransactionSuccessful();
+            return true;
+        } catch (Exception error) {
+            return false;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     /**
      * นับทุกรายการที่ยังไม่ได้สำรองสำเร็จ
      */

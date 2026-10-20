@@ -143,6 +143,81 @@ public class DataHub {
         }
     }
 
+    /** Read records from the single shared DataHub dataset. */
+    public List<JSONObject> getRecordsByType(String storeId, String dataType) {
+        if (isBlank(storeId) || isBlank(dataType)) return new java.util.ArrayList<>();
+        try { return localStore.getRecordsByType(storeId.trim(), dataType.trim()); }
+        catch (Exception error) {
+            dataHubStatus.setStatus(SYNC_FAILED, "อ่านข้อมูลกลางไม่สำเร็จ");
+            return new java.util.ArrayList<>();
+        }
+    }
+
+    /**
+     * Atomically update a product price and append a history and home notice
+     * record in the existing hub_records table.
+     * Product payload contract: name, barcode, price; dataType=product.
+     */
+    public synchronized boolean savePriceChange(String storeId, String productRecordId,
+            String barcode, String productName, double expectedOldPrice,
+            double newPrice, long changedAt) {
+        if (isBlank(storeId) || isBlank(productRecordId) || isBlank(barcode) || isBlank(productName)
+                || !Double.isFinite(expectedOldPrice) || !Double.isFinite(newPrice) || newPrice < 0
+                || Double.compare(expectedOldPrice, newPrice) == 0) return false;
+        try {
+            String checkedStore = storeId.trim();
+            JSONObject current = localStore.getRecord(checkedStore, productRecordId.trim());
+            if (current == null || !"product".equals(current.optString("dataType"))) return false;
+            JSONObject payload = current.optJSONObject("payload");
+            if (payload == null || !barcode.trim().equals(payload.optString("barcode"))
+                    || !productName.equals(payload.optString("name"))
+                    || Double.compare(expectedOldPrice, payload.optDouble("price", Double.NaN)) != 0) return false;
+            JSONObject updatedProduct = new JSONObject(payload.toString());
+            updatedProduct.put("price", newPrice);
+            long now = Math.max(1L, changedAt);
+            JSONObject productRecord = buildManagementRecord(checkedStore, productRecordId.trim(),
+                    "product", current.optLong("revision", 0L) + 1L, now, updatedProduct);
+            JSONObject history = new JSONObject();
+            history.put("productRecordId", productRecordId.trim());
+            history.put("productName", productName);
+            history.put("barcode", barcode.trim());
+            history.put("oldPrice", expectedOldPrice);
+            history.put("newPrice", newPrice);
+            history.put("changedAt", now);
+            JSONObject historyRecord = buildManagementRecord(checkedStore,
+                    "price_history:" + java.util.UUID.randomUUID(), "price_history", 1L, now, history);
+            JSONObject notice = new JSONObject();
+            notice.put("message", "เปลี่ยนราคาสินค้า " + productName + " จาก " + expectedOldPrice + " เป็น " + newPrice + " บาท");
+            notice.put("changedAt", now);
+            notice.put("eventType", "price_changed");
+            JSONObject noticeRecord = buildManagementRecord(checkedStore,
+                    "app_notification:price:" + java.util.UUID.randomUUID(), "app_notification", 1L, now, notice);
+            java.util.List<JSONObject> records = new java.util.ArrayList<>();
+            records.add(productRecord); records.add(historyRecord); records.add(noticeRecord);
+            if (!localStore.saveRecordsAtomically(records)) return false;
+            StoreIdentity.save(appContext, checkedStore);
+            refreshStatus(checkedStore);
+            backupPendingRecords(checkedStore, null);
+            BackupRetryScheduler.schedule(appContext, checkedStore);
+            return true;
+        } catch (Exception error) {
+            dataHubStatus.setStatus(SYNC_FAILED, "บันทึกราคาและประวัติไม่สำเร็จ");
+            return false;
+        }
+    }
+
+    private JSONObject buildManagementRecord(String storeId, String recordId, String dataType,
+            long revision, long updatedAt, JSONObject payload) throws org.json.JSONException {
+        JSONObject record = new JSONObject();
+        record.put("storeId", storeId); record.put("recordId", recordId);
+        record.put("dataType", dataType); record.put("schemaVersion", 1);
+        record.put("updatedAt", updatedAt); record.put("revision", Math.max(1L, revision));
+        record.put("payload", payload); record.put("syncStatus", SYNC_PENDING);
+        return record;
+    }
+
+    private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
+
     /**
      * จำนวนรายการในเครื่องที่ยังไม่ได้สำรองสำเร็จ
      */
