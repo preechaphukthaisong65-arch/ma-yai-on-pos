@@ -50,6 +50,15 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     @Override
+    public void onOpen(SQLiteDatabase db) {
+        super.onOpen(db);
+        // Safe, non-destructive index for store/type queries and large stock ledgers.
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_hub_records_store_type_updated "
+                + "ON " + TABLE_RECORDS + " (" + COL_STORE_ID + ", "
+                + COL_DATA_TYPE + ", " + COL_UPDATED_AT + " DESC)");
+    }
+
+    @Override
     public void onUpgrade(
             SQLiteDatabase db,
             int oldVersion,
