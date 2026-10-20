@@ -111,7 +111,7 @@ public class CloudBackupService {
                         ? existing.getLong("revision") == null
                             ? 0L : existing.getLong("revision")
                         : 0L;
-                if (cloudRevision <= incomingRevision) {
+                if (cloudRevision < incomingRevision) {
                     transaction.set(document, cloudRecord, SetOptions.merge());
                 }
                 return null;
