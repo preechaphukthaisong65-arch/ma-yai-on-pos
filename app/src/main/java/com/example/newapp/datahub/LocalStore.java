@@ -9,11 +9,13 @@ import android.database.sqlite.SQLiteOpenHelper;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class LocalStore extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "data_hub.db";
     private static final int DATABASE_VERSION = 1;
-
     private static final String TABLE_RECORDS = "hub_records";
 
     private static final String COL_RECORD_ID = "record_id";
@@ -31,7 +33,7 @@ public final class LocalStore extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        String sql = "CREATE TABLE " + TABLE_RECORDS + " ("
+        db.execSQL("CREATE TABLE " + TABLE_RECORDS + " ("
                 + COL_RECORD_ID + " TEXT NOT NULL, "
                 + COL_STORE_ID + " TEXT NOT NULL, "
                 + COL_DATA_TYPE + " TEXT NOT NULL, "
@@ -41,16 +43,10 @@ public final class LocalStore extends SQLiteOpenHelper {
                 + COL_PAYLOAD + " TEXT NOT NULL, "
                 + COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'pending', "
                 + "PRIMARY KEY (" + COL_STORE_ID + ", "
-                + COL_RECORD_ID + ")"
-                + ")";
+                + COL_RECORD_ID + "))");
 
-        db.execSQL(sql);
-
-        db.execSQL(
-                "CREATE INDEX idx_hub_records_sync "
-                        + "ON " + TABLE_RECORDS
-                        + " (" + COL_SYNC_STATUS + ")"
-        );
+        db.execSQL("CREATE INDEX idx_hub_records_sync ON "
+                + TABLE_RECORDS + " (" + COL_SYNC_STATUS + ")");
     }
 
     @Override
@@ -59,14 +55,9 @@ public final class LocalStore extends SQLiteOpenHelper {
             int oldVersion,
             int newVersion
     ) {
-        // ห้ามลบข้อมูลเดิมโดยอัตโนมัติ
-        // เพิ่มคำสั่ง migration เมื่อมี schema รุ่นใหม่
+        // ห้ามลบข้อมูลอัตโนมัติเมื่อเปลี่ยนเวอร์ชันฐานข้อมูล
     }
 
-    /**
-     * บันทึกข้อมูลในเครื่อง
-     * หากมี recordId และ storeId เดิม จะปรับปรุงรายการนั้น
-     */
     public synchronized JSONObject saveRecord(
             String recordId,
             String storeId,
@@ -79,16 +70,12 @@ public final class LocalStore extends SQLiteOpenHelper {
                 || isBlank(dataType)
                 || payload == null) {
             throw new IllegalArgumentException(
-                    "Record fields must not be empty"
-            );
+                    "Record fields must not be empty");
         }
 
-        // ตรวจสอบว่า payload เป็น JSON ที่ถูกต้อง
         JSONObject payloadObject = new JSONObject(payload);
-
         SQLiteDatabase db = getWritableDatabase();
         long now = System.currentTimeMillis();
-
         int revision = 1;
 
         Cursor cursor = db.query(
@@ -97,10 +84,7 @@ public final class LocalStore extends SQLiteOpenHelper {
                 COL_STORE_ID + " = ? AND "
                         + COL_RECORD_ID + " = ?",
                 new String[]{storeId, recordId},
-                null,
-                null,
-                null
-        );
+                null, null, null);
 
         try {
             if (cursor.moveToFirst()) {
@@ -120,12 +104,16 @@ public final class LocalStore extends SQLiteOpenHelper {
         values.put(COL_PAYLOAD, payloadObject.toString());
         values.put(COL_SYNC_STATUS, DataHub.SYNC_PENDING);
 
-        db.insertWithOnConflict(
+        long result = db.insertWithOnConflict(
                 TABLE_RECORDS,
                 null,
                 values,
-                SQLiteDatabase.CONFLICT_REPLACE
-        );
+                SQLiteDatabase.CONFLICT_REPLACE);
+
+        if (result == -1L) {
+            throw new IllegalStateException(
+                    "บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ");
+        }
 
         return buildRecord(
                 recordId,
@@ -135,91 +123,189 @@ public final class LocalStore extends SQLiteOpenHelper {
                 now,
                 revision,
                 payloadObject,
-                DataHub.SYNC_PENDING
-        );
+                DataHub.SYNC_PENDING);
     }
 
-    /**
-     * อ่านข้อมูลโดยระบุทั้ง storeId และ recordId
-     */
     public synchronized JSONObject getRecord(
             String storeId,
             String recordId
     ) throws JSONException {
 
-        SQLiteDatabase db = getReadableDatabase();
-
-        Cursor cursor = db.query(
+        Cursor cursor = getReadableDatabase().query(
                 TABLE_RECORDS,
                 null,
                 COL_STORE_ID + " = ? AND "
                         + COL_RECORD_ID + " = ?",
                 new String[]{storeId, recordId},
-                null,
-                null,
-                null,
-                "1"
-        );
+                null, null, null, "1");
 
         try {
-            if (!cursor.moveToFirst()) {
-                return null;
-            }
-
-            return buildRecord(
-                    cursor.getString(
-                            cursor.getColumnIndexOrThrow(COL_RECORD_ID)
-                    ),
-                    cursor.getString(
-                            cursor.getColumnIndexOrThrow(COL_STORE_ID)
-                    ),
-                    cursor.getString(
-                            cursor.getColumnIndexOrThrow(COL_DATA_TYPE)
-                    ),
-                    cursor.getInt(
-                            cursor.getColumnIndexOrThrow(COL_SCHEMA_VERSION)
-                    ),
-                    cursor.getLong(
-                            cursor.getColumnIndexOrThrow(COL_UPDATED_AT)
-                    ),
-                    cursor.getInt(
-                            cursor.getColumnIndexOrThrow(COL_REVISION)
-                    ),
-                    new JSONObject(
-                            cursor.getString(
-                                    cursor.getColumnIndexOrThrow(COL_PAYLOAD)
-                            )
-                    ),
-                    cursor.getString(
-                            cursor.getColumnIndexOrThrow(COL_SYNC_STATUS)
-                    )
-            );
+            return cursor.moveToFirst()
+                    ? readRecord(cursor)
+                    : null;
         } finally {
             cursor.close();
         }
     }
 
     /**
-     * นับจำนวนรายการที่ยังรอสำรอง
+     * อ่านรายการที่ยังไม่ได้สำรอง รวมรายการที่เคยล้มเหลว
+     * เพื่อให้ลองสำรองใหม่ได้
      */
-    public synchronized int getPendingCount() {
-        SQLiteDatabase db = getReadableDatabase();
+    public synchronized List<JSONObject> getRecordsNeedingBackup(
+            String storeId,
+            int limit
+    ) throws JSONException {
 
-        Cursor cursor = db.rawQuery(
-                "SELECT COUNT(*) FROM " + TABLE_RECORDS
-                        + " WHERE " + COL_SYNC_STATUS + " = ?",
-                new String[]{DataHub.SYNC_PENDING}
-        );
+        if (isBlank(storeId)) {
+            throw new IllegalArgumentException(
+                    "storeId must not be blank");
+        }
+
+        List<JSONObject> records = new ArrayList<>();
+
+        Cursor cursor = getReadableDatabase().query(
+                TABLE_RECORDS,
+                null,
+                COL_STORE_ID + " = ? AND "
+                        + COL_SYNC_STATUS + " != ?",
+                new String[]{storeId, DataHub.SYNC_SYNCED},
+                null,
+                null,
+                COL_UPDATED_AT + " ASC",
+                Integer.toString(Math.max(1, limit)));
 
         try {
-            if (cursor.moveToFirst()) {
-                return cursor.getInt(0);
+            while (cursor.moveToNext()) {
+                records.add(readRecord(cursor));
             }
-
-            return 0;
         } finally {
             cursor.close();
         }
+
+        return records;
+    }
+
+    /**
+     * นับทุกรายการที่ยังไม่ได้สำรองสำเร็จ
+     */
+    public synchronized int getPendingCount() {
+        Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM " + TABLE_RECORDS
+                        + " WHERE " + COL_SYNC_STATUS + " != ?",
+                new String[]{DataHub.SYNC_SYNCED});
+
+        try {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        } finally {
+            cursor.close();
+        }
+    }
+
+    public synchronized int getPendingCount(String storeId) {
+        Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM " + TABLE_RECORDS
+                        + " WHERE " + COL_STORE_ID + " = ? AND "
+                        + COL_SYNC_STATUS + " != ?",
+                new String[]{storeId, DataHub.SYNC_SYNCED});
+
+        try {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        } finally {
+            cursor.close();
+        }
+    }
+
+    /**
+     * เปลี่ยนสถานะของรายการหลังผลการสำรอง
+     */
+    public synchronized boolean markSyncStatus(
+            String storeId,
+            String recordId,
+            String status
+    ) {
+        if (isBlank(storeId) || isBlank(recordId)) {
+            return false;
+        }
+
+        if (!DataHub.SYNC_PENDING.equals(status)
+                && !DataHub.SYNC_SYNCED.equals(status)
+                && !DataHub.SYNC_FAILED.equals(status)) {
+            return false;
+        }
+
+        ContentValues values = new ContentValues();
+        values.put(COL_SYNC_STATUS, status);
+
+        return getWritableDatabase().update(
+                TABLE_RECORDS,
+                values,
+                COL_STORE_ID + " = ? AND "
+                        + COL_RECORD_ID + " = ?",
+                new String[]{storeId, recordId}) == 1;
+    }
+
+    /**
+     * กู้คืนเฉพาะรายการที่ไม่มีอยู่ในเครื่อง
+     * ไม่เขียนทับข้อมูลท้องถิ่นที่มีอยู่แล้ว
+     *
+     * คืน true เมื่อเพิ่มรายการใหม่สำเร็จ
+     */
+    public synchronized boolean insertRestoredRecordIfAbsent(
+            JSONObject record
+    ) throws JSONException {
+
+        if (!new BackupManager().isValidRecord(record)) {
+            throw new IllegalArgumentException(
+                    "Invalid backup record");
+        }
+
+        ContentValues values = new ContentValues();
+        values.put(COL_RECORD_ID, record.getString("recordId"));
+        values.put(COL_STORE_ID, record.getString("storeId"));
+        values.put(COL_DATA_TYPE, record.getString("dataType"));
+        values.put(COL_SCHEMA_VERSION,
+                record.getInt("schemaVersion"));
+        values.put(COL_UPDATED_AT,
+                record.optLong("updatedAt",
+                        System.currentTimeMillis()));
+        values.put(COL_REVISION, record.getInt("revision"));
+        values.put(COL_PAYLOAD,
+                record.getJSONObject("payload").toString());
+
+        // ข้อมูลมาจากคลาวด์แล้ว จึงถือว่ามีสำเนาบนคลาวด์
+        values.put(COL_SYNC_STATUS, DataHub.SYNC_SYNCED);
+
+        long result = getWritableDatabase().insertWithOnConflict(
+                TABLE_RECORDS,
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_IGNORE);
+
+        return result != -1L;
+    }
+
+    private JSONObject readRecord(
+            Cursor cursor
+    ) throws JSONException {
+
+        return buildRecord(
+                cursor.getString(
+                        cursor.getColumnIndexOrThrow(COL_RECORD_ID)),
+                cursor.getString(
+                        cursor.getColumnIndexOrThrow(COL_STORE_ID)),
+                cursor.getString(
+                        cursor.getColumnIndexOrThrow(COL_DATA_TYPE)),
+                cursor.getInt(
+                        cursor.getColumnIndexOrThrow(COL_SCHEMA_VERSION)),
+                cursor.getLong(
+                        cursor.getColumnIndexOrThrow(COL_UPDATED_AT)),
+                cursor.getInt(
+                        cursor.getColumnIndexOrThrow(COL_REVISION)),
+                new JSONObject(cursor.getString(
+                        cursor.getColumnIndexOrThrow(COL_PAYLOAD))),
+                cursor.getString(
+                        cursor.getColumnIndexOrThrow(COL_SYNC_STATUS)));
     }
 
     private JSONObject buildRecord(
@@ -234,7 +320,6 @@ public final class LocalStore extends SQLiteOpenHelper {
     ) throws JSONException {
 
         JSONObject record = new JSONObject();
-
         record.put("recordId", recordId);
         record.put("storeId", storeId);
         record.put("dataType", dataType);
@@ -243,11 +328,10 @@ public final class LocalStore extends SQLiteOpenHelper {
         record.put("revision", revision);
         record.put("payload", payload);
         record.put("syncStatus", syncStatus);
-
         return record;
     }
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
-}
+                    }
