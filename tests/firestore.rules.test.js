@@ -20,6 +20,7 @@ const PROJECT_ID = "demo-ma-yai-on-pos";
 const STORE_ID = "store-test-001";
 const RECORD_ID = "product-test-001";
 const ownerUid = "verified-owner-uid";
+const activeDeviceId = "device-a";
 let env;
 
 const validRecord = (revision = 1, overrides = {}) => ({
@@ -31,6 +32,7 @@ const validRecord = (revision = 1, overrides = {}) => ({
   revision,
   payload: { name: "Test item", stock: 10 },
   uploadedBy: ownerUid,
+  deviceId: activeDeviceId,
   ...overrides,
 });
 
@@ -48,6 +50,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await setDoc(doc(db, "storeOwners", STORE_ID), { ownerUid });
+    await setDoc(doc(db, "storeDeviceSessions", STORE_ID), { storeId: STORE_ID, ownerUid, activeDeviceId });
     await setDoc(
       doc(db, "dataHubBackups", STORE_ID, "records", RECORD_ID),
       validRecord()
@@ -86,7 +89,7 @@ test("another verified account cannot read or write this store", async () => {
   ));
 });
 
-test("owner can create a valid new record matching its path", async () => {
+test("owner can create a valid new record from the active device", async () => {
   const db = ownerDb();
   const newId = "product-test-002";
   await assertSucceeds(setDoc(
@@ -95,7 +98,7 @@ test("owner can create a valid new record matching its path", async () => {
   ));
 });
 
-test("record identity cannot disagree with the Firestore path", async () => {
+test("a superseded device cannot create backup records", async () => {\n  const db = ownerDb();\n  await assertFails(setDoc(\n    doc(db, "dataHubBackups", STORE_ID, "records", "stale-device-record"),\n    validRecord(1, { recordId: "stale-device-record", deviceId: "device-b" })\n  ));\n});\n\ntest("record identity cannot disagree with the Firestore path", async () => {
   await assertFails(setDoc(
     doc(ownerDb(), "dataHubBackups", STORE_ID, "records", "different-path-id"),
     validRecord(1)
@@ -117,7 +120,7 @@ test("client cannot claim or modify store ownership", async () => {
   await assertFails(deleteDoc(doc(db, "storeOwners", STORE_ID)));
 });
 
-test("unreviewed collections remain denied", async () => {
+test("active device can reserve a barcode only once", async () => {\n  const db = ownerDb();\n  const reservation = doc(db, "storeBarcodeReservations", STORE_ID, "barcodes", "000000000123");\n  await assertSucceeds(setDoc(reservation, { storeId: STORE_ID, barcode: "000000000123", ownerUid, deviceId: activeDeviceId, createdAt: 1000 }));\n  await assertFails(setDoc(doc(db, "storeBarcodeReservations", STORE_ID, "barcodes", "000000000124"), { storeId: STORE_ID, barcode: "000000000124", ownerUid, deviceId: "device-b", createdAt: 1001 }));\n});\n\ntest("unreviewed collections remain denied", async () => {
   await assertFails(getDocs(collection(ownerDb(), "customers")));
 });
 
