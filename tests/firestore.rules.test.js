@@ -132,6 +132,7 @@ test("active device can reserve a barcode only once", async () => {
   const db = ownerDb();
   const reservation = doc(db, "storeBarcodeReservations", STORE_ID, "barcodes", "000000000123");
   await assertSucceeds(setDoc(reservation, { storeId: STORE_ID, barcode: "000000000123", ownerUid, deviceId: activeDeviceId, createdAt: 1000 }));
+  await assertFails(setDoc(reservation, { storeId: STORE_ID, barcode: "000000000123", ownerUid, deviceId: activeDeviceId, createdAt: 1002 }));
   await assertFails(setDoc(doc(db, "storeBarcodeReservations", STORE_ID, "barcodes", "000000000124"), { storeId: STORE_ID, barcode: "000000000124", ownerUid, deviceId: "device-b", createdAt: 1001 }));
 });
 
