@@ -1,5 +1,7 @@
+
 package com.example.newapp.datahub;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -42,8 +44,13 @@ public final class SyncQueue {
             }
         }
 
-        queue.add(new JSONObject(record.toString()));
-        return true;
+        try {
+            queue.add(new JSONObject(record.toString()));
+            return true;
+        } catch (JSONException error) {
+            // ไม่เพิ่มรายการ หากคัดลอก JSON ไม่สำเร็จ
+            return false;
+        }
     }
 
     /**
@@ -58,7 +65,7 @@ public final class SyncQueue {
 
         try {
             return new JSONObject(record.toString());
-        } catch (Exception e) {
+        } catch (JSONException error) {
             return null;
         }
     }
@@ -75,7 +82,7 @@ public final class SyncQueue {
 
         try {
             return new JSONObject(record.toString());
-        } catch (Exception e) {
+        } catch (JSONException error) {
             return null;
         }
     }
@@ -112,7 +119,7 @@ public final class SyncQueue {
                 result.add(
                         new JSONObject(record.toString())
                 );
-            } catch (Exception ignored) {
+            } catch (JSONException ignored) {
                 // ข้ามรายการที่คัดลอกไม่ได้
             }
         }
