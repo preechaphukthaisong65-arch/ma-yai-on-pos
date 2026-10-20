@@ -15,7 +15,7 @@ import java.util.Locale;
 public class ReceiveStockScreen extends Activity {
     private StockSalesRepository repo; private JSONObject selected; private String scannedBarcode="";
     private TextToSpeech tts;
-    @Override public void onCreate(Bundle b){super.onCreate(b);repo=new StockSalesRepository(this);tts=new TextToSpeech(this,s->{if(s==TextToSpeech.SUCCESS)tts.setLanguage(new Locale("th","TH"));});render();}
+    @Override public void onCreate(Bundle b){super.onCreate(b);repo=new StockSalesRepository(this);tts=new TextToSpeech(this,s->{if(s==TextToSpeech.SUCCESS)POSVoice.configure(tts);});render();}
     @Override protected void onDestroy(){if(tts!=null)tts.shutdown();super.onDestroy();}
     private void render(){LinearLayout root=POSUi.page(this,"เพิ่มสินค้าเข้าคลังสินค้า");
         POSUi.button(this,root,"สแกนบาร์โค้ดสินค้า",this::scan);
