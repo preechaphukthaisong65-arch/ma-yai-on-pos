@@ -39,7 +39,7 @@ public class ReportScreen extends Activity {
         monthInput.setText(month);
         POSUi.button(this, root, "รายงานยอดขายรายเดือน", () -> showMonthly(monthInput.getText().toString().trim()));
         POSUi.button(this, root, "กลับหน้าหลัก", this::finish);
-        root.addView(POSUi.text(this, "คำนวณจากบิลขายที่บันทึกอยู่ในฐานข้อมูลกลาง ไม่รวมข้อมูลที่ไม่มีวันที่ตรงกับช่วงรายงาน", 13));
+        root.addView(POSUi.text(this, "ยอดขายคำนวณจากประวัติการขายที่เก็บ 1 ปี ส่วนยอดหนี้คงเหลืออ่านจากบิลค้างชำระที่ยังอยู่ในระบบ", 13));
     }
 
     private void showDaily(String day) {
@@ -79,32 +79,36 @@ public class ReportScreen extends Activity {
     private void showResult(String title, long start, long end) {
         double totalSales = 0d, cashSales = 0d, creditCollections = 0d, outstanding = 0d;
         int count = 0;
-        for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
-            JSONObject p = bill.optJSONObject("payload");
+        // Read sales from retained history so deleting old paid bills does not erase reports.
+        for (JSONObject history : hub.getRecordsByType(storeId, "sale_history")) {
+            JSONObject p = history.optJSONObject("payload");
             if (p == null) continue;
             long created = p.optLong("createdAt", 0L);
             if (created < start || created >= end) continue;
             double amount = Math.max(0d, p.optDouble("total", 0d));
             totalSales += amount;
             count++;
-            if ("cash".equals(p.optString("paymentType"))) {
-                cashSales += amount;
-            } else if ("credit".equals(p.optString("paymentType"))
-                    && "ค้างชำระ".equals(p.optString("paymentStatus"))) {
-                outstanding += Math.max(0d, p.optDouble("remainingBalance", amount));
+            if ("cash".equals(p.optString("paymentType"))) cashSales += amount;
+        }
+        // Unpaid bills are never deleted; use them as the source of outstanding debt.
+        for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
+            JSONObject p = bill.optJSONObject("payload");
+            if (p == null || !"credit".equals(p.optString("paymentType"))
+                    || !"ค้างชำระ".equals(p.optString("paymentStatus"))) continue;
+            long created = p.optLong("createdAt", 0L);
+            if (created >= start && created < end) {
+                outstanding += Math.max(0d, p.optDouble("remainingBalance", p.optDouble("total", 0d)));
             }
         }
-        // Credit collections are counted by actual payment date, not by the original sale date.
+        // Collections are counted by actual payment date, not the original sale date.
         for (JSONObject paymentRecord : hub.getRecordsByType(storeId, "credit_payment")) {
             JSONObject p = paymentRecord.optJSONObject("payload");
             if (p == null) continue;
             long paidAt = p.optLong("paidAt", 0L);
-            if (paidAt >= start && paidAt < end) {
-                creditCollections += Math.max(0d, p.optDouble("amount", 0d));
-            }
+            if (paidAt >= start && paidAt < end) creditCollections += Math.max(0d, p.optDouble("amount", 0d));
         }
         double collections = cashSales + creditCollections;
-        root.addView(POSUi.text(this, title + "\nจำนวนบิลขาย: " + count
+        root.addView(POSUi.text(this, title + "\nจำนวนรายการขาย: " + count
                 + "\nยอดขายตามวันที่ขาย: " + money(totalSales) + " บาท"
                 + "\nรับเงินสดจากการขาย: " + money(cashSales) + " บาท"
                 + "\nรับชำระหนี้ตามวันที่รับเงินจริง: " + money(creditCollections) + " บาท"

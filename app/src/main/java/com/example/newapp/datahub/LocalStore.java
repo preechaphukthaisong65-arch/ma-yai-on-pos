@@ -399,6 +399,16 @@ public final class LocalStore extends SQLiteOpenHelper {
         ) == 1;
     }
 
+    /** Delete only an unchanged revision whose cloud deletion was confirmed. */
+    public synchronized boolean deleteRecordIfSyncedAndRevision(String storeId, String recordId, long revision) {
+        if (isBlank(storeId) || isBlank(recordId) || revision < 1L) return false;
+        return getWritableDatabase().delete(TABLE_RECORDS,
+                COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ? AND "
+                        + COL_REVISION + " = ? AND " + COL_SYNC_STATUS + " = ?",
+                new String[]{storeId.trim(), recordId.trim(), Long.toString(revision),
+                        DataHub.SYNC_SYNCED}) == 1;
+    }
+
     /**
      * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
      * ไม่เขียนทับรายการที่มีอยู่แล้ว

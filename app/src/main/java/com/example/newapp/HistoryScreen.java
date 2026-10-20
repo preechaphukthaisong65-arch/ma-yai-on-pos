@@ -37,6 +37,31 @@ public class HistoryScreen extends Activity {
 
     private List<JSONObject> bills() {
         List<JSONObject> result = hub.getRecordsByType(storeId, "sale_bill");
+        java.util.Set<String> currentBillIds = new java.util.HashSet<>();
+        for (JSONObject bill : result) currentBillIds.add(bill.optString("recordId", ""));
+        for (JSONObject history : hub.getRecordsByType(storeId, "sale_history")) {
+            JSONObject hp = history.optJSONObject("payload");
+            if (hp == null) continue;
+            String billId = hp.optString("billId", "").trim();
+            if (billId.isEmpty() || currentBillIds.contains(billId)) continue;
+            JSONObject snapshot = hp.optJSONObject("saleSnapshot");
+            try {
+                JSONObject salePayload = snapshot == null ? new JSONObject() : new JSONObject(snapshot.toString());
+                if (!salePayload.has("createdAt")) salePayload.put("createdAt", hp.optLong("createdAt", 0L));
+                if (!salePayload.has("total")) salePayload.put("total", hp.optDouble("total", 0d));
+                if (!salePayload.has("paymentType")) salePayload.put("paymentType", hp.optString("paymentType", ""));
+                if (!salePayload.has("paymentStatus")) salePayload.put("paymentStatus", hp.optString("paymentStatus", ""));
+                if (!salePayload.has("customerRecordId")) salePayload.put("customerRecordId", hp.optString("customerRecordId", ""));
+                JSONObject synthetic = new JSONObject();
+                synthetic.put("recordId", billId);
+                synthetic.put("dataType", "sale_bill");
+                synthetic.put("payload", salePayload);
+                result.add(synthetic);
+                currentBillIds.add(billId);
+            } catch (Exception ignored) {
+                // Skip malformed historical snapshots rather than inventing details.
+            }
+        }
         result.sort((a,b) -> Long.compare(dateOf(b), dateOf(a)));
         return result;
     }

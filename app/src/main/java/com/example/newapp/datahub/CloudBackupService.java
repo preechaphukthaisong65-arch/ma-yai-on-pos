@@ -36,6 +36,11 @@ public class CloudBackupService {
         void onFailure(String message);
     }
 
+    public interface DeleteCallback {
+        void onSuccess();
+        void onFailure(String message);
+    }
+
     public CloudBackupService() {
         firestore = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -219,6 +224,45 @@ public class CloudBackupService {
                                     + safeMessage(error)
                     );
                 });
+    }
+
+    /** Delete a cloud record only if its identity, type and revision still match. */
+    public void deleteRecord(String storeId, String recordId, String dataType,
+            long expectedRevision, DeleteCallback callback) {
+        String checkedStore = storeId == null ? "" : storeId.trim();
+        String checkedId = recordId == null ? "" : recordId.trim();
+        String checkedType = dataType == null ? "" : dataType.trim();
+        if (checkedStore.isEmpty() || checkedId.isEmpty() || checkedType.isEmpty() || expectedRevision < 1L) {
+            failDelete(callback, "ข้อมูลสำหรับลบไม่ถูกต้อง");
+            return;
+        }
+        if (auth.getCurrentUser() == null) {
+            failDelete(callback, "กรุณาเข้าสู่ระบบก่อนจัดการข้อมูลสำรอง");
+            return;
+        }
+        com.google.firebase.firestore.DocumentReference document = firestore
+                .collection(COLLECTION_BACKUPS).document(checkedStore)
+                .collection(COLLECTION_RECORDS).document(checkedId);
+        firestore.runTransaction(transaction -> {
+            DocumentSnapshot existing = transaction.get(document);
+            if (!existing.exists()) return null;
+            Long cloudRevision = existing.getLong("revision");
+            if (!checkedStore.equals(existing.getString("storeId"))
+                    || !checkedId.equals(existing.getString("recordId"))
+                    || !checkedType.equals(existing.getString("dataType"))
+                    || cloudRevision == null || cloudRevision.longValue() != expectedRevision) {
+                throw new IllegalStateException("ข้อมูลบนคลาวด์เปลี่ยนไปหรือไม่ตรงกับรายการที่ตรวจสอบ");
+            }
+            transaction.delete(document);
+            return null;
+        }).addOnSuccessListener(unused -> {
+            if (callback != null) callback.onSuccess();
+        }).addOnFailureListener(error -> failDelete(callback,
+                "ลบข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)));
+    }
+
+    private void failDelete(DeleteCallback callback, String message) {
+        if (callback != null) callback.onFailure(message);
     }
 
     private JSONObject getPayload(JSONObject record) {

@@ -51,6 +51,10 @@ public class DataHub {
         );
     }
 
+    public interface RetentionDeleteCallback {
+        void onComplete(boolean deleted, String message);
+    }
+
     /**
      * บันทึกข้อมูลลง LocalStore ก่อน
      * ถ้าบันทึกสำเร็จ จะเริ่มสำรองข้อมูลขึ้น Cloud อัตโนมัติ
@@ -556,6 +560,88 @@ public class DataHub {
                     }
                 }
         );
+    }
+
+    /** Re-check policy, sync state and revision before deleting remote then local. */
+    public void deleteExpiredRecord(String storeId, String recordId, String dataType,
+            long cutoff, RetentionDeleteCallback callback) {
+        String checkedStore = storeId == null ? "" : storeId.trim();
+        String checkedId = recordId == null ? "" : recordId.trim();
+        if (checkedStore.isEmpty() || checkedId.isEmpty() || cutoff <= 0L) {
+            completeRetentionDelete(callback, false, "ข้อมูลสำหรับตรวจอายุไม่ถูกต้อง");
+            return;
+        }
+        final JSONObject record;
+        try { record = localStore.getRecord(checkedStore, checkedId); }
+        catch (Exception error) {
+            completeRetentionDelete(callback, false, "อ่านข้อมูลก่อนลบไม่สำเร็จ");
+            return;
+        }
+        if (record == null || !dataType.equals(record.optString("dataType"))
+                || !SYNC_SYNCED.equals(record.optString("syncStatus"))) {
+            completeRetentionDelete(callback, false, "ข้อมูลยังไม่ซิงก์สำเร็จหรือชนิดไม่ตรง");
+            return;
+        }
+        JSONObject payload = record.optJSONObject("payload");
+        if (payload == null || !isRetentionEligible(checkedStore, record, payload, cutoff)) {
+            completeRetentionDelete(callback, false, "ข้อมูลยังไม่เข้าเงื่อนไขเก็บรักษา");
+            return;
+        }
+        long revision = record.optLong("revision", 0L);
+        if (revision < 1L) {
+            completeRetentionDelete(callback, false, "ไม่พบ revision ที่ตรวจสอบได้");
+            return;
+        }
+        cloudBackupService.deleteRecord(checkedStore, checkedId, dataType, revision,
+                new CloudBackupService.DeleteCallback() {
+                    @Override public void onSuccess() {
+                        boolean deleted = localStore.deleteRecordIfSyncedAndRevision(checkedStore, checkedId, revision);
+                        refreshStatus(checkedStore);
+                        completeRetentionDelete(callback, deleted,
+                                deleted ? "ลบตามนโยบายเก็บข้อมูลแล้ว"
+                                        : "คลาวด์ลบแล้ว แต่ข้อมูลในเครื่องเปลี่ยนระหว่างดำเนินการ จึงเก็บข้อมูลในเครื่องไว้");
+                    }
+                    @Override public void onFailure(String message) {
+                        completeRetentionDelete(callback, false, message == null ? "ลบข้อมูลสำรองไม่สำเร็จ" : message);
+                    }
+                });
+    }
+
+    private boolean isRetentionEligible(String storeId, JSONObject record, JSONObject payload, long cutoff) {
+        String type = record.optString("dataType", "");
+        if ("sale_bill".equals(type)) {
+            if (!"จ่ายแล้ว".equals(payload.optString("paymentStatus"))) return false;
+            long paidAt = payload.optLong("paidAt", 0L);
+            if (paidAt <= 0L && "cash".equals(payload.optString("paymentType"))) paidAt = payload.optLong("createdAt", 0L);
+            return paidAt > 0L && paidAt <= cutoff
+                    && hasSyncedSaleSnapshot(storeId, record.optString("recordId"), payload);
+        }
+        if ("sale_history".equals(type)) {
+            long createdAt = payload.optLong("createdAt", 0L);
+            return createdAt > 0L && createdAt <= cutoff;
+        }
+        if ("price_history".equals(type)) {
+            long changedAt = payload.optLong("changedAt", 0L);
+            return changedAt > 0L && changedAt <= cutoff;
+        }
+        return false;
+    }
+
+    private boolean hasSyncedSaleSnapshot(String storeId, String billId, JSONObject billPayload) {
+        try {
+            for (JSONObject history : localStore.getRecordsByType(storeId, "sale_history")) {
+                JSONObject hp = history.optJSONObject("payload");
+                if (hp == null || !billId.equals(hp.optString("billId", ""))) continue;
+                JSONObject snapshot = hp.optJSONObject("saleSnapshot");
+                return snapshot != null && snapshot.toString().equals(billPayload.toString())
+                        && SYNC_SYNCED.equals(history.optString("syncStatus"));
+            }
+        } catch (Exception ignored) { return false; }
+        return false;
+    }
+
+    private void completeRetentionDelete(RetentionDeleteCallback callback, boolean deleted, String message) {
+        if (callback != null) callback.onComplete(deleted, message);
     }
 
     private void refreshStatus(String storeId) {
