@@ -15,11 +15,16 @@ import android.widget.TextView;
 
 import com.example.newapp.datahub.DataHub;
 import com.example.newapp.datahub.StoreIdentity;
+import com.example.newapp.datahub.DeviceSessionManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.ListenerRegistration;
 import org.json.JSONObject;
 import java.util.List;
 
 public class MainActivity extends Activity {
     private TextView managementNotice;
+    private ListenerRegistration deviceSessionListener;
+    private boolean sessionRedirecting;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -158,6 +163,40 @@ public class MainActivity extends Activity {
         setupSystemBars();
         refreshManagementNotice();
         DebtReminderScheduler.scheduleNext(this);
+        verifyActiveDeviceSession();
+    }
+
+    private void verifyActiveDeviceSession() {
+        if (sessionRedirecting) return;
+        String storeId = StoreIdentity.get(this);
+        String ownerUid = StoreIdentity.getOwnerUid(this);
+        if (storeId.isEmpty() || ownerUid.isEmpty()) return;
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) return;
+        if (deviceSessionListener != null) deviceSessionListener.remove();
+        String deviceId = StoreIdentity.getOrCreateDeviceId(getApplicationContext());
+        deviceSessionListener = new DeviceSessionManager().watch(storeId, deviceId, active -> runOnUiThread(() -> {
+            if (active || isFinishing() || sessionRedirecting) return;
+            sessionRedirecting = true;
+            if (deviceSessionListener != null) {
+                deviceSessionListener.remove();
+                deviceSessionListener = null;
+            }
+            FirebaseAuth.getInstance().signOut();
+            android.widget.Toast.makeText(this,
+                    "เครื่องนี้ถูกแทนที่ด้วยการเข้าสู่ระบบจากอีกเครื่อง ข้อมูลในเครื่องยังคงเก็บไว้",
+                    android.widget.Toast.LENGTH_LONG).show();
+            startActivity(new Intent(this, StartupActivity.class));
+            finish();
+        }));
+    }
+
+    @Override
+    protected void onPause() {
+        if (deviceSessionListener != null) {
+            deviceSessionListener.remove();
+            deviceSessionListener = null;
+        }
+        super.onPause();
     }
 
     private void refreshManagementNotice() {
