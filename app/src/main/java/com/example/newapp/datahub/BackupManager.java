@@ -1,79 +1,67 @@
 package com.example.newapp.datahub;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
-/**
- * ตรวจสอบและเตรียมข้อมูลสำหรับการสำรอง
- *
- * ไฟล์นี้ยังไม่ส่งข้อมูลไป Firebase
- */
-public final class BackupManager {
-
-    public BackupManager() {
-        // ไม่มีการเชื่อมต่อเครือข่ายในคลาสนี้
-    }
+public class BackupManager {
 
     /**
-     * ตรวจสอบโครงสร้างข้อมูลก่อนสำรอง
+     * Validate a record before sending it to cloud backup.
      */
     public boolean isValidRecord(JSONObject record) {
         if (record == null) {
             return false;
         }
 
-        try {
-            String recordId = record.optString("recordId", "");
-            String storeId = record.optString("storeId", "");
-            String dataType = record.optString("dataType", "");
-            int schemaVersion = record.optInt("schemaVersion", -1);
-            int revision = record.optInt("revision", -1);
-            JSONObject payload = record.optJSONObject("payload");
+        String recordId = record.optString("recordId", "").trim();
+        String storeId = record.optString("storeId", "").trim();
+        String dataType = record.optString("dataType", "").trim();
 
-            return !isBlank(recordId)
-                    && !isBlank(storeId)
-                    && !isBlank(dataType)
-                    && schemaVersion > 0
-                    && revision > 0
-                    && payload != null;
-
-        } catch (Exception e) {
+        if (recordId.isEmpty()
+                || storeId.isEmpty()
+                || dataType.isEmpty()) {
             return false;
         }
+
+        if (record.optInt("schemaVersion", 0) < 1) {
+            return false;
+        }
+
+        Object payload = record.opt("payload");
+        return payload instanceof JSONObject;
     }
 
     /**
-     * สร้างสำเนาข้อมูลที่ผ่านการตรวจสอบแล้ว
-     * ข้อมูลต้นฉบับจะไม่ถูกแก้ไข
+     * Create a validated copy for cloud backup.
+     * The original local record is not modified.
      */
-    public JSONObject prepareBackup(JSONObject record)
-            throws JSONException {
-
+    public JSONObject prepareBackup(JSONObject record) {
         if (!isValidRecord(record)) {
-            throw new IllegalArgumentException(
-                    "Invalid record: cannot prepare backup"
-            );
+            return null;
         }
 
-        JSONObject backup = new JSONObject();
+        try {
+            JSONObject copy = new JSONObject(record.toString());
 
-        backup.put("recordId", record.getString("recordId"));
-        backup.put("storeId", record.getString("storeId"));
-        backup.put("dataType", record.getString("dataType"));
-        backup.put("schemaVersion", record.getInt("schemaVersion"));
-        backup.put("updatedAt", record.get("updatedAt"));
-        backup.put("revision", record.getInt("revision"));
-        backup.put("payload", new JSONObject(
-                record.getJSONObject("payload").toString()
-        ));
+            copy.put(
+                    "updatedAt",
+                    Math.max(
+                            1L,
+                            copy.optLong(
+                                    "updatedAt",
+                                    System.currentTimeMillis()
+                            )
+                    )
+            );
 
-        // สำเนาที่เตรียมแล้ว แต่ยังไม่ได้ส่งขึ้นคลาวด์
-        backup.put("syncStatus", DataHub.SYNC_PENDING);
+            copy.put(
+                    "revision",
+                    Math.max(1L, copy.optLong("revision", 1L))
+            );
 
-        return backup;
-    }
+            return copy;
 
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+        } catch (Exception error) {
+            return null;
+        }
     }
 }
