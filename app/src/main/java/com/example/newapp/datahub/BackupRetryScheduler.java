@@ -29,7 +29,7 @@ public final class BackupRetryScheduler {
         WorkManager.getInstance(context.getApplicationContext())
                 .enqueueUniqueWork(
                         "datahub-backup-" + storeId.trim(),
-                        ExistingWorkPolicy.KEEP,
+                        ExistingWorkPolicy.APPEND_OR_REPLACE,
                         request
                 );
     }
