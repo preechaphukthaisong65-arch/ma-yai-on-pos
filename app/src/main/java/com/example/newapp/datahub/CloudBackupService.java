@@ -171,7 +171,7 @@ public class CloudBackupService {
         FirebaseUser user = auth.getCurrentUser();
         long receivedCents = Math.round(receivedAmount * 100d);
         if (user == null || !user.isEmailVerified() || store.isEmpty()
-                || selectedBills == null || selectedBills.isEmpty()
+                || selectedBills == null || selectedBills.isEmpty() || selectedBills.size() > 100
                 || receivedCents <= 0L || deviceId == null || deviceId.trim().isEmpty()) {
             callback.onFailure("ข้อมูลรับชำระไม่ครบหรือบัญชีไม่ได้เข้าสู่ระบบ");
             return;
