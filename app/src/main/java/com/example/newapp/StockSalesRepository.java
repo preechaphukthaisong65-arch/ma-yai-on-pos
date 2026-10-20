@@ -240,6 +240,9 @@ public final class StockSalesRepository {
             saleAudit.put("total", billPayload.optDouble("total", 0d));
             saleAudit.put("createdAt", System.currentTimeMillis());
             saleAudit.put("customerRecordId", billPayload.optString("customerRecordId", ""));
+            // Preserve the complete sale snapshot so retained reports/history remain useful
+            // after the original bill reaches its retention deadline.
+            saleAudit.put("saleSnapshot", new JSONObject(billPayload.toString()));
             records.add(record(newId("sale_history"), "sale_history", saleAudit));
             for (int i = 0; i < currentProducts.size(); i++) {
                 JSONObject current = currentProducts.get(i);
@@ -260,48 +263,106 @@ public final class StockSalesRepository {
         } catch (Exception e) { return false; }
     }
 
-    /** Full-bill-only cash payment for selected credit invoices, preserving original receipts. */
-    public boolean payCreditBills(List<JSONObject> selectedBills, double received) {
-        if (!isReady() || selectedBills == null || selectedBills.isEmpty() || received < 0) return false;
+    /**
+     * Record a cash payment against one or more credit bills. Partial payments are supported;
+     * each payment stores explicit per-bill allocations and unpaid bills remain outstanding.
+     */
+    public synchronized boolean payCreditBills(List<JSONObject> selectedBills, double received) {
+        if (!isReady() || selectedBills == null || selectedBills.isEmpty()
+                || !Double.isFinite(received) || received <= 0d) return false;
         try {
-            double due = 0d;
             List<JSONObject> refreshed = new ArrayList<>();
+            List<Long> balancesCents = new ArrayList<>();
+            long dueCents = 0L;
             for (JSONObject old : selectedBills) {
                 if (old == null) return false;
-                JSONObject current = hub.getRecord(storeId, old.optString("recordId"));
+                String billId = old.optString("recordId", "").trim();
+                if (billId.isEmpty()) return false;
+                // Reject duplicate bill IDs to avoid allocating the same debt twice.
+                for (JSONObject already : refreshed) {
+                    if (billId.equals(already.optString("recordId", ""))) return false;
+                }
+                JSONObject current = hub.getRecord(storeId, billId);
                 JSONObject p = current == null ? null : current.optJSONObject("payload");
                 if (p == null || !"credit".equals(p.optString("paymentType"))
                         || !"ค้างชำระ".equals(p.optString("paymentStatus"))) return false;
-                due += p.optDouble("total", 0d);
+                double rawBalance = p.has("remainingBalance")
+                        ? p.optDouble("remainingBalance", Double.NaN)
+                        : p.optDouble("total", Double.NaN);
+                if (!Double.isFinite(rawBalance) || rawBalance <= 0d) return false;
+                long cents = Math.round(rawBalance * 100d);
+                if (cents <= 0L || Long.MAX_VALUE - dueCents < cents) return false;
+                dueCents += cents;
+                balancesCents.add(cents);
                 refreshed.add(current);
             }
-            if (Math.abs(due - received) > 0.009d) return false;
+            long receivedCents = Math.round(received * 100d);
+            if (receivedCents <= 0L || receivedCents > dueCents) return false;
+
             String paymentId = newId("credit_payment");
             long now = System.currentTimeMillis();
             org.json.JSONArray ids = new org.json.JSONArray();
+            org.json.JSONArray allocations = new org.json.JSONArray();
             List<JSONObject> records = new ArrayList<>();
-            for (JSONObject current : refreshed) {
+            long remainingPayment = receivedCents;
+            for (int i = 0; i < refreshed.size() && remainingPayment > 0L; i++) {
+                JSONObject current = refreshed.get(i);
+                long balanceCents = balancesCents.get(i);
+                long allocatedCents = Math.min(balanceCents, remainingPayment);
+                if (allocatedCents <= 0L) continue;
+                long newBalanceCents = balanceCents - allocatedCents;
                 JSONObject p = new JSONObject(current.optJSONObject("payload").toString());
-                p.put("paymentStatus", "จ่ายแล้ว");
-                p.put("remainingBalance", 0d);
-                p.put("paidAt", now);
+                p.put("remainingBalance", newBalanceCents / 100d);
+                p.put("paymentStatus", newBalanceCents == 0L ? "จ่ายแล้ว" : "ค้างชำระ");
                 p.put("lastPaymentId", paymentId);
+                p.put("lastPaymentAt", now);
+                if (newBalanceCents == 0L) {
+                    p.put("paidAt", now);
+                } else {
+                    p.remove("paidAt");
+                }
                 records.add(record(current.optString("recordId"), "sale_bill", p));
-                ids.put(current.optString("recordId"));
+                String billId = current.optString("recordId");
+                ids.put(billId);
+                JSONObject allocation = new JSONObject();
+                allocation.put("billId", billId);
+                allocation.put("amount", allocatedCents / 100d);
+                allocation.put("remainingBalance", newBalanceCents / 100d);
+                allocation.put("paymentStatus", newBalanceCents == 0L ? "จ่ายแล้ว" : "ค้างชำระ");
+                allocations.put(allocation);
+                remainingPayment -= allocatedCents;
             }
+            if (remainingPayment != 0L) return false;
+
             JSONObject payment = new JSONObject();
-            payment.put("paymentId", paymentId); payment.put("paidAt", now);
-            payment.put("amount", due); payment.put("paymentMethod", "cash");
+            payment.put("paymentId", paymentId);
+            payment.put("paidAt", now);
+            payment.put("amount", receivedCents / 100d);
+            payment.put("paymentMethod", "cash");
             payment.put("billIds", ids);
+            payment.put("allocations", allocations);
+            payment.put("isPartialPayment", receivedCents < dueCents);
             records.add(record(paymentId, "credit_payment", payment));
+
             JSONObject receipt = new JSONObject();
-            receipt.put("receiptId", "receipt:" + paymentId); receipt.put("paymentId", paymentId);
-            receipt.put("receiptType", "ใบเสร็จรับชำระหนี้"); receipt.put("createdAt", now);
-            receipt.put("total", due); receipt.put("billIds", ids); receipt.put("paymentStatus", "จ่ายแล้ว"); receipt.put("printStatus", "pending");
+            receipt.put("receiptId", "receipt:" + paymentId);
+            receipt.put("paymentId", paymentId);
+            receipt.put("receiptType", "ใบเสร็จรับชำระหนี้");
+            receipt.put("createdAt", now);
+            receipt.put("total", receivedCents / 100d);
+            receipt.put("billIds", ids);
+            receipt.put("allocations", allocations);
+            receipt.put("paymentStatus", receivedCents < dueCents ? "ชำระบางส่วน" : "รับชำระแล้ว");
+            receipt.put("printStatus", "pending");
             records.add(record("receipt:" + paymentId, "receipt", receipt));
+
             JSONObject history = new JSONObject();
-            history.put("paymentId", paymentId); history.put("paidAt", now); history.put("amount", due);
-            history.put("billIds", ids); history.put("eventType", "credit_payment");
+            history.put("paymentId", paymentId);
+            history.put("paidAt", now);
+            history.put("amount", receivedCents / 100d);
+            history.put("billIds", ids);
+            history.put("allocations", allocations);
+            history.put("eventType", "credit_payment");
             records.add(record(newId("credit_payment_history"), "credit_payment_history", history));
             return hub.saveRecordsAtomically(storeId, records);
         } catch (Exception e) { return false; }
