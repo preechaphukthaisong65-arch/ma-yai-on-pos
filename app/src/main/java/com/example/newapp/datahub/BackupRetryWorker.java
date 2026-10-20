@@ -41,6 +41,14 @@ public final class BackupRetryWorker extends Worker {
         }
 
         if (failed.get() > 0) return Result.retry();
+
+        // DataHub processes a bounded batch per run. If more than one batch
+        // remains, retry so large stores are drained instead of leaving the
+        // records after the first 500 pending forever.
+        if (DataHub.getInstance(getApplicationContext())
+                .getPendingBackupCount(storeId) > 0) {
+            return Result.retry();
+        }
         return Result.success();
     }
 }
