@@ -78,14 +78,14 @@ public class ReceiptReprintScreen extends Activity {
                 String expectedId = p.optString("printJobId", "");
                 for (PrintJob job : jobs) {
                     if (job == null || job.getId() == null
-                            || !expectedId.equals(job.getId().flattenToString())) continue;
+                            || !expectedId.equals(job.getId().toString())) continue;
                     String status = job.isFailed() || job.isCancelled() ? "failed"
                             : job.isCompleted() ? "completed"
                             : job.isQueued() || job.isBlocked() ? "queued" : "printing";
                     if (!status.equals(p.optString("printStatus", ""))) {
                         JSONObject updated = new JSONObject(p.toString());
                         updated.put("printStatus", status);
-                        if (job.isFailed()) updated.put("printError", job.getInfo().getStatus());
+                        if (job.isFailed()) updated.put("printError", "Android print job failed");
                         repo.saveRecord("receipt", r.optString("recordId"), updated);
                     }
                     break;
