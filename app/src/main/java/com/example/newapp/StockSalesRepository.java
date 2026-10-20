@@ -19,7 +19,7 @@ public final class StockSalesRepository {
 
     public StockSalesRepository(Context context) {
         hub = DataHub.getInstance(context.getApplicationContext());
-        storeId = StoreIdentity.get(context);
+        storeId = StoreIdentity.get(context);\n        StockLimitNotifier.initialize(context);
     }
 
     public String getStoreId() { return storeId; }
