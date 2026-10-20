@@ -296,7 +296,33 @@ public final class LocalStore extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (JSONObject record : records) {
-                if (record == null || !saveRecord(record)) return false;
+                if (record == null) return false;
+                // Validate expected revisions inside the same SQLite transaction
+                // as the writes, so a stale screen cannot overwrite a newer local
+                // product or bill after it has read the record.
+                if (record.has("expectedRevision")) {
+                    String expectedStore = record.optString("storeId", "").trim();
+                    String expectedId = record.optString("recordId", "").trim();
+                    long expectedRevision = record.optLong("expectedRevision", -1L);
+                    if (isBlank(expectedStore) || isBlank(expectedId) || expectedRevision < 0L) {
+                        return false;
+                    }
+                    long actualRevision = 0L;
+                    Cursor revisionCursor = db.query(
+                            TABLE_RECORDS,
+                            new String[]{COL_REVISION},
+                            COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ?",
+                            new String[]{expectedStore, expectedId},
+                            null, null, null, "1"
+                    );
+                    try {
+                        if (revisionCursor.moveToFirst()) actualRevision = revisionCursor.getLong(0);
+                    } finally {
+                        revisionCursor.close();
+                    }
+                    if (actualRevision != expectedRevision) return false;
+                }
+                if (!saveRecord(record)) return false;
             }
             db.setTransactionSuccessful();
             return true;
