@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.Manifest;
@@ -238,11 +237,10 @@ public class SellScreen extends Activity {
                             "barcode",
                             "name",
                             "unit",
-                            "price",
-                            "stock_qty"
+                            "price"
                     },
                     "barcode = ?",
-                    new String[]{barcode},
+                    new String[]{barcode.trim()},
                     null,
                     null,
                     null,
@@ -258,6 +256,10 @@ public class SellScreen extends Activity {
                     cursor.getColumnIndexOrThrow("id")
             );
 
+            String savedBarcode = cursor.getString(
+                    cursor.getColumnIndexOrThrow("barcode")
+            );
+
             String name = cursor.getString(
                     cursor.getColumnIndexOrThrow("name")
             );
@@ -270,31 +272,35 @@ public class SellScreen extends Activity {
                     cursor.getColumnIndexOrThrow("price")
             );
 
-            int stock = cursor.getInt(
-                    cursor.getColumnIndexOrThrow("stock_qty")
-            );
-
-            CartItem existing = findCartItem(barcode);
-            int requestedQty = existing == null
-                    ? 1 : existing.quantity + 1;
-
-            if (requestedQty > stock) {
-                speakAndContinue("สินค้าไม่เพียงพอค่ะ");
+            if (price < 0
+                    || Double.isNaN(price)
+                    || Double.isInfinite(price)) {
+                speakAndContinue("ราคาสินค้าไม่ถูกต้องค่ะ");
                 return;
             }
+
+            CartItem existing = findCartItem(savedBarcode);
 
             if (existing == null) {
                 CartItem item = new CartItem();
                 item.productId = productId;
-                item.barcode = barcode;
+                item.barcode = savedBarcode;
                 item.name = name;
                 item.unit = unit == null ? "ชิ้น" : unit;
                 item.quantity = 1;
                 item.unitPrice = price;
                 cart.add(item);
             } else {
+                if (existing.quantity == Integer.MAX_VALUE) {
+                    speakAndContinue("จำนวนสินค้าเกินกำหนดค่ะ");
+                    return;
+                }
+
                 existing.quantity++;
             }
+
+            CartItem current = findCartItem(savedBarcode);
+            int requestedQty = current == null ? 0 : current.quantity;
 
             if (statusText != null) {
                 statusText.setText(
@@ -416,8 +422,12 @@ public class SellScreen extends Activity {
             Button plus = new Button(this);
             plus.setText("+");
             plus.setOnClickListener(v -> {
-                item.quantity++;
-                showCart();
+                if (item.quantity < Integer.MAX_VALUE) {
+                    item.quantity++;
+                    showCart();
+                } else {
+                    toast("จำนวนสินค้าเกินกำหนด");
+                }
             });
 
             Button remove = new Button(this);
@@ -492,8 +502,10 @@ public class SellScreen extends Activity {
                 return;
             }
 
-            if (received < total) {
-                toast("เงินที่รับไม่พอ");
+            if (Double.isNaN(received)
+                    || Double.isInfinite(received)
+                    || received < total) {
+                toast("เงินที่รับไม่พอหรือจำนวนเงินไม่ถูกต้อง");
                 return;
             }
 
@@ -595,17 +607,26 @@ public class SellScreen extends Activity {
             return;
         }
 
-        long customerId = -1;
-
-        db.beginTransaction();
+        Long customerId = null;
+        SQLiteDatabase writableDb = database.getWritableDatabase();
 
         try {
+            // ค้นหาหรือสร้างลูกค้าสำหรับรายการขายเชื่อ
             if ("CREDIT".equals(paymentType)) {
-                Cursor customerCursor = db.query(
+                if (firstName == null || firstName.trim().isEmpty()
+                        || lastName == null || lastName.trim().isEmpty()) {
+                    toast("กรุณากรอกชื่อและนามสกุลลูกค้า");
+                    return;
+                }
+
+                Cursor customerCursor = writableDb.query(
                         "customers",
                         new String[]{"id"},
                         "first_name = ? AND last_name = ?",
-                        new String[]{firstName, lastName},
+                        new String[]{
+                                firstName.trim(),
+                                lastName.trim()
+                        },
                         null,
                         null,
                         "id ASC",
@@ -620,187 +641,80 @@ public class SellScreen extends Activity {
                     customerCursor.close();
                 }
 
-                if (customerId < 0) {
+                if (customerId == null) {
                     android.content.ContentValues customerValues =
                             new android.content.ContentValues();
 
                     String customerTimestamp = LocalDatabase.now();
-                    customerValues.put("first_name", firstName);
-                    customerValues.put("last_name", lastName);
+                    customerValues.put("first_name", firstName.trim());
+                    customerValues.put("last_name", lastName.trim());
                     customerValues.put("created_at", customerTimestamp);
                     customerValues.put("updated_at", customerTimestamp);
 
-                    customerId = db.insertOrThrow(
+                    long newCustomerId = writableDb.insertOrThrow(
                             "customers",
                             null,
                             customerValues
                     );
+
+                    if (newCustomerId <= 0) {
+                        toast("สร้างข้อมูลลูกค้าไม่สำเร็จ");
+                        return;
+                    }
+
+                    customerId = newCustomerId;
                 }
             }
+
+            List<SalesRepository.SaleLineInput> saleLines =
+                    new ArrayList<>();
 
             for (CartItem item : cart) {
-                Cursor stockCursor = db.query(
-                        "products",
-                        new String[]{"stock_qty"},
-                        "id = ?",
-                        new String[]{String.valueOf(item.productId)},
-                        null,
-                        null,
-                        null,
-                        "1"
+                saleLines.add(
+                        new SalesRepository.SaleLineInput(
+                                item.barcode,
+                                item.quantity
+                        )
                 );
-
-                try {
-                    if (!stockCursor.moveToFirst()
-                            || stockCursor.getInt(0) < item.quantity) {
-                        throw new IllegalStateException(
-                                "สินค้าไม่เพียงพอ: " + item.name
-                        );
-                    }
-                } finally {
-                    stockCursor.close();
-                }
             }
 
-            double sub = subtotal();
-            double fee = "CREDIT".equals(paymentType) ? sub * 0.05 : 0;
-            double total = sub + fee;
+            SalesRepository repository =
+                    new SalesRepository(database);
 
-            String billNumber = "B"
-                    + new java.text.SimpleDateFormat(
-                            "yyyyMMddHHmmss",
-                            Locale.US
-                    ).format(new java.util.Date())
-                    + UUID.randomUUID().toString()
-                    .substring(0, 6).toUpperCase(Locale.US);
+            SalesRepository.SaleResult result = repository.createSale(
+                    saleLines,
+                    paymentType,
+                    customerId,
+                    cashReceived
+            );
 
-            String status = "CREDIT".equals(paymentType)
-                    ? "PENDING" : "PAID";
-
-            android.content.ContentValues saleValues =
-                    new android.content.ContentValues();
-
-            saleValues.put("bill_number", billNumber);
-            saleValues.put("payment_type", paymentType);
-            saleValues.put("status", status);
-
-            if (customerId >= 0) {
-                saleValues.put("customer_id", customerId);
+            if (result == null || !result.success) {
+                toast(result == null
+                        ? "บันทึกการขายไม่สำเร็จ"
+                        : result.message);
+                return;
             }
-
-            saleValues.put("subtotal", sub);
-            saleValues.put("service_fee", fee);
-            saleValues.put("total", total);
-            saleValues.put("cash_received", cashReceived);
-
-            // ชื่อตรงกับคอลัมน์ใน LocalDatabase.java
-            saleValues.put("change_due", changeAmount);
-
-            saleValues.put("created_at", LocalDatabase.now());
-            saleValues.put(
-                    "paid_at",
-                    "CASH".equals(paymentType) ? LocalDatabase.now() : null
-            );
-            saleValues.put("receipt_text", "");
-            saleValues.put("print_status", "NOT_PRINTED");
-
-            long saleId = db.insertOrThrow(
-                    "sales",
-                    null,
-                    saleValues
-            );
 
             StringBuilder receipt = new StringBuilder();
             receipt.append("ร้านแม่ใหญ่อ่อน POS\n");
-            receipt.append("เลขบิล: ").append(billNumber).append('\n');
-            receipt.append("ประเภท: ").append(paymentType).append('\n');
+            receipt.append("เลขบิล: ")
+                    .append(result.billNumber)
+                    .append('\n');
+            receipt.append("ประเภท: ")
+                    .append(paymentType)
+                    .append('\n');
 
-            if (customerId >= 0) {
+            if (customerId != null) {
                 receipt.append("ลูกค้า: ")
-                        .append(firstName).append(' ')
-                        .append(lastName).append('\n');
+                        .append(firstName.trim())
+                        .append(' ')
+                        .append(lastName.trim())
+                        .append('\n');
             }
 
             receipt.append("------------------------------\n");
 
             for (CartItem item : cart) {
-                android.content.ContentValues line =
-                        new android.content.ContentValues();
-
-                line.put("sale_id", saleId);
-                line.put("product_id", item.productId);
-                line.put("product_name", item.name);
-                line.put("barcode", item.barcode);
-                line.put("unit", item.unit);
-                line.put("quantity", item.quantity);
-                line.put("unit_price", item.unitPrice);
-                line.put("line_total", item.lineTotal());
-
-                db.insertOrThrow("sale_items", null, line);
-
-                Cursor currentCursor = db.query(
-                        "products",
-                        new String[]{"stock_qty"},
-                        "id = ?",
-                        new String[]{String.valueOf(item.productId)},
-                        null,
-                        null,
-                        null,
-                        "1"
-                );
-
-                int before;
-
-                try {
-                    if (!currentCursor.moveToFirst()) {
-                        throw new IllegalStateException("ไม่พบสินค้า");
-                    }
-
-                    before = currentCursor.getInt(0);
-                } finally {
-                    currentCursor.close();
-                }
-
-                int after = before - item.quantity;
-
-                android.content.ContentValues productUpdate =
-                        new android.content.ContentValues();
-                productUpdate.put("stock_qty", after);
-                productUpdate.put("updated_at", LocalDatabase.now());
-
-                int updated = db.update(
-                        "products",
-                        productUpdate,
-                        "id = ? AND stock_qty >= ?",
-                        new String[]{
-                                String.valueOf(item.productId),
-                                String.valueOf(item.quantity)
-                        }
-                );
-
-                if (updated != 1) {
-                    throw new IllegalStateException(
-                            "ตัดสต๊อกไม่สำเร็จ: " + item.name
-                    );
-                }
-
-                android.content.ContentValues movement =
-                        new android.content.ContentValues();
-
-                movement.put("product_id", item.productId);
-                movement.put("operation", "SALE");
-                movement.put("qty_before", before);
-                movement.put("qty_after", after);
-                movement.put("qty_diff", after - before);
-                movement.put("note", "ขายบิล " + billNumber);
-                movement.put("created_at", LocalDatabase.now());
-
-                db.insertOrThrow(
-                        "stock_movements",
-                        null,
-                        movement
-                );
-
                 receipt.append(item.name)
                         .append(" x")
                         .append(item.quantity)
@@ -810,46 +724,66 @@ public class SellScreen extends Activity {
             }
 
             receipt.append("------------------------------\n");
-            receipt.append("ยอดสินค้า: ").append(money(sub)).append('\n');
-            receipt.append("ค่าบริการ: ").append(money(fee)).append('\n');
-            receipt.append("ยอดสุทธิ: ").append(money(total)).append('\n');
+            receipt.append("ยอดสินค้า: ")
+                    .append(money(result.subtotal))
+                    .append(" บาท\n");
+            receipt.append("ค่าบริการ: ")
+                    .append(money(result.serviceFee))
+                    .append(" บาท\n");
+            receipt.append("ยอดสุทธิ: ")
+                    .append(money(result.total))
+                    .append(" บาท\n");
 
             if ("CASH".equals(paymentType)) {
                 receipt.append("รับเงิน: ")
-                        .append(money(cashReceived)).append('\n');
+                        .append(money(cashReceived))
+                        .append(" บาท\n");
                 receipt.append("เงินทอน: ")
-                        .append(money(changeAmount)).append('\n');
+                        .append(money(result.changeAmount))
+                        .append(" บาท\n");
             } else {
                 receipt.append("สถานะ: ค้างชำระ\n");
             }
 
+            // เก็บข้อความใบเสร็จเพื่อให้หน้าประวัติเรียกดูได้
             android.content.ContentValues receiptUpdate =
                     new android.content.ContentValues();
             receiptUpdate.put("receipt_text", receipt.toString());
 
-            db.update(
+            writableDb.update(
                     "sales",
                     receiptUpdate,
                     "id = ?",
-                    new String[]{String.valueOf(saleId)}
+                    new String[]{String.valueOf(result.saleId)}
             );
 
-            db.setTransactionSuccessful();
             saleSaved = true;
-
             showSavedReceipt(receipt.toString());
 
         } catch (Exception e) {
-            android.util.Log.e("SellScreen", "Save sale failed", e);
-            toast("บันทึกการขายไม่สำเร็จ: " + e.getMessage());
-        } finally {
-            db.endTransaction();
+            android.util.Log.e(
+                    "SellScreen",
+                    "Save sale failed",
+                    e
+            );
+            toast("บันทึกการขายไม่สำเร็จ: "
+                    + (e.getMessage() == null
+                    ? "เกิดข้อผิดพลาด"
+                    : e.getMessage()));
         }
 
-        // ซิงก์การแจ้งเตือนหลังธุรกรรมขายจบแล้ว และเฉพาะเมื่อบันทึกสำเร็จ
+        // ซิงก์การแจ้งเตือนเท่านั้น ไม่แก้ไขจำนวนสต๊อก
         if (saleSaved) {
-            new AndroidNotificationService(this)
-                    .syncLowStockNotification();
+            try {
+                new AndroidNotificationService(this)
+                        .syncLowStockNotification();
+            } catch (Exception e) {
+                android.util.Log.e(
+                        "SellScreen",
+                        "Low-stock notification sync failed",
+                        e
+                );
+            }
         }
     }
 
@@ -962,4 +896,4 @@ public class SellScreen extends Activity {
 
         super.onDestroy();
     }
-}
+                    }
