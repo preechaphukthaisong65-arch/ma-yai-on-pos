@@ -16,24 +16,40 @@ service cloud.firestore {
           == request.auth.uid;
     }
 
+    function validBackupRecord(storeId, recordId) {
+      return request.resource.data.storeId == storeId
+        && request.resource.data.recordId == recordId
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.revision is int
+        && request.resource.data.revision > 0
+        && request.resource.data.payload is map;
+    }
+
     match /storeOwners/{storeId} {
       allow read: if ownsStore(storeId);
       allow create, update, delete: if false;
     }
 
     match /dataHubBackups/{storeId}/records/{recordId} {
-      // The store-scoped path plus owner mapping is the authorization boundary.
-      // Client-side restore additionally validates embedded IDs against this path.
+      // Reads are restricted to the verified, provisioned owner.
       allow read: if ownsStore(storeId);
 
-      allow create, update: if ownsStore(storeId)
-        && request.resource.data.storeId == storeId
-        && request.resource.data.recordId == recordId
-        && request.resource.data.uploadedBy == request.auth.uid
-        && request.resource.data.revision is int
-        && request.resource.data.revision > 0
-        && request.resource.data.payload is map;
+      // New records must carry identity fields matching the document path.
+      allow create: if ownsStore(storeId)
+        && validBackupRecord(storeId, recordId);
 
+      // Reject stale/equal-revision writes at the security boundary too.
+      // CloudBackupService performs a transaction; this rule is defense in depth.
+      allow update: if ownsStore(storeId)
+        && validBackupRecord(storeId, recordId)
+        && request.resource.data.storeId == resource.data.storeId
+        && request.resource.data.recordId == resource.data.recordId
+        && request.resource.data.revision is int
+        && resource.data.revision is int
+        && request.resource.data.revision > resource.data.revision;
+
+      // Retention cleanup is supported by the client with identity/type/revision
+      // checks in a Firestore transaction. Only the verified store owner may delete.
       allow delete: if ownsStore(storeId)
         && (!('storeId' in resource.data) || resource.data.storeId == storeId)
         && (!('recordId' in resource.data) || resource.data.recordId == recordId);
