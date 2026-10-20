@@ -250,14 +250,17 @@ public class DataHub {
             return;
         }
 
+        final long uploadedRevision = record.optLong("revision", 1L);
+
         cloudBackupService.upload(
                 record,
                 new CloudBackupService.BackupCallback() {
                     @Override
                     public void onSuccess() {
-                        boolean marked = localStore.markSyncStatus(
+                        boolean marked = localStore.markSyncStatusIfRevision(
                                 storeId,
                                 recordId,
+                                uploadedRevision,
                                 SYNC_SYNCED
                         );
 
@@ -274,9 +277,10 @@ public class DataHub {
                     @Override
                     public void onFailure(String message) {
                         // เก็บรายการที่สำรองไม่สำเร็จไว้ให้ลองใหม่ภายหลัง
-                        localStore.markSyncStatus(
+                        localStore.markSyncStatusIfRevision(
                                 storeId,
                                 recordId,
+                                uploadedRevision,
                                 SYNC_FAILED
                         );
 
