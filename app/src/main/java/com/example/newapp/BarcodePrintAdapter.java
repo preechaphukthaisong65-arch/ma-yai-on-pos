@@ -22,6 +22,8 @@ import com.google.zxing.common.BitMatrix;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 final class BarcodePrintAdapter extends PrintDocumentAdapter {
@@ -64,6 +66,9 @@ final class BarcodePrintAdapter extends PrintDocumentAdapter {
         PrintedPdfDocument document = null;
         try {
             document = new PrintedPdfDocument(context, attributes);
+            List<PageRange> writtenRanges = new ArrayList<>();
+            int rangeStart = -1;
+            int previousPage = -2;
             for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
                 if (cancellationSignal.isCanceled()) {
                     callback.onWriteCancelled();
@@ -75,11 +80,19 @@ final class BarcodePrintAdapter extends PrintDocumentAdapter {
                 PdfDocument.Page page = document.startPage(pageInfo);
                 drawPage(page.getCanvas(), pageIndex);
                 document.finishPage(page);
+                if (rangeStart < 0) {
+                    rangeStart = pageIndex;
+                } else if (pageIndex != previousPage + 1) {
+                    writtenRanges.add(new PageRange(rangeStart, previousPage));
+                    rangeStart = pageIndex;
+                }
+                previousPage = pageIndex;
             }
+            if (rangeStart >= 0) writtenRanges.add(new PageRange(rangeStart, previousPage));
             FileOutputStream output = new FileOutputStream(destination.getFileDescriptor());
             document.writeTo(output);
             output.flush();
-            callback.onWriteFinished(new PageRange[]{new PageRange(0, Math.max(0, pageCount - 1))});
+            callback.onWriteFinished(writtenRanges.toArray(new PageRange[0]));
         } catch (Exception error) {
             callback.onWriteFailed(error.getMessage() == null ? "สร้างเอกสารพิมพ์ไม่สำเร็จ" : error.getMessage());
         } finally {
