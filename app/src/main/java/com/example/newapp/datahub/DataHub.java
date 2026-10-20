@@ -558,11 +558,14 @@ public class DataHub {
                             }
                         }
 
+                        // Audit business-level barcode collisions after restore. A different
+                        // record ID can still represent the same barcode; never auto-delete it.
+                        failed += countDuplicateBarcodes(checkedStoreId);
                         refreshStatus(checkedStoreId);
 
                         String message = failed == 0
-                                ? "กู้คืนข้อมูลเสร็จแล้ว"
-                                : "กู้คืนข้อมูลเสร็จบางส่วน";
+                                ? "กู้คืนข้อมูลเสร็จแล้ว ไม่พบข้อมูลขัดแย้งจากการตรวจนี้"
+                                : "กู้คืนข้อมูลเสร็จบางส่วน พบรายการผิดพลาดหรือข้อมูลซ้ำที่ต้องตรวจสอบ";
 
                         completeRestore(
                                 callback,
@@ -632,6 +635,36 @@ public class DataHub {
                         completeRetentionDelete(callback, false, message == null ? "ลบข้อมูลสำรองไม่สำเร็จ" : message);
                     }
                 });
+    }
+
+    /**
+     * Returns the number of extra records sharing a non-empty barcode across
+     * product and barcode_item records. This is an audit only: no record is
+     * deleted or modified. Call after cloud restore/reconnect.
+     */
+    private int countDuplicateBarcodes(String storeId) {
+        java.util.Map<String, String> firstRecordByBarcode = new java.util.HashMap<>();
+        int duplicates = 0;
+        String[] types = new String[]{"product", "barcode_item"};
+        for (String type : types) {
+            try {
+                for (JSONObject record : localStore.getRecordsByType(storeId, type)) {
+                    JSONObject payload = record.optJSONObject("payload");
+                    if (payload == null) continue;
+                    String barcode = payload.optString("barcode", "").trim();
+                    if (barcode.isEmpty()) continue;
+                    String recordId = record.optString("recordId", "");
+                    String previous = firstRecordByBarcode.putIfAbsent(barcode, recordId);
+                    if (previous != null && !previous.equals(recordId)) {
+                        duplicates++;
+                    }
+                }
+            } catch (Exception ignored) {
+                // Audit failure must not mutate or delete any source records.
+                return Math.max(1, duplicates);
+            }
+        }
+        return duplicates;
     }
 
     private boolean isRetentionEligible(String storeId, JSONObject record, JSONObject payload, long cutoff) {
