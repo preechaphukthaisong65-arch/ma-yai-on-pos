@@ -381,6 +381,15 @@ public final class StockSalesRepository {
         } catch (Exception e) { return false; }
     }
 
+    public void payCreditBillsOnline(List<JSONObject> chosen, double receivedAmount,
+            DataHub.OperationCallback callback) {
+        if (!isReady()) {
+            if (callback != null) callback.onComplete(0, 1, "ไม่พบรหัสร้านค้า");
+            return;
+        }
+        hub.commitCreditPayment(storeId, chosen, receivedAmount, callback);
+    }
+
     public List<JSONObject> customers() { return records("credit_customer"); }
 
     public JSONObject findCustomer(String firstName, String lastName) {
