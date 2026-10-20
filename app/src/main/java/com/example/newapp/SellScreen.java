@@ -166,7 +166,17 @@ public class SellScreen extends Activity {
             bill.put("subtotal",sub);bill.put("serviceFee",fee);bill.put("total",total);
             bill.put("debt",type.equals("credit")?total:0);bill.put("remainingBalance",type.equals("credit")?total:0);
             bill.put("cashReceived",type.equals("cash")?received:0);bill.put("change",type.equals("cash")?received-total:0);
-            if(customer!=null){bill.put("customerRecordId",customer.optString("recordId"));JSONObject cp=customer.optJSONObject("payload");if(cp!=null)bill.put("customerName",cp.optString("firstName")+" "+cp.optString("lastName"));}
+            if(customer!=null){
+                bill.put("customerRecordId",customer.optString("recordId"));
+                JSONObject cp=customer.optJSONObject("payload");
+                if(cp!=null){
+                    String customerFirstName=cp.optString("firstName","").trim();
+                    String customerLastName=cp.optString("lastName","").trim();
+                    bill.put("customerFirstName",customerFirstName);
+                    bill.put("customerLastName",customerLastName);
+                    bill.put("customerName",(customerFirstName+" "+customerLastName).trim());
+                }
+            }
             JSONArray lines=new JSONArray();List<JSONObject> products=new ArrayList<>();List<Double> quantities=new ArrayList<>();
             for(CartLine line:cart.values()){
                 JSONObject item=new JSONObject();item.put("productRecordId",line.product.optString("recordId"));item.put("name",repo.name(line.product));
@@ -180,7 +190,12 @@ public class SellScreen extends Activity {
             receipt.put("subtotal",sub);receipt.put("serviceFee",fee);receipt.put("total",total);receipt.put("printStatus","pending");receipt.put("items",lines);
             receipt.put("cashReceived",type.equals("cash")?received:0);receipt.put("change",type.equals("cash")?received-total:0);
             receipt.put("paymentStatus",type.equals("cash")?"จ่ายแล้ว":"ค้างชำระ");
-            if(customer!=null)receipt.put("customerName",bill.optString("customerName"));
+            if(customer!=null){
+                receipt.put("customerRecordId",bill.optString("customerRecordId"));
+                receipt.put("customerFirstName",bill.optString("customerFirstName"));
+                receipt.put("customerLastName",bill.optString("customerLastName"));
+                receipt.put("customerName",bill.optString("customerName"));
+            }
             if(repo.confirmSale(billId,bill,products,quantities,receipt)){
                 cart.clear();currentBillId=billId;
                 LinearLayout root=POSUi.page(this,"บันทึกการขายแล้ว");
