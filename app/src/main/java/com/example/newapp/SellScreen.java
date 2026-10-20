@@ -111,9 +111,10 @@ public class SellScreen extends Activity {
                     +" × "+money(repo.price(line.product))+" = "+money(lineTotal)+" บาท",16));
         }
         root.addView(POSUi.text(this,"ยอดรวม: "+money(subtotal)+" บาท",22));
+        final double totalSubtotal = subtotal;
         POSUi.button(this,root,"สแกนสินค้าเพิ่ม",this::showScanner);
-        POSUi.button(this,root,"ขายเงินสด",()->showCash(subtotal));
-        POSUi.button(this,root,"ขายเชื่อ",()->showCredit(subtotal));
+        POSUi.button(this,root,"ขายเงินสด",()->showCash(totalSubtotal));
+        POSUi.button(this,root,"ขายเชื่อ",()->showCredit(totalSubtotal));
         POSUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",()->startActivity(new Intent(this,CreditAccountScreen.class)));
         POSUi.button(this,root,"ใบเสร็จ / พิมพ์ซ้ำ",()->startActivity(new Intent(this,ReceiptReprintScreen.class)));
         POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
