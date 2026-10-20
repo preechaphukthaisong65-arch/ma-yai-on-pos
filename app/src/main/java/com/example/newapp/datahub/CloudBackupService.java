@@ -116,9 +116,23 @@ public class CloudBackupService {
                         ? existing.getLong("revision") == null
                             ? 0L : existing.getLong("revision")
                         : 0L;
-                if (cloudRevision < incomingRevision) {
-                    transaction.set(document, cloudRecord, SetOptions.merge());
+                if (cloudRevision > incomingRevision) {
+                    throw new IllegalStateException("Cloud record has a newer revision; refusing to mark stale data as synced");
                 }
+                if (cloudRevision == incomingRevision) {
+                    Long cloudUpdatedAt = existing.exists() ? existing.getLong("updatedAt") : null;
+                    long incomingUpdatedAt = record.optLong("updatedAt", 0L);
+                    Object cloudPayload = existing.get("payload");
+                    Object incomingPayload = cloudRecord.get("payload");
+                    if (cloudUpdatedAt == null || cloudUpdatedAt.longValue() != incomingUpdatedAt
+                            || !record.optString("dataType", "").equals(existing.getString("dataType"))
+                            || !(cloudPayload instanceof Map)
+                            || !((Map<?, ?>) cloudPayload).equals(incomingPayload)) {
+                        throw new IllegalStateException("Conflicting content at the same cloud revision; refusing overwrite");
+                    }
+                    return null;
+                }
+                transaction.set(document, cloudRecord, SetOptions.merge());
                 return null;
             }).addOnSuccessListener(unused -> {
                 if (callback != null) {
