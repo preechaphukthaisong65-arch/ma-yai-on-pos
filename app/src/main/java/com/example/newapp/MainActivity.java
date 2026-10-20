@@ -3,6 +3,9 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -25,6 +28,9 @@ public class MainActivity extends Activity {
     private TextView managementNotice;
     private ListenerRegistration deviceSessionListener;
     private boolean sessionRedirecting;
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private boolean reconciliationRunning;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -164,6 +170,7 @@ public class MainActivity extends Activity {
         refreshManagementNotice();
         DebtReminderScheduler.scheduleNext(this);
         verifyActiveDeviceSession();
+        registerNetworkReconciliation();
     }
 
     private void verifyActiveDeviceSession() {
@@ -190,11 +197,64 @@ public class MainActivity extends Activity {
         }));
     }
 
+    private void registerNetworkReconciliation() {
+        if (networkCallback != null) return;
+        connectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) return;
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onAvailable(Network network) {
+                reconcileCloudAfterReconnect();
+            }
+        };
+        try {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback);
+        } catch (RuntimeException error) {
+            networkCallback = null;
+        }
+    }
+
+    private void reconcileCloudAfterReconnect() {
+        if (reconciliationRunning) return;
+        String storeId = StoreIdentity.get(this);
+        String ownerUid = StoreIdentity.getOwnerUid(this);
+        if (storeId.isEmpty() || ownerUid.isEmpty()
+                || com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser() == null
+                || !ownerUid.equals(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser().getUid())) {
+            return;
+        }
+        reconciliationRunning = true;
+        DataHub hub = DataHub.getInstance(getApplicationContext());
+        hub.restoreMissingRecords(storeId, (restored, skipped, failed, message) -> runOnUiThread(() -> {
+            reconciliationRunning = false;
+            int duplicateBarcodes = hub.getDuplicateBarcodeCount(storeId);
+            if (failed > 0 || duplicateBarcodes > 0) {
+                String warning = failed > 0
+                        ? "พบข้อมูลในเครื่องกับ Cloud ขัดแย้งกัน จึงหยุดซิงก์เพื่อรักษาข้อมูลเดิม"
+                        : "พบบาร์โค้ดซ้ำ " + duplicateBarcodes + " รายการ จึงหยุดซิงก์ไว้ก่อน";
+                android.widget.Toast.makeText(MainActivity.this, warning, android.widget.Toast.LENGTH_LONG).show();
+                refreshManagementNotice();
+                return;
+            }
+            hub.backupPendingRecords(storeId, (succeeded, uploadFailed, syncMessage) -> runOnUiThread(() -> {
+                if (uploadFailed > 0) {
+                    android.widget.Toast.makeText(MainActivity.this,
+                            syncMessage + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + uploadFailed + ")",
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
+                refreshManagementNotice();
+            }));
+        }));
+    }
+
     @Override
     protected void onDestroy() {
         if (deviceSessionListener != null) {
             deviceSessionListener.remove();
             deviceSessionListener = null;
+        }
+        if (connectivityManager != null && networkCallback != null) {
+            try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (RuntimeException ignored) { }
+            networkCallback = null;
         }
         super.onDestroy();
     }
