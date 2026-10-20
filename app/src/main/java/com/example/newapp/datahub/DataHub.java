@@ -75,6 +75,9 @@ public class DataHub {
         }
 
         String checkedStoreId = storeId.trim();
+        // Persist the active shop identity so WorkManager can retry pending
+        // records after process death or device restart.
+        StoreIdentity.save(appContext, checkedStoreId);
 
         JSONObject record = new JSONObject();
 
