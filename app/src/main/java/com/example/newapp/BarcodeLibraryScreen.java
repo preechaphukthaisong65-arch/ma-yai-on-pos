@@ -49,7 +49,22 @@ public class BarcodeLibraryScreen extends Activity {
     }
 
     private void loadItems() {
-        items = hub.getRecordsByType(storeId, "barcode_item");
+        // Include generated items stored as product records and legacy barcode_item records.
+        // Prefer product records when a barcode appears in both types, because sales use products.
+        java.util.LinkedHashMap<String, JSONObject> byBarcode = new java.util.LinkedHashMap<>();
+        for (JSONObject record : hub.getRecordsByType(storeId, "barcode_item")) {
+            JSONObject p = record.optJSONObject("payload");
+            if (p == null) continue;
+            String code = p.optString("barcode", "").trim();
+            if (!code.isEmpty()) byBarcode.put(code, record);
+        }
+        for (JSONObject record : hub.getRecordsByType(storeId, "product")) {
+            JSONObject p = record.optJSONObject("payload");
+            if (p == null) continue;
+            String code = p.optString("barcode", "").trim();
+            if (!code.isEmpty()) byBarcode.put(code, record);
+        }
+        items = new ArrayList<>(byBarcode.values());
         Collections.sort(items, (a,b) -> Long.compare(
                 b.optLong("updatedAt", 0L), a.optLong("updatedAt", 0L)));
         search();
