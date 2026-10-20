@@ -9,6 +9,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 
 /** Shared product, stock-ledger, customer, sale and receipt access through the existing DataHub. */
 public final class StockSalesRepository {
@@ -16,6 +18,8 @@ public final class StockSalesRepository {
     public static final String STOCK_HISTORY = "stock_history";
     private final DataHub hub;
     private final String storeId;
+    private List<JSONObject> productCache;
+    private Map<String, JSONObject> barcodeCache;
 
     public StockSalesRepository(Context context) {
         hub = DataHub.getInstance(context.getApplicationContext());
@@ -27,24 +31,32 @@ public final class StockSalesRepository {
     public boolean isReady() { return storeId != null && !storeId.trim().isEmpty(); }
     public String newId(String prefix) { return prefix + ":" + UUID.randomUUID(); }
 
-    public List<JSONObject> products() {
-        List<JSONObject> result = new ArrayList<>();
-        if (!isReady()) return result;
-        for (JSONObject record : hub.getRecordsByType(storeId, PRODUCT)) {
-            if (record.optJSONObject("payload") != null) result.add(record);
+    public synchronized List<JSONObject> products() {
+        if (!isReady()) return new ArrayList<>();
+        if (productCache == null) {
+            productCache = new ArrayList<>();
+            barcodeCache = new HashMap<>();
+            for (JSONObject record : hub.getRecordsByType(storeId, PRODUCT)) {
+                if (record.optJSONObject("payload") == null) continue;
+                productCache.add(record);
+                String code = payload(record).optString("barcode", "").trim();
+                if (!code.isEmpty() && !barcodeCache.containsKey(code)) barcodeCache.put(code, record);
+            }
+            Collections.sort(productCache, Comparator.comparing(
+                    r -> payload(r).optString("name", ""), String.CASE_INSENSITIVE_ORDER));
         }
-        Collections.sort(result, Comparator.comparing(
-                r -> payload(r).optString("name", ""), String.CASE_INSENSITIVE_ORDER));
-        return result;
+        return new ArrayList<>(productCache);
     }
 
-    public JSONObject findByBarcode(String barcode) {
+    public synchronized JSONObject findByBarcode(String barcode) {
         if (barcode == null || barcode.trim().isEmpty()) return null;
-        String wanted = barcode.trim();
-        for (JSONObject r : products()) {
-            if (wanted.equals(payload(r).optString("barcode", "").trim())) return r;
-        }
-        return null;
+        products();
+        return barcodeCache == null ? null : barcodeCache.get(barcode.trim());
+    }
+
+    private synchronized void invalidateProductCache() {
+        productCache = null;
+        barcodeCache = null;
     }
 
     public JSONObject payload(JSONObject record) {
@@ -107,7 +119,7 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>(); records.add(productRecord);
             records.add(record(newId("stock_history"), STOCK_HISTORY, h));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
-            if (saved) StockLimitNotifier.updateState(id, initialQuantity <= stockLimit, initialQuantity, stockLimit);
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(id, initialQuantity <= stockLimit, initialQuantity, stockLimit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -123,7 +135,7 @@ public final class StockSalesRepository {
             records.add(history(product, "รับสินค้า", before, after, "รับเข้า +" + quantity));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             double limit = p.optDouble("stockLimit", 0d);
-            if (saved) StockLimitNotifier.updateState(product.optString("recordId"), after <= limit, after, limit);
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(product.optString("recordId"), after <= limit, after, limit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -139,7 +151,7 @@ public final class StockSalesRepository {
             records.add(history(product, "ตรวจนับสต๊อก", before, actual, "นับจริง " + actual));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             double limit = p.optDouble("stockLimit", 0d);
-            if (saved) StockLimitNotifier.updateState(product.optString("recordId"), actual <= limit, actual, limit);
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(product.optString("recordId"), actual <= limit, actual, limit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -152,8 +164,8 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>();
             records.add(record(product.optString("recordId"), PRODUCT, p));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
-            if (saved) StockLimitNotifier.updateState(product.optString("recordId"),
-                    stock(product) <= newLimit, stock(product), newLimit);
+            if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(product.optString("recordId"),
+                    stock(product) <= newLimit, stock(product), newLimit); }
             return saved;
         } catch (Exception e) { return false; }
     }
@@ -216,6 +228,7 @@ public final class StockSalesRepository {
             }
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) {
+                invalidateProductCache();
                 for (int i = 0; i < soldProducts.size(); i++) {
                     JSONObject latest = hub.getRecord(storeId, soldProducts.get(i).optString("recordId"));
                     if (latest != null) StockLimitNotifier.updateState(latest.optString("recordId"),
