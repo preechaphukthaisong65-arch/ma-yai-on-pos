@@ -70,7 +70,9 @@ final class BarcodePrintAdapter extends PrintDocumentAdapter {
                     return;
                 }
                 if (!includes(pages, pageIndex)) continue;
-                PdfDocument.Page page = document.startPage(pageIndex + 1);
+                PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(
+                        document.getPageWidth(), document.getPageHeight(), pageIndex + 1).create();
+                PdfDocument.Page page = document.startPage(pageInfo);
                 drawPage(page.getCanvas(), pageIndex);
                 document.finishPage(page);
             }
