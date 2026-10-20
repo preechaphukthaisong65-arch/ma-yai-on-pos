@@ -77,22 +77,39 @@ public class ReportScreen extends Activity {
     }
 
     private void showResult(String title, long start, long end) {
-        double total = 0d, paid = 0d, outstanding = 0d;
+        double totalSales = 0d, cashSales = 0d, creditCollections = 0d, outstanding = 0d;
         int count = 0;
         for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
             JSONObject p = bill.optJSONObject("payload");
             if (p == null) continue;
             long created = p.optLong("createdAt", 0L);
             if (created < start || created >= end) continue;
-            double amount = p.optDouble("total", 0d);
-            total += amount; count++;
-            if ("จ่ายแล้ว".equals(p.optString("paymentStatus"))) paid += amount;
-            else if ("ค้างชำระ".equals(p.optString("paymentStatus"))) outstanding += p.optDouble("remainingBalance", amount);
+            double amount = Math.max(0d, p.optDouble("total", 0d));
+            totalSales += amount;
+            count++;
+            if ("cash".equals(p.optString("paymentType"))) {
+                cashSales += amount;
+            } else if ("credit".equals(p.optString("paymentType"))
+                    && "ค้างชำระ".equals(p.optString("paymentStatus"))) {
+                outstanding += Math.max(0d, p.optDouble("remainingBalance", amount));
+            }
         }
-        root.addView(POSUi.text(this, title + "\nจำนวนบิล: " + count
-                + "\nยอดขายรวม: " + money(total) + " บาท"
-                + "\nยอดบิลจ่ายแล้ว: " + money(paid) + " บาท"
-                + "\nยอดค้างชำระ: " + money(outstanding) + " บาท", 17));
+        // Credit collections are counted by actual payment date, not by the original sale date.
+        for (JSONObject paymentRecord : hub.getRecordsByType(storeId, "credit_payment")) {
+            JSONObject p = paymentRecord.optJSONObject("payload");
+            if (p == null) continue;
+            long paidAt = p.optLong("paidAt", 0L);
+            if (paidAt >= start && paidAt < end) {
+                creditCollections += Math.max(0d, p.optDouble("amount", 0d));
+            }
+        }
+        double collections = cashSales + creditCollections;
+        root.addView(POSUi.text(this, title + "\nจำนวนบิลขาย: " + count
+                + "\nยอดขายตามวันที่ขาย: " + money(totalSales) + " บาท"
+                + "\nรับเงินสดจากการขาย: " + money(cashSales) + " บาท"
+                + "\nรับชำระหนี้ตามวันที่รับเงินจริง: " + money(creditCollections) + " บาท"
+                + "\nรวมรับเงินในช่วงนี้: " + money(collections) + " บาท"
+                + "\nยอดหนี้คงเหลือของบิลในช่วงขายนี้: " + money(outstanding) + " บาท", 17));
     }
 
     private String money(double value) { return String.format(Locale.US, "%.2f", value); }
