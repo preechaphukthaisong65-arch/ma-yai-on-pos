@@ -20,7 +20,7 @@ public class CreditAccountRepository {
     }
 
     /**
-     * รายชื่อลูกค้าที่มีบิลค้างชำระ
+     * รายชื่อลูกค้าที่มีบิลเครดิตค้างชำระ
      * เรียงจากยอดหนี้รวมมากไปน้อย
      */
     public Cursor getCustomersWithDebt() {
@@ -43,6 +43,7 @@ public class CreditAccountRepository {
 
     /**
      * บิลเครดิตที่ยังค้างชำระของลูกค้าหนึ่งคน
+     * คงลำดับคอลัมน์เดิมไว้ และเพิ่ม due_date ต่อท้าย
      * ผู้เรียกต้องปิด Cursor หลังใช้งาน
      */
     public Cursor getUnpaidBills(long customerId) {
@@ -57,7 +58,8 @@ public class CreditAccountRepository {
                         "subtotal",
                         "service_fee",
                         "total",
-                        "status"
+                        "status",
+                        "due_date"
                 },
                 "customer_id = ? " +
                 "AND payment_type = 'CREDIT' " +
@@ -65,20 +67,17 @@ public class CreditAccountRepository {
                 new String[]{String.valueOf(customerId)},
                 null,
                 null,
-                "created_at ASC"
+                "created_at ASC, id ASC"
         );
     }
 
     /**
      * รับชำระบิลเครดิตเต็มจำนวน
      *
-     * ใช้ชื่อคอลัมน์ตาม LocalDatabase.java:
-     * credit_payments.payment_number
-     * credit_payments.paid_at
-     * sales.change_due
-     *
      * บันทึกประวัติรับชำระและเปลี่ยนสถานะบิล
      * ภายใน Transaction เดียวกัน
+     *
+     * การขายและสต๊อกยังคงแยกจากกัน
      */
     public PaymentResult payFullBill(
             long saleId,
@@ -174,7 +173,6 @@ public class CreditAccountRepository {
                             change
                     );
 
-            // บันทึกประวัติรับชำระตาม Schema จริง
             ContentValues payment = new ContentValues();
             payment.put("payment_number", receiptNumber);
             payment.put("sale_id", saleId);
@@ -191,7 +189,6 @@ public class CreditAccountRepository {
                     payment
             );
 
-            // เปลี่ยนสถานะเฉพาะบิลที่ยังค้างชำระ
             ContentValues update = new ContentValues();
             update.put("status", "PAID");
             update.put("cash_received", cashReceived);
@@ -238,10 +235,6 @@ public class CreditAccountRepository {
         }
     }
 
-    /**
-     * ผลการรับชำระ
-     * คงชื่อและรูปแบบผลลัพธ์เดิมไว้
-     */
     public static class PaymentResult {
         public final boolean success;
         public final String message;
