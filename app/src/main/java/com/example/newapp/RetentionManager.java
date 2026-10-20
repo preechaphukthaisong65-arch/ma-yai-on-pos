@@ -70,6 +70,9 @@ public final class RetentionManager {
         if (!ensureSaleHistory(hub, storeId)) return false;
 
         List<DeleteCandidate> candidates = new ArrayList<>();
+        // Keep this ordering: delete eligible paid bills before their snapshots in
+        // sale_history. Sequential execution below prevents deleting a snapshot
+        // before the bill's final eligibility check completes.
         for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
             JSONObject p = bill.optJSONObject("payload");
             if (p == null || !"จ่ายแล้ว".equals(p.optString("paymentStatus"))
@@ -78,11 +81,9 @@ public final class RetentionManager {
             if (paidAt <= 0L && "cash".equals(p.optString("paymentType"))) {
                 paidAt = p.optLong("createdAt", 0L);
             }
-            if (paidAt > 0L && paidAt <= billCutoff) {
-                String recordId = bill.optString("recordId", "").trim();
-                if (!recordId.isEmpty()) {
-                    candidates.add(new DeleteCandidate(recordId, "sale_bill", billCutoff));
-                }
+            String recordId = bill.optString("recordId", "").trim();
+            if (paidAt > 0L && paidAt <= billCutoff && !recordId.isEmpty()) {
+                candidates.add(new DeleteCandidate(recordId, "sale_bill", billCutoff));
             }
         }
 
@@ -109,28 +110,45 @@ public final class RetentionManager {
 
         if (candidates.isEmpty()) return true;
 
-        CountDownLatch latch = new CountDownLatch(candidates.size());
+        CountDownLatch finished = new CountDownLatch(1);
         AtomicBoolean allSucceeded = new AtomicBoolean(true);
-        for (DeleteCandidate candidate : candidates) {
-            try {
-                hub.deleteExpiredRecord(storeId, candidate.recordId, candidate.dataType, candidate.cutoff,
-                        (deleted, message) -> {
-                            if (!deleted) allSucceeded.set(false);
-                            latch.countDown();
-                        });
-            } catch (RuntimeException error) {
-                allSucceeded.set(false);
-                latch.countDown();
-            }
-        }
-
+        deleteSequentially(hub, storeId, candidates, 0, allSucceeded, finished);
         try {
-            boolean allCallbacksCompleted = latch.await(
-                    DELETE_CALLBACK_TIMEOUT_MINUTES, TimeUnit.MINUTES);
-            return allCallbacksCompleted && allSucceeded.get();
+            return finished.await(DELETE_CALLBACK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+                    && allSucceeded.get();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return false;
+        }
+    }
+
+    /**
+     * Delete sequentially rather than launching all Cloud deletions at once.
+     * This ensures sale_bill deletion is checked and completed before its
+     * potentially-expiring sale_history snapshot can be deleted.
+     */
+    private void deleteSequentially(DataHub hub, String storeId, List<DeleteCandidate> candidates,
+            int index, AtomicBoolean allSucceeded, CountDownLatch finished) {
+        if (index >= candidates.size()) {
+            finished.countDown();
+            return;
+        }
+        DeleteCandidate candidate = candidates.get(index);
+        try {
+            hub.deleteExpiredRecord(storeId, candidate.recordId, candidate.dataType, candidate.cutoff,
+                    (deleted, message) -> {
+                        if (!deleted) {
+                            allSucceeded.set(false);
+                            // Stop on the first failure so related history/snapshots
+                            // are not removed after a bill deletion failed.
+                            finished.countDown();
+                            return;
+                        }
+                        deleteSequentially(hub, storeId, candidates, index + 1, allSucceeded, finished);
+                    });
+        } catch (RuntimeException error) {
+            allSucceeded.set(false);
+            finished.countDown();
         }
     }
 
