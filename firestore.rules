@@ -46,6 +46,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /storeBarcodeReservations/{storeId}/barcodes/{barcode} {
+      allow read: if ownsStore(storeId);
+      allow create: if hasActiveDevice(storeId)
+        && request.resource.data.storeId == storeId
+        && request.resource.data.barcode == barcode
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId;
+      allow update, delete: if false;
+    }
+
     match /dataHubBackups/{storeId}/records/{recordId} {
       allow read: if ownsStore(storeId);
       allow create: if hasActiveDevice(storeId) && validBackupRecord(storeId, recordId);
