@@ -190,15 +190,6 @@ public class MainActivity extends Activity {
         }));
     }
 
-    @Override
-    protected void onPause() {
-        if (deviceSessionListener != null) {
-            deviceSessionListener.remove();
-            deviceSessionListener = null;
-        }
-        super.onPause();
-    }
-
     private void refreshManagementNotice() {
         if (managementNotice == null) return;
         String storeId = StoreIdentity.get(this);
