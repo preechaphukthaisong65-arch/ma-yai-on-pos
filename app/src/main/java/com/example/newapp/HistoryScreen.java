@@ -46,6 +46,15 @@ public class HistoryScreen extends Activity {
         return p == null ? 0L : p.optLong("createdAt", 0L);
     }
 
+    private long paymentDateOf(JSONObject payload) {
+        long paidAt = payload == null ? 0L : payload.optLong("paidAt", 0L);
+        if (paidAt > 0L) return paidAt;
+        // Cash sales are paid at the time of sale in the existing flow, which records createdAt.
+        if (payload != null && "cash".equals(payload.optString("paymentType")))
+            return payload.optLong("createdAt", 0L);
+        return 0L;
+    }
+
     private String dateText(long time) {
         return time <= 0 ? "ไม่ระบุวันที่" : new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(time));
     }
@@ -77,7 +86,7 @@ public class HistoryScreen extends Activity {
             String label = "จ่ายแล้ว".equals(status) ? "จ่ายแล้ว" : "ค้างชำระ".equals(status) ? "ค้างชำระ" : status;
             root.addView(POSUi.text(this, "บิล: " + bill.optString("recordId") + "\nวันที่ขาย: "
                     + dateText(p.optLong("createdAt", 0L)) + "\nวันที่ชำระ: "
-                    + dateText(p.optLong("paidAt", 0L)) + "\nสถานะ: " + label + "\nลูกค้า: "
+                    + dateText(paymentDateOf(p)) + "\nสถานะ: " + label + "\nลูกค้า: "
                     + (name.isEmpty() ? "ไม่ระบุ" : name) + "\nยอด: "
                     + money(p.optDouble("total", 0d)) + " บาท", 15));
             POSUi.button(this, root, "ดูรายละเอียดบิล", () -> showBillDetail(bill));
@@ -91,7 +100,7 @@ public class HistoryScreen extends Activity {
         root = POSUi.page(this, "รายละเอียดบิล");
         root.addView(POSUi.text(this, "เลขบิล: " + bill.optString("recordId"), 16));
         root.addView(POSUi.text(this, "วันที่ขาย: " + dateText(p.optLong("createdAt", 0L)), 15));
-        root.addView(POSUi.text(this, "วันที่ชำระ: " + dateText(p.optLong("paidAt", 0L)), 15));
+        root.addView(POSUi.text(this, "วันที่ชำระ: " + dateText(paymentDateOf(p)), 15));
         root.addView(POSUi.text(this, "สถานะ: " + p.optString("paymentStatus", "ไม่ระบุสถานะ"), 15));
         root.addView(POSUi.text(this, "ประเภท: " + p.optString("paymentType", "ไม่ระบุ"), 15));
         root.addView(POSUi.text(this, "ยอดรวม: " + money(p.optDouble("total", 0d)) + " บาท", 18));
