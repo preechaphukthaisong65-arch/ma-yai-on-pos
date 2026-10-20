@@ -1,3 +1,4 @@
+
 package com.example.newapp.datahub;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -83,7 +84,10 @@ public class CloudBackupService {
             );
             cloudRecord.put(
                     "updatedAt",
-                    record.optLong("updatedAt", System.currentTimeMillis())
+                    record.optLong(
+                            "updatedAt",
+                            System.currentTimeMillis()
+                    )
             );
             cloudRecord.put(
                     "revision",
@@ -105,14 +109,16 @@ public class CloudBackupService {
                     .addOnFailureListener(error -> {
                         failBackup(
                                 callback,
-                                "สำรองข้อมูลไม่สำเร็จ: " + safeMessage(error)
+                                "สำรองข้อมูลไม่สำเร็จ: "
+                                        + safeMessage(error)
                         );
                     });
 
         } catch (Exception error) {
             failBackup(
                     callback,
-                    "เตรียมข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)
+                    "เตรียมข้อมูลสำรองไม่สำเร็จ: "
+                            + safeMessage(error)
             );
         }
     }
@@ -124,7 +130,8 @@ public class CloudBackupService {
             String storeId,
             RecordsCallback callback
     ) {
-        String checkedStoreId = storeId == null ? "" : storeId.trim();
+        String checkedStoreId =
+                storeId == null ? "" : storeId.trim();
 
         if (checkedStoreId.isEmpty()) {
             failRecords(callback, "ไม่พบรหัสร้านค้า");
@@ -132,7 +139,10 @@ public class CloudBackupService {
         }
 
         if (auth.getCurrentUser() == null) {
-            failRecords(callback, "กรุณาเข้าสู่ระบบก่อนกู้คืนข้อมูล");
+            failRecords(
+                    callback,
+                    "กรุณาเข้าสู่ระบบก่อนกู้คืนข้อมูล"
+            );
             return;
         }
 
@@ -144,8 +154,10 @@ public class CloudBackupService {
                     List<JSONObject> records = new ArrayList<>();
 
                     try {
-                        for (DocumentSnapshot document : snapshot.getDocuments()) {
-                            Map<String, Object> data = document.getData();
+                        for (DocumentSnapshot document
+                                : snapshot.getDocuments()) {
+                            Map<String, Object> data =
+                                    document.getData();
 
                             if (data == null) {
                                 continue;
@@ -154,13 +166,23 @@ public class CloudBackupService {
                             JSONObject record = new JSONObject(data);
 
                             if (!record.has("recordId")
-                                    || record.optString("recordId", "").trim().isEmpty()) {
-                                record.put("recordId", document.getId());
+                                    || record.optString(
+                                            "recordId", ""
+                                    ).trim().isEmpty()) {
+                                record.put(
+                                        "recordId",
+                                        document.getId()
+                                );
                             }
 
                             if (!record.has("storeId")
-                                    || record.optString("storeId", "").trim().isEmpty()) {
-                                record.put("storeId", checkedStoreId);
+                                    || record.optString(
+                                            "storeId", ""
+                                    ).trim().isEmpty()) {
+                                record.put(
+                                        "storeId",
+                                        checkedStoreId
+                                );
                             }
 
                             records.add(record);
@@ -173,14 +195,16 @@ public class CloudBackupService {
                     } catch (Exception error) {
                         failRecords(
                                 callback,
-                                "อ่านข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)
+                                "อ่านข้อมูลสำรองไม่สำเร็จ: "
+                                        + safeMessage(error)
                         );
                     }
                 })
                 .addOnFailureListener(error -> {
                     failRecords(
                             callback,
-                            "ดาวน์โหลดข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)
+                            "ดาวน์โหลดข้อมูลสำรองไม่สำเร็จ: "
+                                    + safeMessage(error)
                     );
                 });
     }
@@ -247,24 +271,31 @@ public class CloudBackupService {
         return value;
     }
 
-    private void failBackup(BackupCallback callback, String message) {
+    private void failBackup(
+            BackupCallback callback,
+            String message
+    ) {
         if (callback != null) {
             callback.onFailure(message);
         }
     }
 
-    private void failRecords(RecordsCallback callback, String message) {
+    private void failRecords(
+            RecordsCallback callback,
+            String message
+    ) {
         if (callback != null) {
             callback.onFailure(message);
         }
     }
 
     private String safeMessage(Exception error) {
-        if (error == null || error.getMessage() == null
+        if (error == null
+                || error.getMessage() == null
                 || error.getMessage().trim().isEmpty()) {
             return "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
         }
 
         return error.getMessage();
     }
-    }
+}
