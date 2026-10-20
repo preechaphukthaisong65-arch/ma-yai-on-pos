@@ -139,7 +139,7 @@ public final class StockSalesRepository {
         if (!isReady() || product == null || newLimit < 0) return false;
         try {
             JSONObject p = new JSONObject(payload(product).toString());
-            p.put("stockLimit", newLimit); p.put("updatedAt", System.currentTimeMillis());
+            p.put("stockLimit", newLimit); if (!p.has("stockQuantity")) p.put("stockQuantity", 0d); p.put("updatedAt", System.currentTimeMillis());
             List<JSONObject> records = new ArrayList<>();
             records.add(record(product.optString("recordId"), PRODUCT, p));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
@@ -166,7 +166,7 @@ public final class StockSalesRepository {
         List<JSONObject> out = new ArrayList<>();
         for (JSONObject p : products()) {
             JSONObject d = payload(p);
-            if (d.optDouble("stockQuantity", 0d) <= d.optDouble("stockLimit", 0d)) out.add(p);
+            if (d.has("stockQuantity") && d.has("stockLimit")\n                    && d.optDouble("stockQuantity", 0d) <= d.optDouble("stockLimit", 0d)) out.add(p);
         }
         out.sort(Comparator.comparingDouble(this::stock));
         return out;
