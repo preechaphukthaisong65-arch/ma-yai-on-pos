@@ -1,4 +1,3 @@
-
 package com.example.newapp.datahub;
 
 import android.content.Context;
@@ -51,8 +50,12 @@ public class DataHub {
     }
 
     /**
-     * Save a record locally.
-     * This method does not update stock or other business data.
+     * บันทึกข้อมูลลง LocalStore ก่อน
+     * ถ้าบันทึกสำเร็จ จะเริ่มสำรองข้อมูลขึ้น Cloud อัตโนมัติ
+     *
+     * วิธีนี้ไม่แก้ไขข้อมูลการขายหรือข้อมูลสต๊อก
+     * และไม่ถือว่าการบันทึกในเครื่องล้มเหลว
+     * เพียงเพราะการสำรอง Cloud ไม่สำเร็จ
      */
     public boolean saveRecord(
             String storeId,
@@ -69,10 +72,12 @@ public class DataHub {
             return false;
         }
 
+        String checkedStoreId = storeId.trim();
+
         JSONObject record = new JSONObject();
 
         try {
-            record.put("storeId", storeId.trim());
+            record.put("storeId", checkedStoreId);
             record.put("recordId", recordId.trim());
             record.put("dataType", dataType.trim());
             record.put("schemaVersion", Math.max(1, schemaVersion));
@@ -83,7 +88,13 @@ public class DataHub {
 
             boolean saved = localStore.saveRecord(record);
 
-            refreshStatus(storeId.trim());
+            refreshStatus(checkedStoreId);
+
+            if (saved) {
+                // เริ่มสำรองรายการที่รออยู่ในร้านนี้โดยอัตโนมัติ
+                // ความล้มเหลวของ Cloud จะไม่ลบข้อมูลที่บันทึกในเครื่อง
+                backupPendingRecords(checkedStoreId, null);
+            }
 
             return saved;
 
@@ -97,7 +108,7 @@ public class DataHub {
     }
 
     /**
-     * Read a local record.
+     * อ่านข้อมูลจาก LocalStore
      */
     public JSONObject getRecord(String storeId, String recordId) {
         if (storeId == null || recordId == null) {
@@ -115,14 +126,14 @@ public class DataHub {
     }
 
     /**
-     * Return the number of local records that are not synced.
+     * จำนวนรายการในเครื่องที่ยังไม่ได้สำรองสำเร็จ
      */
     public int getPendingBackupCount() {
         return localStore.getPendingCount();
     }
 
     /**
-     * Upload pending or failed records for the selected store.
+     * สำรองรายการ pending หรือ failed ของร้านที่ระบุ
      */
     public void backupPendingRecords(
             String storeId,
@@ -133,7 +144,10 @@ public class DataHub {
 
         if (checkedStoreId.isEmpty()) {
             completeOperation(
-                    callback, 0, 0, "ไม่พบรหัสร้านค้า"
+                    callback,
+                    0,
+                    0,
+                    "ไม่พบรหัสร้านค้า"
             );
             return;
         }
@@ -157,6 +171,7 @@ public class DataHub {
 
         if (records == null || records.isEmpty()) {
             refreshStatus(checkedStoreId);
+
             completeOperation(
                     callback,
                     0,
@@ -203,7 +218,9 @@ public class DataHub {
         JSONObject record = records.get(index);
 
         if (record == null
-                || !storeId.equals(record.optString("storeId", ""))) {
+                || !storeId.equals(
+                        record.optString("storeId", "")
+                )) {
             processBackupRecords(
                     storeId,
                     records,
@@ -253,6 +270,7 @@ public class DataHub {
 
                     @Override
                     public void onFailure(String message) {
+                        // เก็บรายการที่สำรองไม่สำเร็จไว้ให้ลองใหม่ภายหลัง
                         localStore.markSyncStatus(
                                 storeId,
                                 recordId,
@@ -273,8 +291,8 @@ public class DataHub {
     }
 
     /**
-     * Restore only records that do not already exist locally.
-     * Existing local records are never overwritten.
+     * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
+     * ไม่เขียนทับข้อมูลเดิมที่มีอยู่ในเครื่อง
      */
     public void restoreMissingRecords(
             String storeId,
@@ -320,7 +338,9 @@ public class DataHub {
                         for (JSONObject record : records) {
                             if (record == null
                                     || !checkedStoreId.equals(
-                                            record.optString("storeId", "")
+                                            record.optString(
+                                                    "storeId", ""
+                                            )
                                     )) {
                                 failed++;
                                 continue;
@@ -417,7 +437,11 @@ public class DataHub {
             String message
     ) {
         if (callback != null) {
-            callback.onComplete(succeeded, failed, message);
+            callback.onComplete(
+                    succeeded,
+                    failed,
+                    message
+            );
         }
     }
 
@@ -441,4 +465,4 @@ public class DataHub {
     public DataHubStatus getStatus() {
         return dataHubStatus;
     }
-}
+                            }
