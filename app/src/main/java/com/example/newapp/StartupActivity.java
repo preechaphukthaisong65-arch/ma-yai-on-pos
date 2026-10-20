@@ -28,7 +28,9 @@ public final class StartupActivity extends Activity {
         super.onCreate(savedInstanceState);
         showSetup();
         String savedStoreId = StoreIdentity.get(this);
-        if (!savedStoreId.isEmpty()) {
+        if (!savedStoreId.isEmpty() && StoreIdentity.isInitialRestoreComplete(this)) {
+            openMain();
+        } else if (!savedStoreId.isEmpty()) {
             storeCode.setText(savedStoreId);
             beginRestore(savedStoreId);
         }
@@ -64,7 +66,7 @@ public final class StartupActivity extends Activity {
         root.addView(storeCode, inputParams);
 
         status = new TextView(this);
-        status.setText("ข้อมูลในเครื่องจะไม่ถูกเขียนทับระหว่างกู้คืน");
+        status.setText("การกู้คืนจะไม่เขียนทับรายการที่มีอยู่ในเครื่อง");
         status.setTextSize(14);
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
         statusParams.topMargin = pad / 2;
@@ -118,6 +120,7 @@ public final class StartupActivity extends Activity {
                         return;
                     }
                     StoreIdentity.save(this, storeId);
+                    StoreIdentity.markInitialRestoreComplete(this);
                     status.setText("ตรวจสอบข้อมูลสำรองแล้ว: กู้คืน " + restored
                             + " รายการ, ข้ามรายการเดิม " + skipped + " รายการ");
                     openMain();
