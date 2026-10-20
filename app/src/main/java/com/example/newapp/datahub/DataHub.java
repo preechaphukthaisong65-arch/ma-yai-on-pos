@@ -569,7 +569,7 @@ public class DataHub {
 
                         // Audit business-level barcode collisions after restore. A different
                         // record ID can still represent the same barcode; never auto-delete it.
-                        int duplicateBarcodes = countDuplicateBarcodes(checkedStoreId);
+                        int duplicateBarcodes = getDuplicateBarcodeCount(checkedStoreId);
                         refreshStatus(checkedStoreId);
 
                         String message;
@@ -657,7 +657,7 @@ public class DataHub {
      * product and barcode_item records. This is an audit only: no record is
      * deleted or modified. Call after cloud restore/reconnect.
      */
-    private int countDuplicateBarcodes(String storeId) {
+    public int getDuplicateBarcodeCount(String storeId) {
         java.util.Map<String, String> firstRecordByBarcode = new java.util.HashMap<>();
         int duplicates = 0;
         String[] types = new String[]{"product", "barcode_item"};
