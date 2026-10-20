@@ -192,6 +192,14 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>();
             records.add(record(billId, "sale_bill", billPayload));
             records.add(record("receipt:" + billId, "receipt", receiptPayload));
+            JSONObject saleAudit = new JSONObject();
+            saleAudit.put("billId", billId); saleAudit.put("eventType", "sale_confirmed");
+            saleAudit.put("paymentType", billPayload.optString("paymentType"));
+            saleAudit.put("paymentStatus", billPayload.optString("paymentStatus"));
+            saleAudit.put("total", billPayload.optDouble("total", 0d));
+            saleAudit.put("createdAt", System.currentTimeMillis());
+            saleAudit.put("customerRecordId", billPayload.optString("customerRecordId", ""));
+            records.add(record(newId("sale_history"), "sale_history", saleAudit));
             for (int i = 0; i < soldProducts.size(); i++) {
                 JSONObject product = soldProducts.get(i);
                 double qty = quantities.get(i);
@@ -241,6 +249,7 @@ public final class StockSalesRepository {
             for (JSONObject current : refreshed) {
                 JSONObject p = new JSONObject(current.optJSONObject("payload").toString());
                 p.put("paymentStatus", "จ่ายแล้ว");
+                p.put("remainingBalance", 0d);
                 p.put("paidAt", now);
                 p.put("lastPaymentId", paymentId);
                 records.add(record(current.optString("recordId"), "sale_bill", p));
