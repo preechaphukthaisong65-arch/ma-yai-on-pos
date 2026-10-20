@@ -180,6 +180,25 @@ public class MainActivity extends Activity {
             if (summary.length() > 0) summary.append(" | ");
             summary.append(debtWarning);
         }
+        DataHub dataHub = DataHub.getInstance(getApplicationContext());
+        int pendingBackups = dataHub.getPendingBackupCount(storeId);
+        if (pendingBackups > 0) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append("สำรองข้อมูลค้าง ").append(pendingBackups).append(" รายการ — แตะข้อความนี้เพื่อลองซิงก์อีกครั้ง");
+            managementNotice.setTextColor(Color.rgb(170, 80, 0));
+            managementNotice.setOnClickListener(v -> {
+                managementNotice.setText("กำลังซิงก์ข้อมูลที่ค้าง...");
+                dataHub.backupPendingRecords(storeId, (succeeded, failed, message) -> runOnUiThread(() -> {
+                    android.widget.Toast.makeText(MainActivity.this,
+                            message + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + failed + ")",
+                            android.widget.Toast.LENGTH_LONG).show();
+                    refreshManagementNotice();
+                }));
+            });
+        } else {
+            managementNotice.setTextColor(Color.rgb(45, 90, 55));
+            managementNotice.setOnClickListener(null);
+        }
         List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
                 .getRecordsByType(storeId, "app_notification");
         if (!notices.isEmpty()) {
