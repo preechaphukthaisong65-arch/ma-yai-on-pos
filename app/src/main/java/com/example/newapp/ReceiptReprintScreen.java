@@ -55,6 +55,8 @@ public class ReceiptReprintScreen extends Activity {
         JSONArray billIds=p.optJSONArray("billIds");
         if(billIds!=null){s.append("<p>ชำระบิลเดิม:</p>");for(int i=0;i<billIds.length();i++)s.append("<p>").append(escape(billIds.optString(i,""))).append("</p>");}
         s.append("<hr><h3>รวม ").append(String.format(Locale.US,"%.2f",p.optDouble("total",0))).append(" บาท</h3>");
+        if(p.optDouble("cashReceived",0)>0)s.append("<p>รับเงิน: ").append(String.format(Locale.US,"%.2f",p.optDouble("cashReceived",0))).append(" บาท</p>");
+        if(p.optDouble("cashReceived",0)>0)s.append("<p>เงินทอน: ").append(String.format(Locale.US,"%.2f",p.optDouble("change",0))).append(" บาท</p>");
         s.append("<p>").append(escape(p.optString("paymentStatus",""))).append("</p></body></html>");return s.toString();
     }
     private String escape(String s){return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;");}
