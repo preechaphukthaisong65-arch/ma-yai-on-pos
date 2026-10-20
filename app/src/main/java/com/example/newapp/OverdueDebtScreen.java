@@ -1,4 +1,3 @@
-
 package com.example.newapp;
 
 import android.Manifest;
@@ -37,7 +36,6 @@ public class OverdueDebtScreen extends Activity {
         database = LocalDatabase.getInstance(this);
 
         buildScreen();
-
         requestNotificationPermissionIfNeeded();
         loadBills();
     }
@@ -162,7 +160,6 @@ public class OverdueDebtScreen extends Activity {
         );
 
         if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
-            // ตรวจรายการใหม่หลังผู้ใช้ตอบเรื่องสิทธิ์แล้ว
             loadBills();
         }
     }
@@ -187,11 +184,6 @@ public class OverdueDebtScreen extends Activity {
                         + " บาท"
         );
 
-        /*
-         * บันทึกเหตุการณ์และแสดงการแจ้งเตือนเมื่อมีบิลค้างเกินเดือน
-         * และได้รับสิทธิ์แสดง Notification แล้วเท่านั้น
-         * ใช้รหัสเดิมเพื่อไม่สร้างการแจ้งเตือนหลายรายการซ้อนกัน
-         */
         if (count > 0 && hasNotificationPermission()) {
             boolean recorded =
                     repository.recordOverdueAlertIfNeeded();
