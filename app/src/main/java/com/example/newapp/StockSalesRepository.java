@@ -82,6 +82,13 @@ public final class StockSalesRepository {
         return r;
     }
 
+    private JSONObject recordExpected(String id, String type, JSONObject payload,
+            long expectedRevision) throws Exception {
+        JSONObject r = record(id, type, payload);
+        r.put("expectedRevision", Math.max(0L, expectedRevision));
+        return r;
+    }
+
     private JSONObject history(JSONObject product, String type, double before, double after, String note) throws Exception {
         JSONObject p = payload(product);
         JSONObject h = new JSONObject();
@@ -131,7 +138,8 @@ public final class StockSalesRepository {
             double before = p.optDouble("stockQuantity", 0d), after = before + quantity;
             p.put("stockQuantity", after); p.put("updatedAt", System.currentTimeMillis());
             List<JSONObject> records = new ArrayList<>();
-            records.add(record(product.optString("recordId"), PRODUCT, p));
+            records.add(recordExpected(product.optString("recordId"), PRODUCT, p,
+                    product.optLong("revision", 0L)));
             records.add(history(product, "รับสินค้า", before, after, "รับเข้า +" + quantity));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             double limit = p.optDouble("stockLimit", 0d);
@@ -147,7 +155,8 @@ public final class StockSalesRepository {
             double before = p.optDouble("stockQuantity", 0d);
             p.put("stockQuantity", actual); p.put("updatedAt", System.currentTimeMillis());
             List<JSONObject> records = new ArrayList<>();
-            records.add(record(product.optString("recordId"), PRODUCT, p));
+            records.add(recordExpected(product.optString("recordId"), PRODUCT, p,
+                    product.optLong("revision", 0L)));
             records.add(history(product, "ตรวจนับสต๊อก", before, actual, "นับจริง " + actual));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             double limit = p.optDouble("stockLimit", 0d);
@@ -162,7 +171,8 @@ public final class StockSalesRepository {
             JSONObject p = new JSONObject(payload(product).toString());
             p.put("stockLimit", newLimit); if (!p.has("stockQuantity")) p.put("stockQuantity", 0d); p.put("updatedAt", System.currentTimeMillis());
             List<JSONObject> records = new ArrayList<>();
-            records.add(record(product.optString("recordId"), PRODUCT, p));
+            records.add(recordExpected(product.optString("recordId"), PRODUCT, p,
+                    product.optLong("revision", 0L)));
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, product.optString("recordId"),
                     stock(product) <= newLimit, stock(product), newLimit); }
@@ -207,6 +217,7 @@ public final class StockSalesRepository {
             List<JSONObject> updatedPayloads = new ArrayList<>();
             List<Double> beforeQuantities = new ArrayList<>();
             List<Double> afterQuantities = new ArrayList<>();
+            java.util.Set<String> seenProductIds = new java.util.HashSet<>();
             for (int i = 0; i < soldProducts.size(); i++) {
                 JSONObject product = soldProducts.get(i);
                 Double quantityValue = quantities.get(i);
@@ -214,7 +225,7 @@ public final class StockSalesRepository {
                 double qty = quantityValue;
                 if (!Double.isFinite(qty) || qty <= 0d) return false;
                 String productId = product.optString("recordId", "");
-                if (productId.trim().isEmpty()) return false;
+                if (productId.trim().isEmpty() || !seenProductIds.add(productId)) return false;
                 JSONObject current = hub.getRecord(storeId, productId);
                 if (current == null || !PRODUCT.equals(current.optString("dataType"))) return false;
                 JSONObject p = new JSONObject(payload(current).toString());
@@ -246,7 +257,8 @@ public final class StockSalesRepository {
             records.add(record(newId("sale_history"), "sale_history", saleAudit));
             for (int i = 0; i < currentProducts.size(); i++) {
                 JSONObject current = currentProducts.get(i);
-                records.add(record(current.optString("recordId"), PRODUCT, updatedPayloads.get(i)));
+                records.add(recordExpected(current.optString("recordId"), PRODUCT,
+                        updatedPayloads.get(i), current.optLong("revision", 0L)));
                 records.add(history(current, "ขายสินค้า", beforeQuantities.get(i),
                         afterQuantities.get(i), "ใบขาย " + billId));
             }
@@ -321,7 +333,8 @@ public final class StockSalesRepository {
                 } else {
                     p.remove("paidAt");
                 }
-                records.add(record(current.optString("recordId"), "sale_bill", p));
+                records.add(recordExpected(current.optString("recordId"), "sale_bill", p,
+                        current.optLong("revision", 0L)));
                 String billId = current.optString("recordId");
                 ids.put(billId);
                 JSONObject allocation = new JSONObject();
