@@ -401,8 +401,17 @@ public class DataHub {
 
         final long uploadedRevision = record.optLong("revision", 1L);
 
+        JSONObject uploadRecord;
+        try {
+            uploadRecord = new JSONObject(record.toString());
+            uploadRecord.put("deviceId", StoreIdentity.getOrCreateDeviceId(appContext));
+        } catch (Exception error) {
+            processBackupRecords(storeId, records, index + 1, succeeded, failed + 1, callback);
+            return;
+        }
+
         cloudBackupService.upload(
-                record,
+                uploadRecord,
                 new CloudBackupService.BackupCallback() {
                     @Override
                     public void onSuccess() {
