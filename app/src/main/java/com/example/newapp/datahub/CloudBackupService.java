@@ -193,6 +193,7 @@ public class CloudBackupService {
         }
 
         firestore.runTransaction(transaction -> {
+            try {
             DocumentSnapshot session = transaction.get(sessionRef);
             if (!session.exists() || !user.getUid().equals(session.getString("ownerUid"))
                     || !deviceId.equals(session.getString("activeDeviceId"))) {
@@ -340,6 +341,9 @@ public class CloudBackupService {
                         .collection(COLLECTION_RECORDS).document(ids[i]), artifactMaps.get(i));
             }
             return committed;
+            } catch (Exception error) {
+                throw new IllegalStateException("เตรียมธุรกรรมรับชำระไม่สำเร็จ", error);
+            }
         }).addOnSuccessListener(committed -> callback.onSuccess(committed))
           .addOnFailureListener(error -> callback.onFailure("รับชำระไม่สำเร็จ: " + safeMessage(error)));
     }
