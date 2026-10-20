@@ -147,6 +147,7 @@ public class MainActivity extends Activity {
         setContentView(scroll);
 
         refreshManagementNotice();
+        DebtReminderScheduler.scheduleNext(this);
         setupSystemBars();
     }
 
@@ -155,6 +156,7 @@ public class MainActivity extends Activity {
         super.onResume();
         setupSystemBars();
         refreshManagementNotice();
+        DebtReminderScheduler.scheduleNext(this);
     }
 
     private void refreshManagementNotice() {
@@ -168,25 +170,51 @@ public class MainActivity extends Activity {
         if (!StockLimitNotifier.isReconciled(this, storeId)) {
             StockLimitNotifier.reconcileIfNeeded(this, storeId, stockRepository.products());
         }
+        StringBuilder summary = new StringBuilder();
         if (StockLimitNotifier.hasAnyLowStock(this, storeId)) {
-            managementNotice.setText("มีสินค้า ต่ำกว่า ลิมิตสต๊อก");
-            managementNotice.setVisibility(View.VISIBLE);
-            return;
+            summary.append("มีสินค้า ต่ำกว่า ลิมิตสต๊อก");
+        }
+        String debtWarning = overdueDebtSummary(storeId);
+        if (!debtWarning.isEmpty()) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append(debtWarning);
         }
         List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
                 .getRecordsByType(storeId, "app_notification");
-        if (notices.isEmpty()) {
+        if (!notices.isEmpty()) {
+            JSONObject payload = notices.get(0).optJSONObject("payload");
+            String message = payload == null ? "" : payload.optString("message", "");
+            if (!message.trim().isEmpty()) {
+                if (summary.length() > 0) summary.append(" | ");
+                summary.append("แจ้งเตือน: ").append(message);
+            }
+        }
+        if (summary.length() == 0) {
             managementNotice.setVisibility(View.GONE);
             return;
         }
-        JSONObject payload = notices.get(0).optJSONObject("payload");
-        String message = payload == null ? "" : payload.optString("message", "");
-        if (message.trim().isEmpty()) {
-            managementNotice.setVisibility(View.GONE);
-            return;
-        }
-        managementNotice.setText("แจ้งเตือน: " + message);
+        managementNotice.setText(summary.toString());
         managementNotice.setVisibility(View.VISIBLE);
+    }
+
+    private String overdueDebtSummary(String storeId) {
+        long cutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L;
+        StringBuilder text = new StringBuilder();
+        for (JSONObject bill : DataHub.getInstance(getApplicationContext()).getRecordsByType(storeId, "sale_bill")) {
+            JSONObject p = bill.optJSONObject("payload");
+            if (p == null || !"credit".equals(p.optString("paymentType"))
+                    || !"ค้างชำระ".equals(p.optString("paymentStatus"))) continue;
+            long createdAt = p.optLong("createdAt", 0L);
+            if (createdAt <= 0L || createdAt > cutoff) continue;
+            if (text.length() > 0) text.append(", ");
+            text.append(p.optString("customerName", "ไม่ระบุชื่อลูกค้า"))
+                    .append(" ").append(String.format(java.util.Locale.US, "%.2f",
+                            Math.max(0d, p.optDouble("remainingBalance", p.optDouble("total", 0d)))))
+                    .append(" บาท");
+            if (text.length() > 180) { text.append("…"); break; }
+        }
+        return text.length() == 0 ? "" : "หนี้เกิน 30 วัน: " + text;
+
     }
 
     private LinearLayout makeRow() {
@@ -262,6 +290,15 @@ public class MainActivity extends Activity {
         } else if ("คลังสินค้า".equals(label)) {
             tile.setOnClickListener(v ->
                     startActivity(new Intent(MainActivity.this, StockScreen.class)));
+        } else if ("สร้างบาร์โค้ด".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, BarcodeScreen.class)));
+        } else if ("ประวัติการขาย".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, HistoryScreen.class)));
+        } else if ("รายงานยอดขาย".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, ReportScreen.class)));
         }
     }
 
