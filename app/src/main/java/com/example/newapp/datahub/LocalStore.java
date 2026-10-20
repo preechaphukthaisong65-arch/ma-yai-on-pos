@@ -95,9 +95,9 @@ public final class LocalStore extends SQLiteOpenHelper {
                 )
         );
 
-        int revision = Math.max(
-                1,
-                record.optInt("revision", 1)
+        long revision = Math.max(
+                1L,
+                record.optLong("revision", 1L)
         );
 
         JSONObject payload = record.getJSONObject("payload");
@@ -144,7 +144,7 @@ public final class LocalStore extends SQLiteOpenHelper {
         JSONObject payloadObject = new JSONObject(payload);
         SQLiteDatabase db = getWritableDatabase();
         long now = System.currentTimeMillis();
-        int revision = 1;
+        long revision = 1L;
 
         Cursor cursor = db.query(
                 TABLE_RECORDS,
@@ -159,7 +159,7 @@ public final class LocalStore extends SQLiteOpenHelper {
 
         try {
             if (cursor.moveToFirst()) {
-                revision = cursor.getInt(0) + 1;
+                revision = cursor.getLong(0) + 1L;
             }
         } finally {
             cursor.close();
@@ -390,7 +390,7 @@ public final class LocalStore extends SQLiteOpenHelper {
                         System.currentTimeMillis()
                 )
         );
-        values.put(COL_REVISION, record.getInt("revision"));
+        values.put(COL_REVISION, Math.max(1L, record.optLong("revision", 1L)));
         values.put(
                 COL_PAYLOAD,
                 record.getJSONObject("payload").toString()
@@ -429,7 +429,7 @@ public final class LocalStore extends SQLiteOpenHelper {
                 cursor.getLong(
                         cursor.getColumnIndexOrThrow(COL_UPDATED_AT)
                 ),
-                cursor.getInt(
+                cursor.getLong(
                         cursor.getColumnIndexOrThrow(COL_REVISION)
                 ),
                 new JSONObject(
@@ -449,7 +449,7 @@ public final class LocalStore extends SQLiteOpenHelper {
             String dataType,
             int schemaVersion,
             long updatedAt,
-            int revision,
+            long revision,
             JSONObject payload,
             String syncStatus
     ) throws JSONException {
