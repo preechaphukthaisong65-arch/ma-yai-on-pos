@@ -10,6 +10,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/owner-email-auth
       - feature/manage-store-price
       - feature/warehouse-sales
       - feature/complete-missing-menus
