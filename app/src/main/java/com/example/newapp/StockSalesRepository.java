@@ -106,7 +106,9 @@ public final class StockSalesRepository {
             h.put("changedAt", System.currentTimeMillis()); h.put("note", "สร้างสินค้าใหม่");
             List<JSONObject> records = new ArrayList<>(); records.add(productRecord);
             records.add(record(newId("stock_history"), STOCK_HISTORY, h));
-            return hub.saveRecordsAtomically(storeId, records);
+            boolean saved = hub.saveRecordsAtomically(storeId, records);
+            if (saved) StockLimitNotifier.updateState(id, initialQuantity <= stockLimit, initialQuantity, stockLimit);
+            return saved;
         } catch (Exception e) { return false; }
     }
 
@@ -119,7 +121,10 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>();
             records.add(record(product.optString("recordId"), PRODUCT, p));
             records.add(history(product, "รับสินค้า", before, after, "รับเข้า +" + quantity));
-            return hub.saveRecordsAtomically(storeId, records);
+            boolean saved = hub.saveRecordsAtomically(storeId, records);
+            double limit = p.optDouble("stockLimit", 0d);
+            if (saved) StockLimitNotifier.updateState(product.optString("recordId"), after <= limit, after, limit);
+            return saved;
         } catch (Exception e) { return false; }
     }
 
@@ -132,7 +137,10 @@ public final class StockSalesRepository {
             List<JSONObject> records = new ArrayList<>();
             records.add(record(product.optString("recordId"), PRODUCT, p));
             records.add(history(product, "ตรวจนับสต๊อก", before, actual, "นับจริง " + actual));
-            return hub.saveRecordsAtomically(storeId, records);
+            boolean saved = hub.saveRecordsAtomically(storeId, records);
+            double limit = p.optDouble("stockLimit", 0d);
+            if (saved) StockLimitNotifier.updateState(product.optString("recordId"), actual <= limit, actual, limit);
+            return saved;
         } catch (Exception e) { return false; }
     }
 
