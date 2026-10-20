@@ -164,6 +164,11 @@ public class MainActivity extends Activity {
             managementNotice.setVisibility(View.GONE);
             return;
         }
+        if (!new StockSalesRepository(this).lowStockProducts().isEmpty()) {
+            managementNotice.setText("มีสินค้า ต่ำกว่า ลิมิตสต๊อก");
+            managementNotice.setVisibility(View.VISIBLE);
+            return;
+        }
         List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
                 .getRecordsByType(storeId, "app_notification");
         if (notices.isEmpty()) {
