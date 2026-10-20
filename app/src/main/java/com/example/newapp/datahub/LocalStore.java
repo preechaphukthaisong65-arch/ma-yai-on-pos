@@ -334,6 +334,33 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
+     * Mark an upload result only if the local record has not changed
+     * since the upload started. Prevents an older callback from marking
+     * a newer revision as synced.
+     */
+    public synchronized boolean markSyncStatusIfRevision(
+            String storeId,
+            String recordId,
+            long revision,
+            String status
+    ) {
+        if (isBlank(storeId) || isBlank(recordId)) return false;
+        if (!DataHub.SYNC_PENDING.equals(status)
+                && !DataHub.SYNC_SYNCED.equals(status)
+                && !DataHub.SYNC_FAILED.equals(status)) return false;
+
+        ContentValues values = new ContentValues();
+        values.put(COL_SYNC_STATUS, status);
+        return getWritableDatabase().update(
+                TABLE_RECORDS,
+                values,
+                COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ? AND "
+                        + COL_REVISION + " = ?",
+                new String[]{storeId, recordId, Long.toString(revision)}
+        ) == 1;
+    }
+
+    /**
      * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
      * ไม่เขียนทับรายการที่มีอยู่แล้ว
      */
