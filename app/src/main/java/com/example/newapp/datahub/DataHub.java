@@ -768,6 +768,38 @@ public class DataHub {
         }
     }
 
+    public void commitCreditPayment(String storeId, List<JSONObject> selectedBills,
+            double receivedAmount, OperationCallback callback) {
+        String checkedStore = storeId == null ? "" : storeId.trim();
+        if (checkedStore.isEmpty()) {
+            completeOperation(callback, 0, 1, "ไม่พบรหัสร้านค้า");
+            return;
+        }
+        String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
+        cloudBackupService.commitCreditPayment(checkedStore, selectedBills, receivedAmount, deviceId,
+                new CloudBackupService.CreditPaymentCallback() {
+                    @Override public void onSuccess(List<JSONObject> committedRecords) {
+                        try {
+                            boolean saved = localStore.saveRecordsAtomically(checkedStore, committedRecords);
+                            if (!saved) {
+                                completeOperation(callback, 0, 1,
+                                        "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่เพื่อกู้คืนและตรวจสอบ ห้ามรับเงินซ้ำ");
+                                return;
+                            }
+                            refreshStatus(checkedStore);
+                            completeOperation(callback, committedRecords.size(), 0,
+                                    "บันทึกการชำระหนี้บนเซิร์ฟเวอร์แบบธุรกรรมเดียวแล้ว");
+                        } catch (Exception error) {
+                            completeOperation(callback, 0, 1,
+                                    "เซิร์ฟเวอร์รับชำระแล้ว แต่ซ่อมข้อมูลในเครื่องไม่สำเร็จ กรุณากู้คืนจาก Cloud และห้ามรับเงินซ้ำ");
+                        }
+                    }
+                    @Override public void onFailure(String message) {
+                        completeOperation(callback, 0, 1, message);
+                    }
+                });
+    }
+
     public void reserveBarcode(String storeId, String barcode, OperationCallback callback) {
         String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
         cloudBackupService.reserveBarcode(storeId, barcode, deviceId, new CloudBackupService.BackupCallback() {
