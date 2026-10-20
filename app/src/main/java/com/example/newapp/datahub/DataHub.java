@@ -1,3 +1,4 @@
+
 package com.example.newapp.datahub;
 
 import android.content.Context;
@@ -51,7 +52,7 @@ public class DataHub {
 
     /**
      * Save a record locally.
-     * This method does not update stock or any other business data.
+     * This method does not update stock or other business data.
      */
     public boolean saveRecord(
             String storeId,
@@ -82,7 +83,7 @@ public class DataHub {
 
             boolean saved = localStore.saveRecord(record);
 
-            refreshStatus(storeId);
+            refreshStatus(storeId.trim());
 
             return saved;
 
@@ -103,7 +104,14 @@ public class DataHub {
             return null;
         }
 
-        return localStore.getRecord(storeId.trim(), recordId.trim());
+        try {
+            return localStore.getRecord(
+                    storeId.trim(),
+                    recordId.trim()
+            );
+        } catch (Exception error) {
+            return null;
+        }
     }
 
     /**
@@ -115,7 +123,6 @@ public class DataHub {
 
     /**
      * Upload pending or failed records for the selected store.
-     * Call this method explicitly when a backup is required.
      */
     public void backupPendingRecords(
             String storeId,
@@ -140,7 +147,10 @@ public class DataHub {
             );
         } catch (Exception error) {
             completeOperation(
-                    callback, 0, 0, "อ่านรายการที่รอสำรองไม่สำเร็จ"
+                    callback,
+                    0,
+                    1,
+                    "อ่านรายการที่รอสำรองไม่สำเร็จ"
             );
             return;
         }
@@ -148,7 +158,10 @@ public class DataHub {
         if (records == null || records.isEmpty()) {
             refreshStatus(checkedStoreId);
             completeOperation(
-                    callback, 0, 0, "ไม่มีรายการที่รอสำรอง"
+                    callback,
+                    0,
+                    0,
+                    "ไม่มีรายการที่รอสำรอง"
             );
             return;
         }
@@ -202,7 +215,8 @@ public class DataHub {
             return;
         }
 
-        String recordId = record.optString("recordId", "").trim();
+        String recordId =
+                record.optString("recordId", "").trim();
 
         if (recordId.isEmpty()) {
             processBackupRecords(
@@ -259,7 +273,7 @@ public class DataHub {
     }
 
     /**
-     * Restore records that do not already exist locally.
+     * Restore only records that do not already exist locally.
      * Existing local records are never overwritten.
      */
     public void restoreMissingRecords(
@@ -271,7 +285,11 @@ public class DataHub {
 
         if (checkedStoreId.isEmpty()) {
             completeRestore(
-                    callback, 0, 0, 1, "ไม่พบรหัสร้านค้า"
+                    callback,
+                    0,
+                    0,
+                    1,
+                    "ไม่พบรหัสร้านค้า"
             );
             return;
         }
@@ -325,14 +343,12 @@ public class DataHub {
                                 if (inserted) {
                                     restored++;
                                 } else {
-                                    /*
-                                     * The record may already exist.
-                                     * Do not overwrite existing local data.
-                                     */
                                     JSONObject existing =
                                             localStore.getRecord(
                                                     checkedStoreId,
-                                                    record.optString("recordId", "")
+                                                    record.optString(
+                                                            "recordId", ""
+                                                    )
                                             );
 
                                     if (existing != null) {
