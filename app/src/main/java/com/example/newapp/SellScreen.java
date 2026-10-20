@@ -175,7 +175,7 @@ public class SellScreen extends Activity {
             bill.put("items",lines);
             JSONObject receipt=new JSONObject();receipt.put("receiptId","receipt:"+billId);receipt.put("billId",billId);
             receipt.put("receiptType",type.equals("credit")?"ใบเสร็จขายเชื่อ":"ใบเสร็จรับเงิน");receipt.put("createdAt",System.currentTimeMillis());
-            receipt.put("total",total);receipt.put("printStatus","pending");receipt.put("items",lines);
+            receipt.put("subtotal",sub);receipt.put("serviceFee",fee);receipt.put("total",total);receipt.put("printStatus","pending");receipt.put("items",lines);
             receipt.put("paymentStatus",type.equals("cash")?"จ่ายแล้ว":"ค้างชำระ");
             if(customer!=null)receipt.put("customerName",bill.optString("customerName"));
             if(repo.confirmSale(billId,bill,products,quantities,receipt)){
