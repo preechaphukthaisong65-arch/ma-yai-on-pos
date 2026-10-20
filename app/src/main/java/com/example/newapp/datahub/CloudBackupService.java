@@ -2,16 +2,26 @@ package com.example.newapp.datahub;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.SetOptions;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public final class CloudBackupService {
+public class CloudBackupService {
+
+    private static final String COLLECTION_BACKUPS = "dataHubBackups";
+    private static final String COLLECTION_RECORDS = "records";
+
+    private final FirebaseFirestore firestore;
+    private final FirebaseAuth auth;
 
     public interface BackupCallback {
         void onSuccess();
@@ -19,8 +29,11 @@ public final class CloudBackupService {
         void onFailure(String message);
     }
 
-    private final FirebaseFirestore firestore;
-    private final FirebaseAuth auth;
+    public interface RecordsCallback {
+        void onSuccess(List<JSONObject> records);
+
+        void onFailure(String message);
+    }
 
     public CloudBackupService() {
         firestore = FirebaseFirestore.getInstance();
@@ -28,138 +41,230 @@ public final class CloudBackupService {
     }
 
     /**
-     * ส่งข้อมูลสำรองไป Firestore
-     *
-     * หมายเหตุ:
-     * ต้องกำหนด Firestore Security Rules ให้ตรวจสอบสิทธิ์
-     * และสิทธิ์เข้าถึงข้อมูลของแต่ละร้านก่อนใช้งานจริง
+     * Upload one record to Firestore.
      */
-    public void upload(
-            JSONObject record,
-            BackupCallback callback
-    ) {
-        if (callback == null) {
-            return;
-        }
-
+    public void upload(JSONObject record, BackupCallback callback) {
         if (record == null) {
-            callback.onFailure("ไม่พบข้อมูลสำรอง");
+            failBackup(callback, "ไม่มีข้อมูลสำหรับสำรอง");
             return;
         }
 
         FirebaseUser user = auth.getCurrentUser();
-
         if (user == null) {
-            callback.onFailure(
-                    "กรุณาเข้าสู่ระบบก่อนสำรองข้อมูล"
-            );
+            failBackup(callback, "กรุณาเข้าสู่ระบบก่อนสำรองข้อมูล");
             return;
         }
 
-        if (!new BackupManager().isValidRecord(record)) {
-            callback.onFailure("รูปแบบข้อมูลสำรองไม่ถูกต้อง");
+        String storeId = record.optString("storeId", "").trim();
+        String recordId = record.optString("recordId", "").trim();
+
+        if (storeId.isEmpty() || recordId.isEmpty()) {
+            failBackup(callback, "ข้อมูลร้านค้าหรือรหัสรายการไม่ถูกต้อง");
             return;
         }
 
-        String recordId = record.optString("recordId", "");
-        String storeId = record.optString("storeId", "");
-
-        if (recordId.trim().isEmpty()
-                || storeId.trim().isEmpty()) {
-            callback.onFailure("รหัสข้อมูลหรือรหัสร้านว่าง");
+        JSONObject payload = getPayload(record);
+        if (payload == null) {
+            failBackup(callback, "รูปแบบข้อมูลรายการไม่ถูกต้อง");
             return;
         }
-
-        Map<String, Object> cloudRecord =
-                new HashMap<>();
 
         try {
-            cloudRecord.put(
-                    "recordId",
-                    record.getString("recordId")
-            );
-            cloudRecord.put(
-                    "storeId",
-                    record.getString("storeId")
-            );
+            Map<String, Object> cloudRecord = new HashMap<>();
+            cloudRecord.put("recordId", recordId);
+            cloudRecord.put("storeId", storeId);
             cloudRecord.put(
                     "dataType",
-                    record.getString("dataType")
+                    record.optString("dataType", "")
             );
             cloudRecord.put(
                     "schemaVersion",
-                    record.getInt("schemaVersion")
+                    record.optInt("schemaVersion", 1)
             );
             cloudRecord.put(
                     "updatedAt",
-                    record.get("updatedAt")
+                    record.optLong("updatedAt", System.currentTimeMillis())
             );
             cloudRecord.put(
                     "revision",
-                    record.getInt("revision")
+                    record.optLong("revision", 1)
             );
-            cloudRecord.put(
-                    "payload",
-                    jsonObjectToMap(
-                            record.getJSONObject("payload")
-                    )
-            );
-            cloudRecord.put(
-                    "uploadedBy",
-                    user.getUid()
-            );
+            cloudRecord.put("payload", jsonToMap(payload));
+            cloudRecord.put("uploadedBy", user.getUid());
 
-        } catch (Exception e) {
-            callback.onFailure(
-                    "แปลงข้อมูลสำรองไม่สำเร็จ"
+            firestore.collection(COLLECTION_BACKUPS)
+                    .document(storeId)
+                    .collection(COLLECTION_RECORDS)
+                    .document(recordId)
+                    .set(cloudRecord, SetOptions.merge())
+                    .addOnSuccessListener(unused -> {
+                        if (callback != null) {
+                            callback.onSuccess();
+                        }
+                    })
+                    .addOnFailureListener(error -> {
+                        failBackup(
+                                callback,
+                                "สำรองข้อมูลไม่สำเร็จ: " + safeMessage(error)
+                        );
+                    });
+
+        } catch (Exception error) {
+            failBackup(
+                    callback,
+                    "เตรียมข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)
             );
+        }
+    }
+
+    /**
+     * Download all backup records belonging to one store.
+     */
+    public void fetchStoreRecords(
+            String storeId,
+            RecordsCallback callback
+    ) {
+        String checkedStoreId = storeId == null ? "" : storeId.trim();
+
+        if (checkedStoreId.isEmpty()) {
+            failRecords(callback, "ไม่พบรหัสร้านค้า");
             return;
         }
 
-        DocumentReference document = firestore
-                .collection("dataHubBackups")
-                .document(storeId)
-                .collection("records")
-                .document(recordId);
+        if (auth.getCurrentUser() == null) {
+            failRecords(callback, "กรุณาเข้าสู่ระบบก่อนกู้คืนข้อมูล");
+            return;
+        }
 
-        document.set(cloudRecord, SetOptions.merge())
-                .addOnSuccessListener(unused ->
-                        callback.onSuccess()
-                )
-                .addOnFailureListener(error ->
-                        callback.onFailure(
-                                error.getMessage() == null
-                                        ? "สำรองข้อมูลไม่สำเร็จ"
-                                        : error.getMessage()
-                        )
-                );
+        firestore.collection(COLLECTION_BACKUPS)
+                .document(checkedStoreId)
+                .collection(COLLECTION_RECORDS)
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    List<JSONObject> records = new ArrayList<>();
+
+                    try {
+                        for (DocumentSnapshot document : snapshot.getDocuments()) {
+                            Map<String, Object> data = document.getData();
+
+                            if (data == null) {
+                                continue;
+                            }
+
+                            JSONObject record = new JSONObject(data);
+
+                            if (!record.has("recordId")
+                                    || record.optString("recordId", "").trim().isEmpty()) {
+                                record.put("recordId", document.getId());
+                            }
+
+                            if (!record.has("storeId")
+                                    || record.optString("storeId", "").trim().isEmpty()) {
+                                record.put("storeId", checkedStoreId);
+                            }
+
+                            records.add(record);
+                        }
+
+                        if (callback != null) {
+                            callback.onSuccess(records);
+                        }
+
+                    } catch (Exception error) {
+                        failRecords(
+                                callback,
+                                "อ่านข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)
+                        );
+                    }
+                })
+                .addOnFailureListener(error -> {
+                    failRecords(
+                            callback,
+                            "ดาวน์โหลดข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)
+                    );
+                });
     }
 
-    private Map<String, Object> jsonObjectToMap(
-            JSONObject json
-    ) {
-        Map<String, Object> result =
-                new HashMap<>();
+    private JSONObject getPayload(JSONObject record) {
+        Object value = record.opt("payload");
 
-        java.util.Iterator<String> keys =
-                json.keys();
+        if (value instanceof JSONObject) {
+            return (JSONObject) value;
+        }
 
-        while (keys.hasNext()) {
-            String key = keys.next();
-            Object value = json.opt(key);
-
-            if (value instanceof JSONObject) {
-                result.put(
-                        key,
-                        jsonObjectToMap((JSONObject) value)
-                );
-            } else if (value != JSONObject.NULL) {
-                result.put(key, value);
-            } else {
-                result.put(key, null);
+        if (value instanceof String) {
+            try {
+                return new JSONObject((String) value);
+            } catch (JSONException ignored) {
+                return null;
             }
+        }
+
+        if (value instanceof Map) {
+            return new JSONObject((Map<?, ?>) value);
+        }
+
+        return null;
+    }
+
+    private Map<String, Object> jsonToMap(JSONObject object)
+            throws JSONException {
+        Map<String, Object> result = new HashMap<>();
+        JSONArray names = object.names();
+
+        if (names == null) {
+            return result;
+        }
+
+        for (int i = 0; i < names.length(); i++) {
+            String key = names.getString(i);
+            result.put(key, jsonToJava(object.get(key)));
         }
 
         return result;
     }
-}
+
+    private Object jsonToJava(Object value) throws JSONException {
+        if (value == JSONObject.NULL) {
+            return null;
+        }
+
+        if (value instanceof JSONObject) {
+            return jsonToMap((JSONObject) value);
+        }
+
+        if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            List<Object> result = new ArrayList<>();
+
+            for (int i = 0; i < array.length(); i++) {
+                result.add(jsonToJava(array.get(i)));
+            }
+
+            return result;
+        }
+
+        return value;
+    }
+
+    private void failBackup(BackupCallback callback, String message) {
+        if (callback != null) {
+            callback.onFailure(message);
+        }
+    }
+
+    private void failRecords(RecordsCallback callback, String message) {
+        if (callback != null) {
+            callback.onFailure(message);
+        }
+    }
+
+    private String safeMessage(Exception error) {
+        if (error == null || error.getMessage() == null
+                || error.getMessage().trim().isEmpty()) {
+            return "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
+        }
+
+        return error.getMessage();
+    }
+    }
