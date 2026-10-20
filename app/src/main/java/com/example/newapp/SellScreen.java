@@ -121,7 +121,7 @@ public class SellScreen extends Activity {
         speakSummary(subtotal);
     }
     private double subtotal(){double s=0;for(CartLine l:cart.values())s+=repo.price(l.product)*l.quantity;return s;}
-    private void speakSummary(double total){if(tts==null)return;tts.speak("ยอดรวม "+money(total)+" บาทค่ะ",TextToSpeech.QUEUE_FLUSH,null,"cart-total");}
+    private void speakSummary(double total){if(tts==null)return;StringBuilder summary=new StringBuilder("สรุปรายการ ");for(CartLine line:cart.values())summary.append(repo.name(line.product)).append(" ").append(format(line.quantity)).append(" ").append(repo.unit(line.product)).append(", ");summary.append("ยอดรวม ").append(money(total)).append(" บาทค่ะ");tts.speak(summary.toString(),TextToSpeech.QUEUE_FLUSH,null,"cart-total");}
 
     private void showCash(double total){
         LinearLayout root=POSUi.page(this,"ชำระเงินสด");
