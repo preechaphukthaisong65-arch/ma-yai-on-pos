@@ -31,7 +31,6 @@ public class ReceiveStockScreen extends Activity {
             POSUi.button(this,root,"บันทึกสินค้าใหม่",()->{double pr=POSUi.number(price),co=POSUi.number(cost),li=POSUi.number(limit),q=POSUi.number(qty);
                 if(POSUi.value(name).isEmpty()){name.setError("กรอกชื่อสินค้า");return;}if(pr<0||co<0||li<0||q<0){Toast.makeText(this,"กรอกตัวเลขให้ถูกต้อง",Toast.LENGTH_SHORT).show();return;}
                 if(repo.createProduct(POSUi.value(name),scannedBarcode,pr,co,POSUi.value(unit).isEmpty()?"ชิ้น":POSUi.value(unit),li,q)){
-                    if(tts!=null)tts.speak("สินค้าใหม่ค่ะ",TextToSpeech.QUEUE_FLUSH,null,"newproduct");
                     Toast.makeText(this,"บันทึกสินค้าใหม่แล้ว",Toast.LENGTH_SHORT).show();selected=null;scannedBarcode="";render();
                 }else Toast.makeText(this,"บันทึกไม่สำเร็จหรือบาร์โค้ดซ้ำ",Toast.LENGTH_LONG).show();});
         }
@@ -39,6 +38,6 @@ public class ReceiveStockScreen extends Activity {
     private void scan(){IntentIntegrator i=new IntentIntegrator(this);i.setDesiredBarcodeFormats(IntentIntegrator.ALL_CODE_TYPES);i.setPrompt("สแกนบาร์โค้ดสินค้า");i.setBeepEnabled(false);i.setOrientationLocked(true);i.initiateScan();}
     @Override protected void onActivityResult(int a,int b,Intent d){super.onActivityResult(a,b,d);IntentResult r=IntentIntegrator.parseActivityResult(a,b,d);if(r==null||r.getContents()==null)return;
         scannedBarcode=r.getContents();selected=repo.findByBarcode(scannedBarcode);
-        if(selected!=null&&tts!=null)tts.speak(repo.name(selected)+"ค่ะ",TextToSpeech.QUEUE_FLUSH,null,"existingproduct");
+        if(tts!=null){if(selected!=null)tts.speak(repo.name(selected)+"ค่ะ",TextToSpeech.QUEUE_FLUSH,null,"existingproduct");else tts.speak("สินค้าใหม่ค่ะ",TextToSpeech.QUEUE_FLUSH,null,"newproduct");}
         render();}
 }
