@@ -196,25 +196,26 @@ public class CloudBackupService {
 
                             JSONObject record = new JSONObject(data);
 
-                            if (!record.has("recordId")
-                                    || record.optString(
-                                            "recordId", ""
-                                    ).trim().isEmpty()) {
-                                record.put(
-                                        "recordId",
-                                        document.getId()
+                            String documentRecordId = document.getId();
+                            String embeddedRecordId = record.optString("recordId", "").trim();
+                            if (!embeddedRecordId.isEmpty()
+                                    && !documentRecordId.equals(embeddedRecordId)) {
+                                throw new JSONException(
+                                        "Backup record ID does not match its Firestore document path"
                                 );
                             }
+                            // Older records may omit identity fields; when absent,
+                            // use the trusted Firestore path rather than payload data.
+                            record.put("recordId", documentRecordId);
 
-                            if (!record.has("storeId")
-                                    || record.optString(
-                                            "storeId", ""
-                                    ).trim().isEmpty()) {
-                                record.put(
-                                        "storeId",
-                                        checkedStoreId
+                            String embeddedStoreId = record.optString("storeId", "").trim();
+                            if (!embeddedStoreId.isEmpty()
+                                    && !checkedStoreId.equals(embeddedStoreId)) {
+                                throw new JSONException(
+                                        "Backup store ID does not match the requested store path"
                                 );
                             }
+                            record.put("storeId", checkedStoreId);
 
                             records.add(record);
                         }
