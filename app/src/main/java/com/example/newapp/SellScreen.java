@@ -52,7 +52,7 @@ public class SellScreen extends Activity {
     @Override public void onCreate(Bundle b) {
         super.onCreate(b); repo=new StockSalesRepository(this);
         tts=new TextToSpeech(this,status->{if(status==TextToSpeech.SUCCESS){
-            tts.setLanguage(new Locale("th","TH"));
+            POSVoice.configure(tts);
             tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){
                 @Override public void onStart(String id){}
                 @Override public void onDone(String id){runOnUiThread(()->{acceptingScan=true;});}
