@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feature/complete-missing-menus
   pull_request:
     branches:
       - main
