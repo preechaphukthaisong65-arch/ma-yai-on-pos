@@ -89,7 +89,9 @@ public class SellScreen extends Activity {
             String utterance=repo.name(product)+" "+format(line.quantity)+" "+repo.unit(product)+"ค่ะ";
             if(tts!=null&&tts.getLanguage()!=null)tts.speak(utterance,TextToSpeech.QUEUE_FLUSH,null,"scan-"+UUID.randomUUID());
             else acceptingScan=true;
-        }});
+        }
+        @Override public void possibleResultPoints(java.util.List<com.google.zxing.ResultPoint> points) { }
+        });
         scanner.resume();
     }
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results){
