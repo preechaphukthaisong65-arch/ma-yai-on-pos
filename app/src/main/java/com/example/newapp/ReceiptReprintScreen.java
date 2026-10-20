@@ -110,7 +110,7 @@ public class ReceiptReprintScreen extends Activity {
             updated.put("printStatus", "print_dialog_opened");
             updated.put("lastPrintRequestedAt", System.currentTimeMillis());
             if (job != null && job.getId() != null) {
-                updated.put("printJobId", job.getId().flattenToString());
+                updated.put("printJobId", job.getId().toString());
                 updated.put("printStatus", "queued");
             }
             repo.saveRecord("receipt", record.optString("recordId"), updated);
