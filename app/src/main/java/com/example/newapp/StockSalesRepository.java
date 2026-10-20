@@ -172,6 +172,66 @@ public final class StockSalesRepository {
         return out;
     }
 
+    /** Confirm a sale and its stock ledger in one local SQLite transaction. The bill ID makes retries idempotent. */
+    public boolean confirmSale(String billId, JSONObject billPayload, List<JSONObject> soldProducts,
+            List<Double> quantities, JSONObject receiptPayload) {
+        if (!isReady() || billId == null || billPayload == null || soldProducts == null
+                || quantities == null || soldProducts.size() != quantities.size()) return false;
+        if (hub.getRecord(storeId, billId) != null) return false;
+        try {
+            List<JSONObject> records = new ArrayList<>();
+            records.add(record(billId, "sale_bill", billPayload));
+            records.add(record("receipt:" + billId, "receipt", receiptPayload));
+            for (int i = 0; i < soldProducts.size(); i++) {
+                JSONObject product = soldProducts.get(i);
+                double qty = quantities.get(i);
+                if (product == null || qty <= 0) return false;
+                JSONObject current = hub.getRecord(storeId, product.optString("recordId"));
+                if (current == null || !PRODUCT.equals(current.optString("dataType"))) return false;
+                JSONObject p = new JSONObject(payload(current).toString());
+                double before = p.optDouble("stockQuantity", 0d);
+                double after = before - qty;
+                p.put("stockQuantity", after);
+                p.put("updatedAt", System.currentTimeMillis());
+                records.add(record(current.optString("recordId"), PRODUCT, p));
+                records.add(history(current, "ขายสินค้า", before, after, "ใบขาย " + billId));
+            }
+            boolean saved = hub.saveRecordsAtomically(storeId, records);
+            if (saved) {
+                for (int i = 0; i < soldProducts.size(); i++) {
+                    JSONObject latest = hub.getRecord(storeId, soldProducts.get(i).optString("recordId"));
+                    if (latest != null) StockLimitNotifier.updateState(latest.optString("recordId"),
+                            stock(latest) <= limit(latest), stock(latest), limit(latest));
+                }
+            }
+            return saved;
+        } catch (Exception e) { return false; }
+    }
+
+    public List<JSONObject> customers() { return records("credit_customer"); }
+
+    public JSONObject findCustomer(String firstName, String lastName) {
+        if (firstName == null || lastName == null) return null;
+        for (JSONObject r : customers()) {
+            JSONObject p = r.optJSONObject("payload");
+            if (p != null && firstName.trim().equalsIgnoreCase(p.optString("firstName", "").trim())
+                    && lastName.trim().equalsIgnoreCase(p.optString("lastName", "").trim())) return r;
+        }
+        return null;
+    }
+
+    public boolean saveCustomer(JSONObject customer) {
+        if (!isReady() || customer == null) return false;
+        try {
+            String first = customer.optString("firstName", "").trim();
+            String last = customer.optString("lastName", "").trim();
+            if (first.isEmpty() || last.isEmpty()) return false;
+            JSONObject existing = findCustomer(first, last);
+            if (existing != null) return true;
+            return saveRecord("credit_customer", newId("credit_customer"), customer);
+        } catch (Exception e) { return false; }
+    }
+
     public List<JSONObject> records(String type) {
         return isReady() ? hub.getRecordsByType(storeId, type) : new ArrayList<>();
     }
