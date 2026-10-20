@@ -33,26 +33,26 @@ public class CreditAccountScreen extends Activity {
             JSONObject p=bill.optJSONObject("payload");if(p==null)continue;
             if(!"credit".equals(p.optString("paymentType"))||!"ค้างชำระ".equals(p.optString("paymentStatus"))
                     ||!customerId.equals(p.optString("customerRecordId")))continue;
-            bills.add(bill);double amount=p.optDouble("total",0);outstanding+=amount;
-            CheckBox cb=new CheckBox(this);cb.setText("บิล "+bill.optString("recordId")+" — "+String.format(Locale.US,"%.2f",amount)+" บาท (ชำระเต็มบิล)");
+            bills.add(bill);double amount=Math.max(0d,p.optDouble("remainingBalance",p.optDouble("total",0d)));outstanding+=amount;
+            CheckBox cb=new CheckBox(this);cb.setText("บิล "+bill.optString("recordId")+" — คงเหลือ "+String.format(Locale.US,"%.2f",amount)+" บาท");
             cb.setOnCheckedChangeListener((v,checked)->updateTotal());root.addView(cb);checks.add(cb);
         }
         root.addView(POSUi.text(this,"ยอดหนี้คงค้างทั้งหมด: "+String.format(Locale.US,"%.2f",outstanding)+" บาท",18));
-        totalText=POSUi.text(this,"ยอดบิลที่เลือก: 0.00 บาท",18);root.addView(totalText);
-        received=POSUi.input(this,root,"เงินสดรับ (ต้องเท่ากับยอดบิลที่เลือก)");received.setInputType(8194);
+        totalText=POSUi.text(this,"ยอดหนี้ที่เลือก: 0.00 บาท",18);root.addView(totalText);
+        received=POSUi.input(this,root,"เงินสดที่รับ (จ่ายบางส่วนได้ ไม่เกินยอดหนี้ที่เลือก)");received.setInputType(8194);
         if(bills.isEmpty())root.addView(POSUi.text(this,"ไม่มีบิลค้างชำระ",16));
         POSUi.button(this,root,"ยืนยันรับชำระเงินสด",this::pay);
         POSUi.button(this,root,"ค้นหาลูกค้ารายอื่น",this::renderSearch);
         POSUi.button(this,root,"กลับ",this::finish);
         updateTotal();
     }
-    private double selectedTotal(){double total=0;for(int i=0;i<checks.size();i++)if(checks.get(i).isChecked())total+=bills.get(i).optJSONObject("payload").optDouble("total",0);return total;}
-    private void updateTotal(){if(totalText!=null)totalText.setText("ยอดบิลที่เลือก: "+String.format(Locale.US,"%.2f",selectedTotal())+" บาท");}
+    private double selectedTotal(){double total=0;for(int i=0;i<checks.size();i++)if(checks.get(i).isChecked()){JSONObject p=bills.get(i).optJSONObject("payload");total+=Math.max(0d,p.optDouble("remainingBalance",p.optDouble("total",0d)));}return total;}
+    private void updateTotal(){if(totalText!=null)totalText.setText("ยอดหนี้ที่เลือก: "+String.format(Locale.US,"%.2f",selectedTotal())+" บาท");}
     private void pay(){
         List<JSONObject> chosen=new ArrayList<>();for(int i=0;i<checks.size();i++)if(checks.get(i).isChecked())chosen.add(bills.get(i));
         double total=selectedTotal(),cash=POSUi.number(received);
         if(chosen.isEmpty()){Toast.makeText(this,"เลือกบิลที่ต้องการชำระก่อน",Toast.LENGTH_SHORT).show();return;}
-        if(cash<0||Math.abs(cash-total)>.009){Toast.makeText(this,"จำนวนเงินสดต้องเท่ากับยอดเต็มของบิลที่เลือก: "+String.format(Locale.US,"%.2f",total)+" บาท",Toast.LENGTH_LONG).show();return;}
+        if(!Double.isFinite(cash)||cash<=0||cash-total>.009){Toast.makeText(this,"เงินสดรับต้องมากกว่า 0 และไม่เกินยอดหนี้ที่เลือก: "+String.format(Locale.US,"%.2f",total)+" บาท",Toast.LENGTH_LONG).show();return;}
         if(repo.payCreditBills(chosen,cash)){Toast.makeText(this,"บันทึกการชำระหนี้แล้ว",Toast.LENGTH_LONG).show();showBills();}
         else Toast.makeText(this,"บันทึกไม่สำเร็จ กรุณาตรวจสอบสถานะบิล",Toast.LENGTH_LONG).show();
     }
