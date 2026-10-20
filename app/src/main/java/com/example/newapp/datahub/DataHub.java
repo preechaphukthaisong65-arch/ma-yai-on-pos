@@ -569,12 +569,18 @@ public class DataHub {
 
                         // Audit business-level barcode collisions after restore. A different
                         // record ID can still represent the same barcode; never auto-delete it.
-                        failed += countDuplicateBarcodes(checkedStoreId);
+                        int duplicateBarcodes = countDuplicateBarcodes(checkedStoreId);
                         refreshStatus(checkedStoreId);
 
-                        String message = failed == 0
-                                ? "กู้คืนข้อมูลเสร็จแล้ว ไม่พบข้อมูลขัดแย้งจากการตรวจนี้"
-                                : "กู้คืนข้อมูลเสร็จบางส่วน พบรายการผิดพลาดหรือข้อมูลซ้ำที่ต้องตรวจสอบ";
+                        String message;
+                        if (failed > 0) {
+                            message = "กู้คืนข้อมูลเสร็จบางส่วน พบรายการข้อมูลขัดแย้งที่ต้องตรวจสอบ";
+                        } else if (duplicateBarcodes > 0) {
+                            message = "กู้คืนข้อมูลแล้ว แต่พบบาร์โค้ดซ้ำ " + duplicateBarcodes
+                                    + " รายการ ห้ามลบอัตโนมัติ กรุณาตรวจสอบก่อนสร้างบาร์โค้ดใหม่";
+                        } else {
+                            message = "กู้คืนข้อมูลเสร็จแล้ว ไม่พบข้อมูลขัดแย้งจากการตรวจนี้";
+                        }
 
                         completeRestore(
                                 callback,
