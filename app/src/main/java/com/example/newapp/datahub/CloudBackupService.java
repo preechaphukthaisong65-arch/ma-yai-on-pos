@@ -96,23 +96,35 @@ public class CloudBackupService {
             cloudRecord.put("payload", jsonToMap(payload));
             cloudRecord.put("uploadedBy", user.getUid());
 
-            firestore.collection(COLLECTION_BACKUPS)
-                    .document(storeId)
-                    .collection(COLLECTION_RECORDS)
-                    .document(recordId)
-                    .set(cloudRecord, SetOptions.merge())
-                    .addOnSuccessListener(unused -> {
-                        if (callback != null) {
-                            callback.onSuccess();
-                        }
-                    })
-                    .addOnFailureListener(error -> {
-                        failBackup(
-                                callback,
-                                "สำรองข้อมูลไม่สำเร็จ: "
-                                        + safeMessage(error)
-                        );
-                    });
+            com.google.firebase.firestore.DocumentReference document =
+                    firestore.collection(COLLECTION_BACKUPS)
+                            .document(storeId)
+                            .collection(COLLECTION_RECORDS)
+                            .document(recordId);
+            long incomingRevision = record.optLong("revision", 1L);
+
+            // Serialize competing uploads for the same record. A delayed
+            // older upload must never replace a newer cloud revision.
+            firestore.runTransaction(transaction -> {
+                DocumentSnapshot existing = transaction.get(document);
+                long cloudRevision = existing.exists()
+                        ? existing.getLong("revision") == null
+                            ? 0L : existing.getLong("revision")
+                        : 0L;
+                if (cloudRevision <= incomingRevision) {
+                    transaction.set(document, cloudRecord, SetOptions.merge());
+                }
+                return null;
+            }).addOnSuccessListener(unused -> {
+                if (callback != null) {
+                    callback.onSuccess();
+                }
+            }).addOnFailureListener(error -> {
+                failBackup(
+                        callback,
+                        "สำรองข้อมูลไม่สำเร็จ: " + safeMessage(error)
+                );
+            });
 
         } catch (Exception error) {
             failBackup(
