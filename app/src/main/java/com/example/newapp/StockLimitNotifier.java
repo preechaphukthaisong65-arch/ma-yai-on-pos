@@ -15,6 +15,7 @@ public final class StockLimitNotifier {
     private static final String PREFS = "stock_limit_alert_state";
     private static final String CHANNEL = "stock_limit_alerts";
     private static Context app;
+    private static boolean reconciling;
     private StockLimitNotifier() { }
 
     public static synchronized void initialize(Context context) {
@@ -31,16 +32,19 @@ public final class StockLimitNotifier {
     public static synchronized void reconcileIfNeeded(Context context, String storeId, List<JSONObject> products) {
         initialize(context);
         if (app == null || storeId == null || storeId.trim().isEmpty() || isReconciled(app, storeId)) return;
-        if (products != null) {
-            for (JSONObject record : products) {
-                if (record == null) continue;
-                JSONObject p = record.optJSONObject("payload");
-                if (p == null || !p.has("stockQuantity") || !p.has("stockLimit")) continue;
-                double quantity = p.optDouble("stockQuantity", 0d);
-                double limit = p.optDouble("stockLimit", 0d);
-                updateState(storeId, record.optString("recordId", ""), quantity <= limit, quantity, limit);
+        reconciling = true;
+        try {
+            if (products != null) {
+                for (JSONObject record : products) {
+                    if (record == null) continue;
+                    JSONObject p = record.optJSONObject("payload");
+                    if (p == null || !p.has("stockQuantity") || !p.has("stockLimit")) continue;
+                    double quantity = p.optDouble("stockQuantity", 0d);
+                    double limit = p.optDouble("stockLimit", 0d);
+                    updateState(storeId, record.optString("recordId", ""), quantity <= limit, quantity, limit);
+                }
             }
-        }
+        } finally { reconciling = false; }
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putBoolean("reconciled_" + storeId, true).apply();
     }
@@ -61,7 +65,7 @@ public final class StockLimitNotifier {
         int count = prefs.getInt("low_count_" + storeId, 0);
         if (low) count++; else count = Math.max(0, count - 1);
         prefs.edit().putBoolean(key, low).putInt("low_count_" + storeId, count).apply();
-        if (low) {
+        if (low && !reconciling) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 NotificationManager manager = (NotificationManager) app.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (manager != null) manager.createNotificationChannel(new NotificationChannel(
