@@ -775,6 +775,12 @@ public class DataHub {
             completeOperation(callback, 0, 1, "ไม่พบรหัสร้านค้า");
             return;
         }
+        // Validate public API inputs before iterating; a null/empty selection must
+        // fail closed with a callback instead of throwing on the caller's thread.
+        if (selectedBills == null || selectedBills.isEmpty() || selectedBills.size() > 100) {
+            completeOperation(callback, 0, 1, "กรุณาเลือกบิลที่ต้องการชำระ 1–100 บิล");
+            return;
+        }
         try {
             for (JSONObject selected : selectedBills) {
                 if (selected == null) {
