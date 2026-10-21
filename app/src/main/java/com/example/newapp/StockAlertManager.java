@@ -18,7 +18,9 @@ final class StockAlertManager {
     private StockAlertManager(){}
     static boolean check(Activity activity){
         PosDatabase helper=PosDatabase.get(activity);
-        SQLiteDatabase db=helper.getWritableDatabase();
+        SQLiteDatabase db;
+        try { db=helper.getWritableDatabase(); } catch (android.database.sqlite.SQLiteException e) { return false; }
+        try {
         Set<String> low=new HashSet<>();
         Cursor c=db.rawQuery("SELECT id FROM products WHERE active=1 AND stock<=stock_limit",null);
         while(c.moveToNext())low.add(c.getString(0));c.close();
@@ -29,6 +31,7 @@ final class StockAlertManager {
         if(db.update("app_meta",cv,"key='low_alert_ids'",null)==0){cv.put("key","low_alert_ids");db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);}
         if(newLow&&!low.isEmpty())notify(activity);
         return !low.isEmpty();
+        } catch (android.database.sqlite.SQLiteException e) { return false; }
     }
     private static void notify(Context context){
         NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
