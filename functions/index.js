@@ -150,6 +150,9 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
         fail("failed-precondition", "ไม่พบสินค้าในระบบกลาง: " + item.productRecordId);
       }
       const p = snap.get("payload"), price = p && p.price, stock = p && p.stockQuantity;
+      if ((Number(snap.get("revision")) || 0) !== item.localRevision) {
+        fail("failed-precondition", "ข้อมูลสินค้าในเครื่องไม่ตรงกับ Cloud กรุณาซิงก์และตรวจสอบก่อนขาย: " + item.productRecordId);
+      }
       if (!Number.isFinite(price) || price < 0 || !Number.isFinite(stock) || stock < item.quantity) {
         fail("failed-precondition", "สต๊อกไม่เพียงพอหรือข้อมูลสินค้าไม่ถูกต้อง: " + item.productRecordId);
       }
