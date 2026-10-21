@@ -275,6 +275,27 @@ public final class StockSalesRepository {
         } catch (Exception e) { return false; }
     }
 
+    /** Apply a server-committed sale snapshot locally using revision compare-and-set. */
+    public synchronized boolean applyServerCommittedSaleRecords(List<JSONObject> records) {
+        if (!isReady() || records == null || records.isEmpty()) return false;
+        for (JSONObject record : records) {
+            if (record == null || !storeId.equals(record.optString("storeId", ""))
+                    || record.optString("recordId", "").trim().isEmpty()
+                    || record.optJSONObject("payload") == null) return false;
+        }
+        boolean saved = hub.saveRecordsAtomically(storeId, records);
+        if (saved) {
+            invalidateProductCache();
+            for (JSONObject record : records) {
+                if (!PRODUCT.equals(record.optString("dataType"))) continue;
+                JSONObject latest = hub.getRecord(storeId, record.optString("recordId"));
+                if (latest != null) StockLimitNotifier.updateState(storeId, latest.optString("recordId"),
+                        stock(latest) <= limit(latest), stock(latest), limit(latest));
+            }
+        }
+        return saved;
+    }
+
     /**
      * Record a cash payment against one or more credit bills. Partial payments are supported;
      * each payment stores explicit per-bill allocations and unpaid bills remain outstanding.
