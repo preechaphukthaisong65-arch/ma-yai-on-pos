@@ -212,6 +212,21 @@ public final class StockSalesRepository {
                 || soldProducts.size() != quantities.size() || soldProducts.isEmpty()) return false;
         if (hub.getRecord(storeId, billId) != null) return false;
         try {
+            // This local-only sale must be reconciled as one server transaction.
+            // Preserve the cloud revision observed before each local stock decrement.
+            // Ensure pending sales have a strictly increasing order even if two
+            // confirmations occur in the same millisecond or the device clock moves back.
+            long saleCreatedAt = Math.max(1L, billPayload.optLong("createdAt", System.currentTimeMillis()));
+            for (JSONObject pendingBill : hub.getRecordsByType(storeId, "sale_bill")) {
+                JSONObject pendingPayload = pendingBill.optJSONObject("payload");
+                if (pendingPayload != null && pendingPayload.optBoolean("offlinePending", false)) {
+                    saleCreatedAt = Math.max(saleCreatedAt, pendingPayload.optLong("createdAt", 0L) + 1L);
+                }
+            }
+            billPayload.put("createdAt", saleCreatedAt);
+            billPayload.put("offlinePending", true);
+            org.json.JSONArray saleItems = billPayload.optJSONArray("items");
+            if (saleItems == null || saleItems.length() != soldProducts.size()) return false;
             // Validate every line against the latest stored product before preparing any writes.
             List<JSONObject> currentProducts = new ArrayList<>();
             List<JSONObject> updatedPayloads = new ArrayList<>();
@@ -228,6 +243,7 @@ public final class StockSalesRepository {
                 if (productId.trim().isEmpty() || !seenProductIds.add(productId)) return false;
                 JSONObject current = hub.getRecord(storeId, productId);
                 if (current == null || !PRODUCT.equals(current.optString("dataType"))) return false;
+                saleItems.getJSONObject(i).put("localRevision", current.optLong("revision", 0L));
                 JSONObject p = new JSONObject(payload(current).toString());
                 double before = p.optDouble("stockQuantity", 0d);
                 if (!Double.isFinite(before) || before < 0d || qty > before + 0.000001d) return false;
@@ -254,13 +270,23 @@ public final class StockSalesRepository {
             // Preserve the complete sale snapshot so retained reports/history remain useful
             // after the original bill reaches its retention deadline.
             saleAudit.put("saleSnapshot", new JSONObject(billPayload.toString()));
-            records.add(record(newId("sale_history"), "sale_history", saleAudit));
+            records.add(record("sale_history:" + billId, "sale_history", saleAudit));
             for (int i = 0; i < currentProducts.size(); i++) {
                 JSONObject current = currentProducts.get(i);
                 records.add(recordExpected(current.optString("recordId"), PRODUCT,
                         updatedPayloads.get(i), current.optLong("revision", 0L)));
-                records.add(history(current, "ขายสินค้า", beforeQuantities.get(i),
-                        afterQuantities.get(i), "ใบขาย " + billId));
+                JSONObject saleHistory = new JSONObject();
+                saleHistory.put("historyId", "stock_history:sale:" + billId + ":" + i);
+                saleHistory.put("productRecordId", current.optString("recordId"));
+                saleHistory.put("productName", payload(current).optString("name", ""));
+                saleHistory.put("barcode", payload(current).optString("barcode", ""));
+                saleHistory.put("transactionType", "ขายสินค้า");
+                saleHistory.put("beforeQuantity", beforeQuantities.get(i));
+                saleHistory.put("afterQuantity", afterQuantities.get(i));
+                saleHistory.put("delta", afterQuantities.get(i) - beforeQuantities.get(i));
+                saleHistory.put("changedAt", System.currentTimeMillis());
+                saleHistory.put("note", "ขายบิล " + billId);
+                records.add(record("stock_history:sale:" + billId + ":" + i, STOCK_HISTORY, saleHistory));
             }
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) {
@@ -283,7 +309,7 @@ public final class StockSalesRepository {
                     || record.optString("recordId", "").trim().isEmpty()
                     || record.optJSONObject("payload") == null) return false;
         }
-        boolean saved = hub.saveRecordsAtomically(storeId, records);
+        boolean saved = hub.saveServerCommittedRecordsAtomically(storeId, records);
         if (saved) {
             invalidateProductCache();
             for (JSONObject record : records) {

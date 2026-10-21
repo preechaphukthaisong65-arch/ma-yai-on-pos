@@ -334,6 +334,51 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
+     * Persist snapshots returned by a successful server transaction and mark them
+     * synced in the SAME SQLite transaction. They already exist in Firestore;
+     * sending them through the generic backup worker could create a second,
+     * stale write after the server has committed the sale.
+     */
+    public synchronized boolean saveServerCommittedRecordsAtomically(List<JSONObject> records) {
+        if (records == null || records.isEmpty()) return false;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            java.util.HashSet<String> keys = new java.util.HashSet<>();
+            for (JSONObject record : records) {
+                if (record == null || !new BackupManager().isValidRecord(record)) return false;
+                String storeId = record.optString("storeId", "").trim();
+                String recordId = record.optString("recordId", "").trim();
+                if (isBlank(storeId) || isBlank(recordId)
+                        || !keys.add(storeId + "::" + recordId)) return false;
+                if (record.has("expectedRevision")) {
+                    long expected = record.optLong("expectedRevision", -1L);
+                    long actual = 0L;
+                    Cursor cursor = db.query(TABLE_RECORDS, new String[]{COL_REVISION},
+                            COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ?",
+                            new String[]{storeId, recordId}, null, null, null, "1");
+                    try { if (cursor.moveToFirst()) actual = cursor.getLong(0); }
+                    finally { cursor.close(); }
+                    if (expected < 0L || actual != expected) return false;
+                }
+                if (!saveRecord(record)) return false;
+                ContentValues synced = new ContentValues();
+                synced.put(COL_SYNC_STATUS, DataHub.SYNC_SYNCED);
+                int changed = db.update(TABLE_RECORDS, synced,
+                        COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ? AND " + COL_REVISION + " = ?",
+                        new String[]{storeId, recordId, Long.toString(Math.max(1L, record.optLong("revision", 1L)))});
+                if (changed != 1) return false;
+            }
+            db.setTransactionSuccessful();
+            return true;
+        } catch (Exception error) {
+            return false;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    /**
      * นับทุกรายการที่ยังไม่ได้สำรองสำเร็จ
      */
     public synchronized int getPendingCount() {

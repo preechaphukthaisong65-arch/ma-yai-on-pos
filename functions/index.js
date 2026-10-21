@@ -75,13 +75,12 @@ exports.commitPosSale = onCall({ enforceAppCheck: true, maxInstances: 10 }, asyn
   const customerRef = customerId ? records.doc(customerId) : null;
 
   return db.runTransaction(async tx => {
-    const ownerSnap = await tx.get(ownerRef), sessionSnap = await tx.get(sessionRef);
-    if (!ownerSnap.exists || ownerSnap.get("ownerUid") !== uid) fail("permission-denied", "บัญชีนี้ไม่มีสิทธิ์ในร้าน");
-    if (!sessionSnap.exists || sessionSnap.get("ownerUid") !== uid
-        || sessionSnap.get("activeDeviceId") !== deviceId) {
-      fail("permission-denied", "เครื่องนี้ไม่ได้เป็นเครื่องที่มีสิทธิ์ใช้งานร้าน");
-    }
+    const ownerSnap = await tx.get(ownerRef);
     const priorBill = await tx.get(billRef);
+    if (!ownerSnap.exists || ownerSnap.get("ownerUid") !== uid) fail("permission-denied", "บัญชีนี้ไม่มีสิทธิ์ในร้าน");
+    // Permit a verified owner to recover the result of an already-committed,
+    // idempotent request even if this device was subsequently superseded.
+    // This branch performs reads only; it cannot create a new sale or decrement stock.
     if (priorBill.exists) {
       if (priorBill.get("idempotencyKey") !== idempotencyKey || priorBill.get("requestHash") !== requestHash) {
         fail("already-exists", "รหัสบิลนี้ถูกใช้กับคำขออื่นแล้ว");
@@ -106,6 +105,11 @@ exports.commitPosSale = onCall({ enforceAppCheck: true, maxInstances: 10 }, asyn
       if (priorAudit.exists) retryRecords.push(priorAudit.data());
       retryRecords.push(priorBill.data());
       return { alreadyCommitted: true, bill: priorBill.data(), records: retryRecords };
+    }
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists || sessionSnap.get("ownerUid") !== uid
+        || sessionSnap.get("activeDeviceId") !== deviceId) {
+      fail("permission-denied", "เครื่องนี้ไม่ได้เป็นเครื่องที่มีสิทธิ์ใช้งานร้าน");
     }
     const productSnaps = [];
     for (const ref of productRefs) productSnaps.push(await tx.get(ref));

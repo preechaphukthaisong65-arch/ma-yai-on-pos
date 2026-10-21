@@ -29,3 +29,17 @@ test("server rejects stale product revisions and protects customer identity", ()
   assert.match(source, /enforceAppCheck: true/);
   assert.match(source, /requestHash/);
 });
+
+test("idempotent committed sale recovery is read-only and precedes the active-device gate", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+  const transaction = source.indexOf("return db.runTransaction(async tx =>");
+  const ownerCheck = source.indexOf('ownerSnap.get("ownerUid") !== uid', transaction);
+  const priorBill = source.indexOf("if (priorBill.exists)", transaction);
+  const idempotentReturn = source.indexOf("return { alreadyCommitted: true", priorBill);
+  const activeDeviceGate = source.indexOf("const sessionSnap = await tx.get(sessionRef)", transaction);
+  assert.ok(transaction >= 0 && ownerCheck > transaction);
+  assert.ok(priorBill > ownerCheck && idempotentReturn > priorBill);
+  assert.ok(activeDeviceGate > idempotentReturn);
+  assert.match(source.slice(priorBill, activeDeviceGate), /requestHash/);
+  assert.match(source.slice(priorBill, activeDeviceGate), /tx\.get\(priorReceipt\)|tx\.get\(receiptRef\)/);
+});
