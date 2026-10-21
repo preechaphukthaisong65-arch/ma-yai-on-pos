@@ -52,7 +52,7 @@ public class DataHub {
      *
      * วิธีนี้ไม่แก้ไขข้อมูลการขายหรือข้อมูลสต๊อก
      * และไม่ถือว่าการบันทึกในเครื่องล้มเหลว
-     * เพียงเพราะการสำรอง Cloud ไม่สำเร็จ
+     * เพียงเพราะการซิงก์ Cloud ไม่สำเร็จ
      */
     public boolean saveRecord(
             String storeId,
@@ -103,8 +103,8 @@ public class DataHub {
             refreshStatus(checkedStoreId);
 
             if (saved) {
-                // เริ่มสำรองรายการที่รออยู่ในร้านนี้โดยอัตโนมัติ
-                // ความล้มเหลวของ Cloud จะไม่ลบข้อมูลที่บันทึกในเครื่อง
+                // เริ่มซิงก์รายการที่รออยู่ในร้านนี้โดยอัตโนมัติ
+                // ความล้มเหลวของการซิงก์ Cloud จะไม่ลบข้อมูลที่บันทึกในเครื่อง
                 syncPendingRecords(checkedStoreId, null);
                 SyncRetryScheduler.schedule(appContext, checkedStoreId);
             }
@@ -338,7 +338,7 @@ public class DataHub {
     }
 
     /**
-     * สำรองรายการ pending หรือ failed ของร้านที่ระบุ
+     * ซิงก์รายการ pending หรือ failed ของร้านที่ระบุ
      */
     public void syncPendingRecords(
             String storeId,
@@ -369,7 +369,7 @@ public class DataHub {
         final List<JSONObject> records;
 
         try {
-            records = localStore.getRecordsNeedingBackup(
+            records = localStore.getRecordsNeedingSync(
                     checkedStoreId,
                     500
             );
