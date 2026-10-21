@@ -350,7 +350,7 @@ public final class LocalStore extends SQLiteOpenHelper {
                 String storeId = record.optString("storeId", "").trim();
                 String recordId = record.optString("recordId", "").trim();
                 if (isBlank(storeId) || isBlank(recordId)
-                        || !keys.add(storeId + "\u0000" + recordId)) return false;
+                        || !keys.add(storeId + "::" + recordId)) return false;
                 if (record.has("expectedRevision")) {
                     long expected = record.optLong("expectedRevision", -1L);
                     long actual = 0L;
