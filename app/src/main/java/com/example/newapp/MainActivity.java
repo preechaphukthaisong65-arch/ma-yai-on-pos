@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
     private boolean sessionRedirecting;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
-    private boolean reconciliationRunning;
+    private volatile boolean reconciliationRunning;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -213,7 +213,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void reconcileCloudAfterReconnect() {
+    private synchronized void reconcileCloudAfterReconnect() {
         if (reconciliationRunning) return;
         String storeId = StoreIdentity.get(this);
         String ownerUid = StoreIdentity.getOwnerUid(this);
