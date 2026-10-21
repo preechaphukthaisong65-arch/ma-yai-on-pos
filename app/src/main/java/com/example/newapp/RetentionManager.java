@@ -12,7 +12,7 @@ final class RetentionManager {
         SQLiteDatabase db=helper.getWritableDatabase();
         long now=PosDatabase.now();
         long detailCutoff=now-30L*86400000L;
-        long operationsCutoff=now-90L*86400000L;
+        Calendar operationsCalendar=Calendar.getInstance();operationsCalendar.setTimeInMillis(now);operationsCalendar.add(Calendar.MONTH,-3);long operationsCutoff=operationsCalendar.getTimeInMillis();
         Calendar calendar=Calendar.getInstance();calendar.setTimeInMillis(now);calendar.add(Calendar.MONTH,-15);
         long ledgerCutoff=calendar.getTimeInMillis();
         try{
