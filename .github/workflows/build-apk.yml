@@ -8,11 +8,13 @@ on:
       - feature/complete-missing-menus
       - feat/owner-email-auth
       - fix/single-active-device-lock
+      - feat/server-atomic-sales
   pull_request:
     branches:
       - main
       - feat/owner-email-auth
       - fix/single-active-device-lock
+      - feat/server-atomic-sales
       - feature/manage-store-price
       - feature/warehouse-sales
       - feature/complete-missing-menus
