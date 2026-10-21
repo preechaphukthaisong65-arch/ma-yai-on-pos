@@ -49,6 +49,11 @@ These are required before calling the POS production-ready. They are not claimed
 | Receipt reprint, reports, debt reminders, retention cleanup | No financial records altered by viewing/printing/notifications; retention preserves required history | Needs app-level regression tests |
 | Firestore rules deployed to actual Firebase project | Production backend enforces the same rules tested in CI | Not verified; deployment requires project-owner access |
 
+## Known residual risks found during this review
+
+- **Offline device takeover:** while device A is disconnected, it cannot learn that device B has taken over and may still record local sales. When A reconnects, stale cloud writes should be denied and its local records preserved, but those records may need manual reconciliation instead of syncing automatically. A hard single-active-device guarantee and unrestricted offline selling cannot both be guaranteed during a network partition.
+- **Orphan barcode reservation:** if Firestore reserves a barcode but local product persistence subsequently fails, the reservation is intentionally not reused or automatically deleted. This avoids accidental duplicate assignment, but consumes that barcode number and needs an explicit, safe recovery procedure. The asynchronous double-tap window was fixed in `BarcodeScreen.java`; fault-injection testing for a local-save failure is still required.
+
 ## Safety boundaries
 
 - Automated rules tests use a disposable Firebase emulator project and synthetic records; they do not touch the shop's production data.
