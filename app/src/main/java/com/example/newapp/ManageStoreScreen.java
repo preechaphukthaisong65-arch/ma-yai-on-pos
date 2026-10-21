@@ -46,6 +46,7 @@ public class ManageStoreScreen extends Activity {
             if(!c.moveToFirst()||c.getLong(0)!=old){c.close();throw new IllegalStateException("ราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนใหม่");}c.close();
             ContentValues p=new ContentValues();p.put("price_satang",next);p.put("updated_at",PosDatabase.now());
             if(db.update("products",p,"id=?",new String[]{String.valueOf(id)})!=1)throw new IllegalStateException("บันทึกราคาไม่สำเร็จ");
+            ContentValues registryPrice=new ContentValues();registryPrice.put("price_satang",next);db.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode});
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());db.insertOrThrow("price_history",null,h);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage();}
@@ -63,7 +64,7 @@ public class ManageStoreScreen extends Activity {
         Cursor c=helper.getReadableDatabase().query("bills",new String[]{"id","sale_type","status","subtotal_satang","fee_satang","total_satang","created_at"},"bill_code=?",new String[]{code},null,null,null,"1");
         if(!c.moveToFirst()){c.close();new AlertDialog.Builder(this).setMessage("ไม่พบบิลนี้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         long id=c.getLong(0),sub=c.getLong(3),fee=c.getLong(4),total=c.getLong(5),created=c.getLong(6);String type=c.getString(1),status=c.getString(2);c.close();
-        if(PosDatabase.now()-created>86400000L){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
+        if(PosDatabase.now()<created||PosDatabase.now()-created>86400000L){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         if(!"PAID".equals(status)&&!"UNPAID".equals(status)){new AlertDialog.Builder(this).setMessage("บิลนี้ถูกยกเลิกหรือคืนไปแล้ว").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");PosUi.line(this,root,"เลขที่บิล: "+code);PosUi.line(this,root,"ประเภท: "+type);PosUi.line(this,root,"สถานะ: "+status);PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(sub)+" บาท");if(fee>0)PosUi.line(this,root,"ค่าบริการ: "+PosDatabase.money(fee)+" บาท");PosUi.line(this,root,"ยอดบิล: "+PosDatabase.money(total)+" บาท");
         PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->new AlertDialog.Builder(this).setMessage("ยืนยันคืนสินค้าทั้งบิลหรือไม่?").setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,created,true)).show());
@@ -77,11 +78,11 @@ public class ManageStoreScreen extends Activity {
             Cursor items=db.query("bill_items",new String[]{"product_id","barcode","product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
             while(items.moveToNext()){long pid=items.getLong(0);String barcode=items.getString(1),name=items.getString(2);int qty=items.getInt(3);long unitPrice=items.getLong(4),lineTotal=items.getLong(5);
                 Cursor p=db.query("products",new String[]{"stock"},"id=?",new String[]{String.valueOf(pid)},null,null,null);if(!p.moveToFirst()){p.close();throw new IllegalStateException("ไม่พบสินค้าในคลัง: "+name);}int before=p.getInt(0);p.close();
-                ContentValues up=new ContentValues();up.put("stock",before+qty);up.put("updated_at",PosDatabase.now());db.update("products",up,"id=?",new String[]{String.valueOf(pid)});
+                ContentValues up=new ContentValues();up.put("stock",before+qty);up.put("updated_at",PosDatabase.now());if(db.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");
                 ContentValues h=new ContentValues();h.put("product_id",pid);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type","RETURN_CANCEL");h.put("before_qty",before);h.put("after_qty",before+qty);h.put("difference",qty);h.put("reference",code);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);
                 ContentValues li=new ContentValues();li.put("bill_id",id);li.put("bill_code",code);li.put("event_type",returning?"RETURN":"CANCEL");li.put("barcode",barcode);li.put("product_name",name);li.put("quantity",-qty);li.put("unit_price_satang",unitPrice);li.put("line_total_satang",-lineTotal);li.put("created_at",PosDatabase.now());db.insertOrThrow("sales_ledger_items",null,li);
             }items.close();
-            ContentValues b=new ContentValues();b.put("status",returning?"RETURNED":"CANCELLED");b.put("archived_at",PosDatabase.now());b.put("archive_until",PosDatabase.now()+30L*86400000L);db.update("bills",b,"id=? AND status=?",new String[]{String.valueOf(id),status});
+            ContentValues b=new ContentValues();b.put("status",returning?"RETURNED":"CANCELLED");b.put("archived_at",PosDatabase.now());b.put("archive_until",PosDatabase.now()+30L*86400000L);if(db.update("bills",b,"id=? AND bill_code=? AND status=?",new String[]{String.valueOf(id),code,status})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว ไม่สามารถดำเนินการซ้ำได้");
             long ledgerFee=returning&&"PAID".equals(status)?0:-fee;
             long ledgerSubtotal=-sub;long ledgerTotal=ledgerSubtotal+ledgerFee;
             ContentValues l=new ContentValues();l.put("bill_id",id);l.put("bill_code",code);l.put("sale_type",type);l.put("event_type",returning?"RETURN":"CANCEL");l.put("subtotal_satang",ledgerSubtotal);l.put("fee_satang",ledgerFee);l.put("total_satang",ledgerTotal);l.put("created_at",PosDatabase.now());db.insertOrThrow("sales_ledger",null,l);
