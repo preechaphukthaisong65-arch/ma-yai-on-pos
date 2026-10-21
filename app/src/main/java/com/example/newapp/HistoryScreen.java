@@ -78,16 +78,16 @@ public class HistoryScreen extends Activity {
         spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
         PosUi.speakThen(this,spoken.toString(),()->{
         new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้").setMessage("รับเงินสด "+PosDatabase.money(total)+" บาท เพื่อชำระบิลทั้งหมดหรือไม่?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->{
-            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{long now=PosDatabase.now();long actualTotal=0;StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\\n");
+            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{long now=PosDatabase.now();long actualTotal=0;StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\n");
                 for(long id:ids){Cursor c=db.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","status"},"id=? AND customer_id=?",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
                     String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
                     ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);if(db.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                     boolean waiveFee="CREDIT".equals(type)&&now>=getBillTime(db,id)&&now-getBillTime(db,id)<=86400000L;
                     long collected=waiveFee?sub:amount;actualTotal+=collected;
-                    ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\\n");
+                    ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
                     // Within 24 hours, collect merchandise subtotal only; the original sale ledger is adjusted by the waived fee.
                     if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",getBillTime(db,id));db.insertOrThrow("sales_ledger",null,adj);}
-                }if(actualTotal!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");db.setTransactionSuccessful();new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ").setMessage("บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt).setPositiveButton("ตกลง",(x,y)->home()).show();
+                }if(actualTotal!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");db.setTransactionSuccessful();new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ").setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt).setPositiveButton("ตกลง",(x,y)->home()).show();
             }catch(Exception e){new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
         }).show();
         });
