@@ -15,7 +15,7 @@ import java.util.Locale;
 public class CreditAccountScreen extends Activity {
     private StockSalesRepository repo; private LinearLayout root; private EditText first,last,received;
     private final List<JSONObject> bills=new ArrayList<>(); private final List<CheckBox> checks=new ArrayList<>();
-    private TextView totalText; private boolean paying;
+    private TextView totalText; private boolean paying; private JSONObject selectedCustomer;
     @Override public void onCreate(Bundle b){super.onCreate(b);repo=new StockSalesRepository(this);renderSearch();}
     private void renderSearch(){root=POSUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         first=POSUi.input(this,root,"ค้นหาชื่อลูกค้า");last=POSUi.input(this,root,"นามสกุลลูกค้า");
@@ -40,6 +40,7 @@ public class CreditAccountScreen extends Activity {
     }
     private void showBills(JSONObject customer){
         if(customer==null){Toast.makeText(this,"ไม่พบลูกค้ารายนี้",Toast.LENGTH_LONG).show();return;}
+        selectedCustomer=customer;
         JSONObject customerPayload=customer.optJSONObject("payload");
         String f=customerPayload==null?"":customerPayload.optString("firstName","").trim();
         String l=customerPayload==null?"":customerPayload.optString("lastName","").trim();
@@ -80,7 +81,7 @@ public class CreditAccountScreen extends Activity {
         repo.payCreditBillsOnline(chosen, cash, (succeeded, failed, message) -> runOnUiThread(() -> {
             paying = false;
             Toast.makeText(CreditAccountScreen.this, message, Toast.LENGTH_LONG).show();
-            if (failed == 0) showBills();
+            if (failed == 0) showBills(selectedCustomer);
         }));
     }
 }
