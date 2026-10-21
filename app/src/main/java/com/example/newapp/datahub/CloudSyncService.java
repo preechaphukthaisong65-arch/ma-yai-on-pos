@@ -409,8 +409,6 @@ public class CloudSyncService {
     }
 
     /**
-     * Download all backup records belonging to one store.
-     */
     /** Delete a cloud record only if its identity, type and revision still match. */
     public void deleteRecord(String storeId, String recordId, String dataType,
             long expectedRevision, DeleteCallback callback) {
