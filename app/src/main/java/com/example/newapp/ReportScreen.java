@@ -331,7 +331,7 @@ public class ReportScreen extends Activity {
         for (int i = 0; i < count; i++) {
             ProductSales item = ranking.get(i);
             root.addView(POSUi.text(this, (i + 1) + ". " + item.name
-                    + "\nขายได้ " + formatQuantity(item.quantity) + " หน่วย"
+                    + "\nขายได้ " + formatQuantity(item.quantity) + " " + item.unit
                     + (item.barcode.isEmpty() ? "" : "\nบาร์โค้ด: " + item.barcode), 15));
         }
         root.addView(POSUi.text(this,
