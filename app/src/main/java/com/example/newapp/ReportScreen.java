@@ -209,11 +209,26 @@ public class ReportScreen extends Activity {
         java.util.Set<String> paidBillIds = new java.util.HashSet<>();
         for (JSONObject paymentRecord : hub.getRecordsByType(storeId, "credit_payment")) {
             JSONObject p = paymentRecord.optJSONObject("payload");
-            JSONArray ids = p == null ? null : p.optJSONArray("billIds");
-            if (ids == null) continue;
-            for (int i = 0; i < ids.length(); i++) {
-                String id = ids.optString(i, "").trim();
-                if (!id.isEmpty()) paidBillIds.add(id);
+            if (p == null) continue;
+            JSONArray allocations = p.optJSONArray("allocations");
+            if (allocations != null) {
+                for (int i = 0; i < allocations.length(); i++) {
+                    JSONObject allocation = allocations.optJSONObject(i);
+                    if (allocation == null) continue;
+                    String id = allocation.optString("billId", "").trim();
+                    double remaining = allocation.optDouble("remainingBalance", Double.NaN);
+                    if (!id.isEmpty() && ("จ่ายแล้ว".equals(allocation.optString("paymentStatus", ""))
+                            || (Double.isFinite(remaining) && remaining <= 0.009d))) {
+                        paidBillIds.add(id);
+                    }
+                }
+            } else if (!p.optBoolean("isPartialPayment", false)) {
+                JSONArray ids = p.optJSONArray("billIds");
+                if (ids == null) continue;
+                for (int i = 0; i < ids.length(); i++) {
+                    String id = ids.optString(i, "").trim();
+                    if (!id.isEmpty()) paidBillIds.add(id);
+                }
             }
         }
 
