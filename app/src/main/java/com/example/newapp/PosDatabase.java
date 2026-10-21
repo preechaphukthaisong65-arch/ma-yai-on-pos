@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -65,7 +65,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE sales_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL," +
                 "bill_code TEXT NOT NULL, sale_type TEXT NOT NULL, event_type TEXT NOT NULL," +
                 "subtotal_satang INTEGER NOT NULL, fee_satang INTEGER NOT NULL, total_satang INTEGER NOT NULL," +
-                "created_at INTEGER NOT NULL, UNIQUE(bill_id,event_type), FOREIGN KEY(bill_id) REFERENCES bills(id))");
+                "created_at INTEGER NOT NULL, UNIQUE(bill_id,event_type))");
         db.execSQL("CREATE INDEX idx_sales_ledger_created ON sales_ledger(created_at)");
         db.execSQL("CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
         db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','100000000000')");
