@@ -13,7 +13,6 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import com.example.newapp.datahub.DataHub;
 import com.example.newapp.datahub.StoreIdentity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -38,7 +37,7 @@ public final class StartupActivity extends Activity {
             storeCode.setText(savedStoreId);
         }
         status.setText("เข้าสู่ระบบด้วยบัญชีเจ้าของร้านที่ยืนยันอีเมลแล้ว "
-                + "เพื่อกู้คืนข้อมูลร้าน โดยอนุญาตให้ใช้งานได้ครั้งละหนึ่งเครื่อง");
+                + "เพื่อยืนยันสิทธิ์ร้าน โดยอนุญาตให้ใช้งานได้ครั้งละหนึ่งเครื่อง");
     }
 
     private void showSetup() {
@@ -85,7 +84,7 @@ public final class StartupActivity extends Activity {
         addField(root, storeCode, pad / 2);
 
         status = new TextView(this);
-        status.setText("ข้อมูลในเครื่องจะไม่ถูกเขียนทับโดยการกู้คืน");
+        status.setText("ข้อมูลในเครื่องจะไม่ถูกเขียนทับโดยการเข้าสู่ระบบ");
         status.setTextSize(14);
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
         statusParams.topMargin = pad / 2;
@@ -96,7 +95,7 @@ public final class StartupActivity extends Activity {
         root.addView(progress);
 
         action = new Button(this);
-        action.setText("เข้าสู่ระบบและกู้คืนข้อมูล");
+        action.setText("เข้าสู่ระบบและยืนยันสิทธิ์ร้าน");
         action.setOnClickListener(v -> signInOwner());
         addField(root, action, pad / 2);
 
@@ -183,7 +182,7 @@ public final class StartupActivity extends Activity {
                                 });
                         return;
                     }
-                    restoreForOwner(auth, user, enteredStoreId());
+                    continueForOwner(auth, user, enteredStoreId());
                 })
                 .addOnFailureListener(error -> showFailure(
                         "เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจอีเมล รหัสผ่าน และการตั้งค่า Firebase: "
@@ -219,7 +218,7 @@ public final class StartupActivity extends Activity {
                                 + safeMessage(error)));
     }
 
-    private void restoreForOwner(FirebaseAuth auth, FirebaseUser user, String storeId) {
+    private void continueForOwner(FirebaseAuth auth, FirebaseUser user, String storeId) {
         status.setText("กำลังตรวจสอบสิทธิ์เครื่องที่ใช้งาน…");
         String deviceId = StoreIdentity.getOrCreateDeviceId(getApplicationContext());
         new com.example.newapp.datahub.DeviceSessionManager().claim(storeId, deviceId, (claimed, message) -> runOnUiThread(() -> {
@@ -227,35 +226,19 @@ public final class StartupActivity extends Activity {
                 showFailure("ไม่สามารถรับสิทธิ์ใช้งานร้านได้: " + message);
                 return;
             }
-            restoreAfterSessionClaim(auth, user, storeId);
+            finishOwnerSetup(auth, user, storeId);
         }));
     }
 
-    private void restoreAfterSessionClaim(FirebaseAuth auth, FirebaseUser user, String storeId) {
-        status.setText("กำลังกู้คืนข้อมูลสำรอง…");
+    private void finishOwnerSetup(FirebaseAuth auth, FirebaseUser user, String storeId) {
         try {
-            DataHub.getInstance(getApplicationContext()).restoreMissingRecords(
-                    storeId,
-                    (restored, skipped, failed, message) -> runOnUiThread(() -> {
-                        if (failed > 0) {
-                            showFailure("กู้คืนหรือเข้าถึงร้านไม่สำเร็จ: " + message
-                                    + " ตรวจว่ารหัสร้านผูกกับ UID เจ้าของนี้ใน storeOwners "
-                                    + "และ Firestore Security Rules ถูก deploy แล้ว");
-                            return;
-                        }
-                        StoreIdentity.save(this, storeId);
-                        StoreIdentity.saveOwnerUid(this, user.getUid());
-                        StoreIdentity.markInitialRestoreComplete(this);
-                        status.setText("ยืนยันบัญชีแล้ว: กู้คืน " + restored
-                                + " รายการ, ข้ามรายการเดิม " + skipped + " รายการ");
-                        if (message != null && message.contains("บาร์โค้ดซ้ำ")) {
-                            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show();
-                        }
-                        openMain();
-                    })
-            );
+            StoreIdentity.save(this, storeId);
+            StoreIdentity.saveOwnerUid(this, user.getUid());
+            StoreIdentity.markInitialSetupComplete(this);
+            status.setText("ยืนยันบัญชีและสิทธิ์ร้านสำเร็จ");
+            openMain();
         } catch (RuntimeException error) {
-            showFailure("เริ่มระบบข้อมูลกลางไม่ได้: " + safeMessage(error));
+            showFailure("ยืนยันสิทธิ์ร้านไม่สำเร็จ: " + safeMessage(error));
         }
     }
 
@@ -270,8 +253,8 @@ public final class StartupActivity extends Activity {
                 || !savedStore.equals(enteredStoreId())
                 || savedOwnerUid.isEmpty()
                 || !savedOwnerUid.equals(user.getUid())
-                || !StoreIdentity.isInitialRestoreComplete(this)) {
-            status.setText("ใช้ออฟไลน์ได้เฉพาะเครื่องที่เคยกู้คืนสำเร็จ "
+                || !StoreIdentity.isInitialSetupComplete(this)) {
+            status.setText("ใช้ออฟไลน์ได้เฉพาะเครื่องที่เคยยืนยันสิทธิ์ร้านสำเร็จ "
                     + "และบัญชีเจ้าของร้านเดิมยังเข้าสู่ระบบอยู่");
             return;
         }
@@ -301,7 +284,7 @@ public final class StartupActivity extends Activity {
         storeCode.setEnabled(!value);
         continueOffline.setEnabled(!value);
         if (value) continueOffline.setVisibility(View.GONE);
-        action.setText(value ? "กำลังดำเนินการ…" : "เข้าสู่ระบบและกู้คืนข้อมูล");
+        action.setText(value ? "กำลังดำเนินการ…" : "เข้าสู่ระบบและยืนยันสิทธิ์ร้าน");
     }
 
     private void openMain() {
