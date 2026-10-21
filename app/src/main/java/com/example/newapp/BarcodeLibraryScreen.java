@@ -99,28 +99,13 @@ public class BarcodeLibraryScreen extends Activity {
             count++;
             results.addView(POSUi.text(this, name + "\nบาร์โค้ด: " + code + "\nราคา: "
                     + String.format(Locale.US, "%.2f", p.optDouble("price", 0d)) + " บาท", 16));
-            POSUi.button(this, results, "พิมพ์บาร์โค้ดเดิม", () -> printExisting(name, code, p.optDouble("price", 0d)));
+            POSUi.button(this, results, "พิมพ์บาร์โค้ดเดิม", this::printerDeferred);
         }
         if (count == 0) results.addView(POSUi.text(this, "ไม่พบรายการที่ตรงกับคำค้นหา", 15));
     }
 
-    private void printExisting(String name, String code, double price) {
-        EditText quantityInput = new EditText(this);
-        quantityInput.setHint("จำนวนฉลาก 1–500");
-        quantityInput.setInputType(2);
-        new android.app.AlertDialog.Builder(this).setTitle("พิมพ์ซ้ำ")
-                .setView(quantityInput).setNegativeButton("ยกเลิก", null)
-                .setPositiveButton("พิมพ์", (d,w) -> {
-                    int qty;
-                    try { qty = Integer.parseInt(quantityInput.getText().toString().trim()); } catch (Exception e) { qty = 0; }
-                    if (qty < 1 || qty > 500) { Toast.makeText(this, "ระบุจำนวน 1–500 ฉลาก", Toast.LENGTH_LONG).show(); return; }
-                    android.print.PrintManager manager = (android.print.PrintManager)getSystemService(PRINT_SERVICE);
-                    manager.print("บาร์โค้ด-" + code, new BarcodePrintAdapter(this, "บาร์โค้ด-" + code, code, name, price, qty),
-                            new android.print.PrintAttributes.Builder()
-                                    .setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4)
-                                    .setResolution(new android.print.PrintAttributes.Resolution("barcode", "Barcode", 300, 300))
-                                    .setMinMargins(android.print.PrintAttributes.Margins.NO_MARGINS).build());
-                }).show();
+    private void printerDeferred() {
+        Toast.makeText(this, "ระบบพิมพ์บาร์โค้ดจะพัฒนาในระยะถัดไป", Toast.LENGTH_LONG).show();
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
