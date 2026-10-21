@@ -75,7 +75,7 @@ public final class LocalStore extends SQLiteOpenHelper {
             throws JSONException {
 
         if (record == null
-                || !new BackupManager().isValidRecord(record)) {
+                || !new RecordValidator().isValidRecord(record)) {
             return false;
         }
 
@@ -239,9 +239,9 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * อ่านรายการที่ยังไม่ได้สำรอง รวมรายการที่เคยล้มเหลว
+     * อ่านรายการที่ยังไม่ได้ซิงก์ รวมรายการที่เคยล้มเหลว
      */
-    public synchronized List<JSONObject> getRecordsNeedingBackup(
+    public synchronized List<JSONObject> getRecordsNeedingSync(
             String storeId,
             int limit
     ) throws JSONException {
@@ -346,7 +346,7 @@ public final class LocalStore extends SQLiteOpenHelper {
         try {
             java.util.HashSet<String> keys = new java.util.HashSet<>();
             for (JSONObject record : records) {
-                if (record == null || !new BackupManager().isValidRecord(record)) return false;
+                if (record == null || !new RecordValidator().isValidRecord(record)) return false;
                 String storeId = record.optString("storeId", "").trim();
                 String recordId = record.optString("recordId", "").trim();
                 if (isBlank(storeId) || isBlank(recordId)
@@ -379,7 +379,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * นับทุกรายการที่ยังไม่ได้สำรองสำเร็จ
+     * นับทุกรายการที่ยังไม่ได้ซิงก์สำเร็จ
      */
     public synchronized int getPendingCount() {
         Cursor cursor = getReadableDatabase().rawQuery(
@@ -396,7 +396,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * นับรายการที่ยังไม่ได้สำรองของร้านค้าที่ระบุ
+     * นับรายการที่ยังไม่ได้ซิงก์ของร้านค้าที่ระบุ
      */
     public synchronized int getPendingCount(String storeId) {
         Cursor cursor = getReadableDatabase().rawQuery(
@@ -484,51 +484,6 @@ public final class LocalStore extends SQLiteOpenHelper {
      * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
      * ไม่เขียนทับรายการที่มีอยู่แล้ว
      */
-    public synchronized boolean insertRestoredRecordIfAbsent(
-            JSONObject record
-    ) throws JSONException {
-
-        if (record == null
-                || !new BackupManager().isValidRecord(record)) {
-            throw new IllegalArgumentException(
-                    "Invalid backup record"
-            );
-        }
-
-        ContentValues values = new ContentValues();
-        values.put(COL_RECORD_ID, record.getString("recordId"));
-        values.put(COL_STORE_ID, record.getString("storeId"));
-        values.put(COL_DATA_TYPE, record.getString("dataType"));
-        values.put(
-                COL_SCHEMA_VERSION,
-                record.getInt("schemaVersion")
-        );
-        values.put(
-                COL_UPDATED_AT,
-                record.optLong(
-                        "updatedAt",
-                        System.currentTimeMillis()
-                )
-        );
-        values.put(COL_REVISION, Math.max(1L, record.optLong("revision", 1L)));
-        values.put(
-                COL_PAYLOAD,
-                record.getJSONObject("payload").toString()
-        );
-
-        // รายการที่กู้คืนมาจากคลาวด์ถือว่ามีสำเนาบนคลาวด์แล้ว
-        values.put(COL_SYNC_STATUS, DataHub.SYNC_SYNCED);
-
-        long result = getWritableDatabase().insertWithOnConflict(
-                TABLE_RECORDS,
-                null,
-                values,
-                SQLiteDatabase.CONFLICT_IGNORE
-        );
-
-        return result != -1L;
-    }
-
     private JSONObject readRecord(
             Cursor cursor
     ) throws JSONException {
