@@ -297,8 +297,8 @@ public class SellScreen extends Activity {
         LinearLayout root=POSUi.page(this,"บันทึกการขายแล้ว");
         root.addView(POSUi.text(this,"สถานะ: "+paymentStatus,18));
         root.addView(POSUi.text(this,"ยอดรวม: "+money(total)+" บาท",22));
-        root.addView(POSUi.text(this,"บันทึกใบเสร็จแล้ว — พร้อมเปิดหน้าพิมพ์หรือพิมพ์ซ้ำ",15));
-        POSUi.button(this,root,"เปิดใบเสร็จ / พิมพ์",()->{Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);});
+        root.addView(POSUi.text(this,"บันทึกใบเสร็จแล้ว — ระบบพิมพ์ยังไม่เปิดใช้งาน",15));
+        POSUi.button(this,root,"ดูใบเสร็จ / พิมพ์ภายหลัง",()->{Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);});
         POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
         setContentView(root);
     }
