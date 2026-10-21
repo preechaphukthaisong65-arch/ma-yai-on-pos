@@ -65,10 +65,10 @@ public class SellScreen extends Activity {
         while(bills.moveToNext()){
             if(credit&&(bills.isNull(2)||!customerName.equalsIgnoreCase(bills.getString(2))))continue;
             long billId=bills.getLong(0);Cursor items=db.query("bill_items",new String[]{"product_id","quantity","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,null);
-            java.util.HashMap<Long,int[]> existing=new java.util.HashMap<>();
-            while(items.moveToNext())existing.put(items.getLong(0),new int[]{items.getInt(1),(int)items.getLong(2)});items.close();
+            java.util.HashMap<Long,long[]> existing=new java.util.HashMap<>();
+            while(items.moveToNext())existing.put(items.getLong(0),new long[]{items.getInt(1),items.getLong(2)});items.close();
             if(existing.size()!=cart.size())continue;boolean same=true;
-            for(Item item:cart.values()){int[] x=existing.get(item.id);if(x==null||x[0]!=item.qty||((long)x[1])!=item.price){same=false;break;}}
+            for(Item item:cart.values()){long[] x=existing.get(item.id);if(x==null||x[0]!=item.qty||x[1]!=item.price){same=false;break;}}
             if(same){match=bills.getString(1);break;}
         }
         bills.close();return match;
