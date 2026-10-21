@@ -169,7 +169,12 @@ public class CloudBackupService {
             double receivedAmount, String deviceId, CreditPaymentCallback callback) {
         String store = storeId == null ? "" : storeId.trim();
         FirebaseUser user = auth.getCurrentUser();
+        if (!Double.isFinite(receivedAmount) || receivedAmount <= 0d) {
+            if (callback != null) callback.onFailure("ยอดรับชำระต้องเป็นจำนวนเงินที่ถูกต้องและมากกว่า 0");
+            return;
+        }
         long receivedCents = Math.round(receivedAmount * 100d);
+        if (callback == null) return;
         if (user == null || !user.isEmailVerified() || store.isEmpty()
                 || selectedBills == null || selectedBills.isEmpty() || selectedBills.size() > 100
                 || receivedCents <= 0L || deviceId == null || deviceId.trim().isEmpty()) {
@@ -182,10 +187,18 @@ public class CloudBackupService {
         long now = System.currentTimeMillis();
         DocumentReference sessionRef = firestore.collection("storeDeviceSessions").document(store);
         List<DocumentReference> billRefs = new ArrayList<>();
+        java.util.Set<String> uniqueBillIds = new java.util.HashSet<>();
         for (JSONObject bill : selectedBills) {
             String id = bill == null ? "" : bill.optString("recordId", "").trim();
             if (id.isEmpty()) {
                 callback.onFailure("พบบิลที่ไม่มีรหัสรายการ");
+                return;
+            }
+            // A duplicate ID would count the same cloud balance twice while the
+            // transaction writes the same bill document more than once. Reject
+            // it before reading balances or creating any payment artifacts.
+            if (!uniqueBillIds.add(id)) {
+                callback.onFailure("มีการเลือกบิลซ้ำ กรุณายกเลิกบิลที่ซ้ำแล้วลองใหม่");
                 return;
             }
             billRefs.add(firestore.collection(COLLECTION_BACKUPS).document(store)
