@@ -15,14 +15,14 @@ public class DataHub {
     private static volatile DataHub instance;
 
     private final LocalStore localStore;
-    private final CloudBackupService cloudBackupService;
+    private final CloudSyncService cloudSyncService;
     private final DataHubStatus dataHubStatus;
     private final Context appContext;
 
     private DataHub(Context context) {
         appContext = context.getApplicationContext();
         localStore = new LocalStore(appContext);
-        cloudBackupService = new CloudBackupService();
+        cloudSyncService = new CloudSyncService();
         dataHubStatus = new DataHubStatus();
     }
 
@@ -42,22 +42,13 @@ public class DataHub {
         void onComplete(int succeeded, int failed, String message);
     }
 
-    public interface RestoreCallback {
-        void onComplete(
-                int restored,
-                int skipped,
-                int failed,
-                String message
-        );
-    }
-
     public interface RetentionDeleteCallback {
         void onComplete(boolean deleted, String message);
     }
 
     /**
      * บันทึกข้อมูลลง LocalStore ก่อน
-     * ถ้าบันทึกสำเร็จ จะเริ่มสำรองข้อมูลขึ้น Cloud อัตโนมัติ
+     * ถ้าบันทึกสำเร็จ จะเริ่มซิงก์ข้อมูลขึ้น Cloud อัตโนมัติ
      *
      * วิธีนี้ไม่แก้ไขข้อมูลการขายหรือข้อมูลสต๊อก
      * และไม่ถือว่าการบันทึกในเครื่องล้มเหลว
@@ -114,8 +105,8 @@ public class DataHub {
             if (saved) {
                 // เริ่มสำรองรายการที่รออยู่ในร้านนี้โดยอัตโนมัติ
                 // ความล้มเหลวของ Cloud จะไม่ลบข้อมูลที่บันทึกในเครื่อง
-                backupPendingRecords(checkedStoreId, null);
-                BackupRetryScheduler.schedule(appContext, checkedStoreId);
+                syncPendingRecords(checkedStoreId, null);
+                SyncRetryScheduler.schedule(appContext, checkedStoreId);
             }
 
             return saved;
@@ -157,7 +148,7 @@ public class DataHub {
         }
     }
 
-    /** Persist related domain records in one SQLite transaction, then queue cloud backup. */
+    /** Persist related domain records in one SQLite transaction, then queue cloud sync. */
     public synchronized boolean saveRecordsAtomically(String storeId, List<JSONObject> records) {
         if (isBlank(storeId) || records == null || records.isEmpty()) return false;
         String checkedStore = storeId.trim();
@@ -196,8 +187,8 @@ public class DataHub {
             if (!localStore.saveRecordsAtomically(prepared)) return false;
             StoreIdentity.save(appContext, checkedStore);
             refreshStatus(checkedStore);
-            backupPendingRecords(checkedStore, null);
-            BackupRetryScheduler.schedule(appContext, checkedStore);
+            syncPendingRecords(checkedStore, null);
+            SyncRetryScheduler.schedule(appContext, checkedStore);
             return true;
         } catch (Exception error) {
             dataHubStatus.setStatus(SYNC_FAILED, "บันทึกข้อมูลรายการที่เกี่ยวข้องไม่สำเร็จ");
@@ -252,8 +243,8 @@ public class DataHub {
             if (!localStore.saveRecordsAtomically(records)) return false;
             StoreIdentity.save(appContext, checkedStore);
             refreshStatus(checkedStore);
-            backupPendingRecords(checkedStore, null);
-            BackupRetryScheduler.schedule(appContext, checkedStore);
+            syncPendingRecords(checkedStore, null);
+            SyncRetryScheduler.schedule(appContext, checkedStore);
             return true;
         } catch (Exception error) {
             dataHubStatus.setStatus(SYNC_FAILED, "บันทึกราคาและประวัติไม่สำเร็จ");
@@ -330,16 +321,16 @@ public class DataHub {
     }
 
     /**
-     * จำนวนรายการในเครื่องที่ยังไม่ได้สำรองสำเร็จ
+     * จำนวนรายการในเครื่องที่ยังไม่ได้ซิงก์สำเร็จ
      */
-    public int getPendingBackupCount() {
+    public int getPendingSyncCount() {
         return localStore.getPendingCount();
     }
 
     /**
-     * Number of records for one store that still need a successful cloud backup.
+     * Number of records for one store that still need a successful cloud sync.
      */
-    public int getPendingBackupCount(String storeId) {
+    public int getPendingSyncCount(String storeId) {
         if (storeId == null || storeId.trim().isEmpty()) {
             return 0;
         }
@@ -349,7 +340,7 @@ public class DataHub {
     /**
      * สำรองรายการ pending หรือ failed ของร้านที่ระบุ
      */
-    public void backupPendingRecords(
+    public void syncPendingRecords(
             String storeId,
             OperationCallback callback
     ) {
@@ -371,7 +362,7 @@ public class DataHub {
         // the dedicated idempotent server transaction must reconcile the sale first.
         if (hasPendingOfflineSales(checkedStoreId)) {
             completeOperation(callback, 0, 1,
-                    "มีรายการขายออฟไลน์รอยืนยันกับเซิร์ฟเวอร์ จึงพักการสำรองรายรายการเพื่อป้องกันข้อมูลขัดแย้ง");
+                    "มีรายการขายออฟไลน์รอยืนยันกับเซิร์ฟเวอร์ จึงพักการซิงก์รายรายการเพื่อป้องกันข้อมูลขัดแย้ง");
             return;
         }
 
@@ -387,7 +378,7 @@ public class DataHub {
                     callback,
                     0,
                     1,
-                    "อ่านรายการที่รอสำรองไม่สำเร็จ"
+                    "อ่านรายการที่รอซิงก์ไม่สำเร็จ"
             );
             return;
         }
@@ -399,12 +390,12 @@ public class DataHub {
                     callback,
                     0,
                     0,
-                    "ไม่มีรายการที่รอสำรอง"
+                    "ไม่มีรายการที่รอซิงก์"
             );
             return;
         }
 
-        processBackupRecords(
+        processSyncRecords(
                 checkedStoreId,
                 records,
                 0,
@@ -414,7 +405,7 @@ public class DataHub {
         );
     }
 
-    private void processBackupRecords(
+    private void processSyncRecords(
             String storeId,
             List<JSONObject> records,
             int index,
@@ -426,8 +417,8 @@ public class DataHub {
             refreshStatus(storeId);
 
             String message = failed == 0
-                    ? "สำรองข้อมูลเสร็จแล้ว"
-                    : "สำรองข้อมูลเสร็จบางส่วน โปรดลองใหม่ภายหลัง";
+                    ? "ซิงก์ข้อมูลเสร็จแล้ว"
+                    : "ซิงก์ข้อมูลเสร็จบางส่วน โปรดลองใหม่ภายหลัง";
 
             completeOperation(
                     callback,
@@ -444,7 +435,7 @@ public class DataHub {
                 || !storeId.equals(
                         record.optString("storeId", "")
                 )) {
-            processBackupRecords(
+            processSyncRecords(
                     storeId,
                     records,
                     index + 1,
@@ -459,7 +450,7 @@ public class DataHub {
                 record.optString("recordId", "").trim();
 
         if (recordId.isEmpty()) {
-            processBackupRecords(
+            processSyncRecords(
                     storeId,
                     records,
                     index + 1,
@@ -477,13 +468,13 @@ public class DataHub {
             uploadRecord = new JSONObject(record.toString());
             uploadRecord.put("deviceId", StoreIdentity.getOrCreateDeviceId(appContext));
         } catch (Exception error) {
-            processBackupRecords(storeId, records, index + 1, succeeded, failed + 1, callback);
+            processSyncRecords(storeId, records, index + 1, succeeded, failed + 1, callback);
             return;
         }
 
-        cloudBackupService.upload(
+        cloudSyncService.upload(
                 uploadRecord,
-                new CloudBackupService.BackupCallback() {
+                new CloudSyncService.BackupCallback() {
                     @Override
                     public void onSuccess() {
                         boolean marked = localStore.markSyncStatusIfRevision(
@@ -493,7 +484,7 @@ public class DataHub {
                                 SYNC_SYNCED
                         );
 
-                        processBackupRecords(
+                        processSyncRecords(
                                 storeId,
                                 records,
                                 index + 1,
@@ -513,7 +504,7 @@ public class DataHub {
                                 SYNC_FAILED
                         );
 
-                        processBackupRecords(
+                        processSyncRecords(
                                 storeId,
                                 records,
                                 index + 1,
@@ -527,157 +518,9 @@ public class DataHub {
     }
 
     /**
-     * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
+     * โหลดจาก Cloudเฉพาะรายการที่ยังไม่มีในเครื่อง
      * ไม่เขียนทับข้อมูลเดิมที่มีอยู่ในเครื่อง
      */
-    public void restoreMissingRecords(
-            String storeId,
-            RestoreCallback callback
-    ) {
-        final String checkedStoreId =
-                storeId == null ? "" : storeId.trim();
-
-        if (checkedStoreId.isEmpty()) {
-            completeRestore(
-                    callback,
-                    0,
-                    0,
-                    1,
-                    "ไม่พบรหัสร้านค้า"
-            );
-            return;
-        }
-
-        cloudBackupService.fetchStoreRecords(
-                checkedStoreId,
-                new CloudBackupService.RecordsCallback() {
-                    @Override
-                    public void onSuccess(List<JSONObject> records) {
-                        int restored = 0;
-                        int skipped = 0;
-                        int failed = 0;
-
-                        if (records == null) {
-                            completeRestore(
-                                    callback,
-                                    0,
-                                    0,
-                                    1,
-                                    "ไม่ได้รับรายการข้อมูลสำรอง"
-                            );
-                            return;
-                        }
-
-                        RestoreManager restoreManager =
-                                new RestoreManager();
-
-                        for (JSONObject record : records) {
-                            if (record == null
-                                    || !checkedStoreId.equals(
-                                            record.optString(
-                                                    "storeId", ""
-                                            )
-                                    )) {
-                                failed++;
-                                continue;
-                            }
-
-                            if (!restoreManager.canRestore(
-                                    record,
-                                    checkedStoreId
-                            )) {
-                                failed++;
-                                continue;
-                            }
-
-                            try {
-                                boolean inserted =
-                                        localStore.insertRestoredRecordIfAbsent(
-                                                record
-                                        );
-
-                                if (inserted) {
-                                    restored++;
-                                } else {
-                                    JSONObject existing =
-                                            localStore.getRecord(
-                                                    checkedStoreId,
-                                                    record.optString(
-                                                            "recordId", ""
-                                                    )
-                                            );
-
-                                    if (existing != null) {
-                                        // An existing local record is not automatically "the same"
-                                        // as its cloud counterpart. Keep local data untouched and
-                                        // flag mismatched revisions/content for manual reconciliation.
-                                        boolean identical = existing.optString("dataType", "")
-                                                        .equals(record.optString("dataType", ""))
-                                                && existing.optLong("revision", 0L)
-                                                        == record.optLong("revision", 0L)
-                                                && existing.optLong("updatedAt", 0L)
-                                                        == record.optLong("updatedAt", 0L)
-                                                && existing.optJSONObject("payload") != null
-                                                && record.optJSONObject("payload") != null
-                                                && existing.optJSONObject("payload").toString()
-                                                        .equals(record.optJSONObject("payload").toString());
-                                        if (identical) {
-                                            skipped++;
-                                        } else {
-                                            // Do not overwrite either copy. Count as a restore conflict
-                                            // so the caller cannot report a clean restore.
-                                            failed++;
-                                        }
-                                    } else {
-                                        failed++;
-                                    }
-                                }
-
-                            } catch (Exception error) {
-                                failed++;
-                            }
-                        }
-
-                        // Audit business-level barcode collisions after restore. A different
-                        // record ID can still represent the same barcode; never auto-delete it.
-                        int duplicateBarcodes = getDuplicateBarcodeCount(checkedStoreId);
-                        refreshStatus(checkedStoreId);
-
-                        String message;
-                        if (failed > 0) {
-                            message = "กู้คืนข้อมูลเสร็จบางส่วน พบรายการข้อมูลขัดแย้งที่ต้องตรวจสอบ";
-                        } else if (duplicateBarcodes > 0) {
-                            message = "กู้คืนข้อมูลแล้ว แต่พบบาร์โค้ดซ้ำ " + duplicateBarcodes
-                                    + " รายการ ห้ามลบอัตโนมัติ กรุณาตรวจสอบก่อนสร้างบาร์โค้ดใหม่";
-                        } else {
-                            message = "กู้คืนข้อมูลเสร็จแล้ว ไม่พบข้อมูลขัดแย้งจากการตรวจนี้";
-                        }
-
-                        completeRestore(
-                                callback,
-                                restored,
-                                skipped,
-                                failed,
-                                message
-                        );
-                    }
-
-                    @Override
-                    public void onFailure(String message) {
-                        completeRestore(
-                                callback,
-                                0,
-                                0,
-                                1,
-                                message == null
-                                        ? "ดาวน์โหลดข้อมูลสำรองไม่สำเร็จ"
-                                        : message
-                        );
-                    }
-                }
-        );
-    }
-
     /** Re-check policy, sync state and revision before deleting remote then local. */
     public void deleteExpiredRecord(String storeId, String recordId, String dataType,
             long cutoff, RetentionDeleteCallback callback) {
@@ -708,8 +551,8 @@ public class DataHub {
             completeRetentionDelete(callback, false, "ไม่พบ revision ที่ตรวจสอบได้");
             return;
         }
-        cloudBackupService.deleteRecord(checkedStore, checkedId, dataType, revision,
-                new CloudBackupService.DeleteCallback() {
+        cloudSyncService.deleteRecord(checkedStore, checkedId, dataType, revision,
+                new CloudSyncService.DeleteCallback() {
                     @Override public void onSuccess() {
                         boolean deleted = localStore.deleteRecordIfSyncedAndRevision(checkedStore, checkedId, revision);
                         refreshStatus(checkedStore);
@@ -807,7 +650,7 @@ public class DataHub {
         } else {
             dataHubStatus.setStatus(
                     SYNC_PENDING,
-                    "มี " + pending + " รายการรอสำรอง"
+                    "มี " + pending + " รายการรอซิงก์"
             );
         }
     }
@@ -821,23 +664,6 @@ public class DataHub {
         if (callback != null) {
             callback.onComplete(
                     succeeded,
-                    failed,
-                    message
-            );
-        }
-    }
-
-    private void completeRestore(
-            RestoreCallback callback,
-            int restored,
-            int skipped,
-            int failed,
-            String message
-    ) {
-        if (callback != null) {
-            callback.onComplete(
-                    restored,
-                    skipped,
                     failed,
                     message
             );
@@ -874,14 +700,14 @@ public class DataHub {
             return;
         }
         String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
-        cloudBackupService.commitCreditPayment(checkedStore, selectedBills, receivedAmount, deviceId,
-                new CloudBackupService.CreditPaymentCallback() {
+        cloudSyncService.commitCreditPayment(checkedStore, selectedBills, receivedAmount, deviceId,
+                new CloudSyncService.CreditPaymentCallback() {
                     @Override public void onSuccess(List<JSONObject> committedRecords) {
                         try {
                             boolean saved = localStore.saveRecordsAtomically(committedRecords);
                             if (!saved) {
                                 completeOperation(callback, 0, 1,
-                                        "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่เพื่อกู้คืนและตรวจสอบ ห้ามรับเงินซ้ำ");
+                                        "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่เพื่อโหลดจาก Cloudและตรวจสอบ ห้ามรับเงินซ้ำ");
                                 return;
                             }
                             refreshStatus(checkedStore);
@@ -889,7 +715,7 @@ public class DataHub {
                                     "บันทึกการชำระหนี้บนเซิร์ฟเวอร์แบบธุรกรรมเดียวแล้ว");
                         } catch (Exception error) {
                             completeOperation(callback, 0, 1,
-                                    "เซิร์ฟเวอร์รับชำระแล้ว แต่ซ่อมข้อมูลในเครื่องไม่สำเร็จ กรุณากู้คืนจาก Cloud และห้ามรับเงินซ้ำ");
+                                    "เซิร์ฟเวอร์รับชำระแล้ว แต่ซ่อมข้อมูลในเครื่องไม่สำเร็จ กรุณาโหลดจาก Cloudจาก Cloud และห้ามรับเงินซ้ำ");
                         }
                     }
                     @Override public void onFailure(String message) {
@@ -900,7 +726,7 @@ public class DataHub {
 
     public void reserveBarcode(String storeId, String barcode, OperationCallback callback) {
         String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
-        cloudBackupService.reserveBarcode(storeId, barcode, deviceId, new CloudBackupService.BackupCallback() {
+        cloudSyncService.reserveBarcode(storeId, barcode, deviceId, new CloudSyncService.BackupCallback() {
             @Override public void onSuccess() {
                 if (callback != null) callback.onComplete(1, 0, "จองบาร์โค้ดสำเร็จ");
             }
