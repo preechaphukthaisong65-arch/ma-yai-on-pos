@@ -72,7 +72,17 @@ public final class PosDatabase extends SQLiteOpenHelper {
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // Schema migrations must be explicit; never drop operational data during an upgrade.
+        if (oldVersion < 2) {
+            db.beginTransaction();
+            try {
+                db.execSQL("ALTER TABLE sales_ledger RENAME TO sales_ledger_v1");
+                db.execSQL("CREATE TABLE sales_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL, bill_code TEXT NOT NULL, sale_type TEXT NOT NULL, event_type TEXT NOT NULL, subtotal_satang INTEGER NOT NULL, fee_satang INTEGER NOT NULL, total_satang INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(bill_id,event_type))");
+                db.execSQL("INSERT INTO sales_ledger SELECT * FROM sales_ledger_v1");
+                db.execSQL("DROP TABLE sales_ledger_v1");
+                db.execSQL("CREATE INDEX idx_sales_ledger_created ON sales_ledger(created_at)");
+                db.setTransactionSuccessful();
+            } finally { db.endTransaction(); }
+        }
     }
 
     public static long now() { return System.currentTimeMillis(); }
