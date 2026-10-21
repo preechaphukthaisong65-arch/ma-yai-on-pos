@@ -54,7 +54,7 @@ public final class StartupActivity extends Activity {
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView description = new TextView(this);
-        description.setText("ใช้งานได้ครั้งละ 1 เครื่องเท่านั้น การย้ายเครื่องใช้เมื่อจำเป็นต้องกู้คืน");
+        description.setText("ใช้งานได้ครั้งละ 1 เครื่องเท่านั้น ต้องยืนยันสิทธิ์เมื่อย้ายเครื่อง");
         description.setTextSize(16);
         description.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(-1, -2);
