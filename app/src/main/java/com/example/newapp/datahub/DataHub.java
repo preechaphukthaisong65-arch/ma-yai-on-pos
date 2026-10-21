@@ -275,7 +275,7 @@ public class DataHub {
     /**
      * Apply records returned by a successful authoritative Cloud Function.
      * Unlike ordinary local edits, these snapshots are already committed in
-     * Firestore, so persist them locally as synced without queuing another upload.
+     * Firestore, so persist them locally as synced without queuing another sync.
      */
     public synchronized boolean saveServerCommittedRecordsAtomically(
             String storeId, List<JSONObject> records) {
