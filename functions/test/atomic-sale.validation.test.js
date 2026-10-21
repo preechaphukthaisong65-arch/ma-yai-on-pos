@@ -21,3 +21,11 @@ test("sale input is bounded and price is read from server product records", () =
   assert.match(source, /received < total/);
   assert.match(source, /serviceFee = paymentType === "credit"/);
 });
+
+test("server rejects stale product revisions and protects customer identity", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+  assert.match(source, /Number\(snap\.get\("revision"\)\) \|\| 0\) !== item\.localRevision/);
+  assert.match(source, /customersQuery = records\.where\("dataType", "==", "credit_customer"\)/);
+  assert.match(source, /enforceAppCheck: true/);
+  assert.match(source, /requestHash/);
+});
