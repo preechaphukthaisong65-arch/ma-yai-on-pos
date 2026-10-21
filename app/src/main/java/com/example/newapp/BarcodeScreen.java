@@ -1,13 +1,10 @@
 package com.example.newapp;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.print.PrintManager;
-import android.provider.Settings;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
