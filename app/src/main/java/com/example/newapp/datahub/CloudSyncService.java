@@ -145,7 +145,7 @@ public class CloudSyncService {
         } catch (Exception error) {
             failSync(
                     callback,
-                    "เตรียมข้อมูลสำรองไม่สำเร็จ: "
+                    "เตรียมข้อมูลเพื่อซิงก์ไม่สำเร็จ: "
                             + safeMessage(error)
             );
         }
@@ -217,7 +217,7 @@ public class CloudSyncService {
                         || !store.equals(cloud.getString("storeId"))
                         || !local.optString("recordId").equals(cloud.getString("recordId"))
                         || !"sale_bill".equals(cloud.getString("dataType"))) {
-                    throw new IllegalStateException("บิลไม่มีข้อมูลสำรองบนเซิร์ฟเวอร์ กรุณาซิงก์และตรวจสอบก่อนรับชำระ");
+                    throw new IllegalStateException("ไม่พบบิลบนเซิร์ฟเวอร์ กรุณาซิงก์และตรวจสอบก่อนรับชำระ");
                 }
                 Long cloudRevision = cloud.getLong("revision");
                 if (cloudRevision == null || cloudRevision.longValue() != local.optLong("revision", -1L)) {
@@ -420,7 +420,7 @@ public class CloudSyncService {
             return;
         }
         if (auth.getCurrentUser() == null) {
-            failDelete(callback, "กรุณาเข้าสู่ระบบก่อนจัดการข้อมูลสำรอง");
+            failDelete(callback, "กรุณาเข้าสู่ระบบก่อนจัดการข้อมูลบน Cloud");
             return;
         }
         com.google.firebase.firestore.DocumentReference document = firestore
@@ -441,7 +441,7 @@ public class CloudSyncService {
         }).addOnSuccessListener(unused -> {
             if (callback != null) callback.onSuccess();
         }).addOnFailureListener(error -> failDelete(callback,
-                "ลบข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)));
+                "ลบข้อมูลบน Cloud ไม่สำเร็จ: " + safeMessage(error)));
     }
 
     private void failDelete(DeleteCallback callback, String message) {
