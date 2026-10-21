@@ -84,6 +84,9 @@ public class StockScreen extends Activity {
         root=PosUi.page(this,"เพิ่มสินค้าใหม่");
         PosUi.line(this,root,"บาร์โค้ด: "+barcode);PosUi.speak(this,"สินค้าใหม่ค่ะ");
         EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
+        Cursor registry=helper.getReadableDatabase().query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null,"1");
+        if(registry.moveToFirst()){name.setText(registry.getString(0));price.setText(PosDatabase.money(registry.getLong(1)));name.setEnabled(false);price.setEnabled(false);}
+        registry.close();
         EditText cost=PosUi.input(this,root,"ต้นทุน (บาท)");EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
         EditText qty=PosUi.input(this,root,"จำนวนเริ่มต้น");
         PosUi.button(this,root,"บันทึกสินค้า",v->{try{
