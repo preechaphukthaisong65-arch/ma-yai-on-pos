@@ -44,7 +44,9 @@ public final class PosDatabase extends SQLiteOpenHelper {
                 "change_satang INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, paid_at INTEGER," +
                 "archived_at INTEGER, archive_until INTEGER, FOREIGN KEY(customer_id) REFERENCES customers(id))");
         db.execSQL("CREATE INDEX idx_bills_customer_status ON bills(customer_id,status,created_at)");
-        db.execSQL("CREATE INDEX idx_bills_created ON bills(created_at)");\n        db.execSQL("CREATE INDEX idx_bills_paid_at ON bills(paid_at)");\n        db.execSQL("CREATE INDEX idx_bills_archive_until ON bills(archive_until)");
+        db.execSQL("CREATE INDEX idx_bills_created ON bills(created_at)");
+        db.execSQL("CREATE INDEX idx_bills_paid_at ON bills(paid_at)");
+        db.execSQL("CREATE INDEX idx_bills_archive_until ON bills(archive_until)");
         db.execSQL("CREATE TABLE bill_items (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL," +
                 "product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL, unit TEXT NOT NULL," +
                 "quantity INTEGER NOT NULL CHECK(quantity>0), unit_price_satang INTEGER NOT NULL," +
