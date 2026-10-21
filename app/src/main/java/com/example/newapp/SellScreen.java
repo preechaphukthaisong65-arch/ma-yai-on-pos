@@ -274,7 +274,7 @@ public class SellScreen extends Activity {
             // must still detect conflicts rather than blindly overwrite the server.
             if (repo.confirmSale(billId,bill,products,quantities,receipt)) {
                 cart.clear(); currentBillId=billId; pendingBillId=null;
-                showSaleSaved(billId, bill.optString("paymentStatus"), total);
+                showOfflineSaleSaved(billId, bill.optString("paymentStatus"), total);
             } else {
                 confirmed=false;
                 Toast.makeText(this,"บันทึกการขายไม่สำเร็จ กรุณาตรวจสอบก่อนลองใหม่",Toast.LENGTH_LONG).show();
@@ -299,6 +299,22 @@ public class SellScreen extends Activity {
         root.addView(POSUi.text(this,"ยอดรวม: "+money(total)+" บาท",22));
         root.addView(POSUi.text(this,"บันทึกใบเสร็จแล้ว — พร้อมเปิดหน้าพิมพ์หรือพิมพ์ซ้ำ",15));
         POSUi.button(this,root,"เปิดใบเสร็จ / พิมพ์",()->{Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);});
+        POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
+        setContentView(root);
+    }
+
+    private void showOfflineSaleSaved(String billId, String paymentStatus, double total) {
+        LinearLayout root=POSUi.page(this,"บันทึกการขายในเครื่องแล้ว");
+        root.addView(POSUi.text(this,"สถานะการชำระ: "+paymentStatus,18));
+        root.addView(POSUi.text(this,"ยอดรวมในเครื่อง: "+money(total)+" บาท",22));
+        root.addView(POSUi.text(this,
+                "ยังไม่ได้ยืนยันกับ Cloud — รายการนี้รอซิงก์เมื่ออินเทอร์เน็ตกลับมา "
+                + "หากข้อมูลสต๊อกหรือราคาเปลี่ยนจากอีกเครื่อง ระบบอาจต้องตรวจสอบก่อนรวมข้อมูล",
+                15));
+        root.addView(POSUi.text(this,"รหัสบิล: "+billId,14));
+        POSUi.button(this,root,"เปิดใบเสร็จ / พิมพ์",()->{
+            Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);
+        });
         POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
         setContentView(root);
     }
