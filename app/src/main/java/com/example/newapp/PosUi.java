@@ -45,10 +45,7 @@ final class PosUi {
         scan.setOrientationLocked(true); scan.setDesiredBarcodeFormats(IntentIntegrator.ONE_D_CODE_TYPES);
         scan.initiateScan();
     }
-    static void speak(Activity a,String message) {
-        final TextToSpeech[] holder = new TextToSpeech[1];
-        holder[0]=new TextToSpeech(a,status->{if(status==TextToSpeech.SUCCESS){ttsLangSafe(a,holder[0]); holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-tts");}});
-    }
+    static void speak(Activity a,String message) { speakThen(a,message,()->{}); }
     static void speakThen(Activity a,String message,Runnable after) {
         final TextToSpeech[] holder = new TextToSpeech[1];
         holder[0] = new TextToSpeech(a,status -> {
