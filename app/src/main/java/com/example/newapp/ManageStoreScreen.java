@@ -50,7 +50,7 @@ public class ManageStoreScreen extends Activity {
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());db.insertOrThrow("price_history",null,h);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage();}
-        finally{if(db.inTransaction())db.endTransaction();}
+        finally{if(db.inTransaction()){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
         if(saved){
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
             new AlertDialog.Builder(this).setMessage("บันทึกราคาใหม่เรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();
