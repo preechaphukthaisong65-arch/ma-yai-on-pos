@@ -40,17 +40,18 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
   const normalized = [], seen = new Set();
   for (const item of items) {
     if (!validId(item?.productRecordId) || !finitePositive(item?.quantity)
-        || item.quantity > 100000 || seen.has(item.productRecordId)) {
+        || item.quantity > 100000 || !Number.isInteger(item?.localRevision)
+        || item.localRevision < 0 || seen.has(item.productRecordId)) {
       fail("invalid-argument", "รายการสินค้าซ้ำหรือจำนวนไม่ถูกต้อง");
     }
     seen.add(item.productRecordId);
-    normalized.push({ productRecordId: item.productRecordId, quantity: item.quantity });
+    normalized.push({ productRecordId: item.productRecordId, quantity: item.quantity, localRevision: item.localRevision });
   }
   const customerId = typeof input.customerRecordId === "string" ? input.customerRecordId : "";
   if (customerId && !validId(customerId)) fail("invalid-argument", "รหัสลูกค้าไม่ถูกต้อง");
   const requestHash = crypto.createHash("sha256").update(JSON.stringify({
     storeId, deviceId, billId, paymentType, cashReceived: paymentType === "cash" ? received : 0,
-    customerRecordId: customerId, items: normalized
+    customerRecordId: customerId, items: normalized.map(x => ({ productRecordId: x.productRecordId, quantity: x.quantity }))
   })).digest("hex");
 
   const ownerRef = db.collection("storeOwners").doc(storeId);
@@ -75,7 +76,26 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
       if (priorBill.get("idempotencyKey") !== idempotencyKey || priorBill.get("requestHash") !== requestHash) {
         fail("already-exists", "รหัสบิลนี้ถูกใช้กับคำขออื่นแล้ว");
       }
-      return { alreadyCommitted: true, bill: priorBill.data() };
+      // Idempotent retry: return the committed bill and its related records without
+      // applying a second stock decrement. Local expectedRevision values are CAS
+      // guards only; they never affect server authorization or stock validation.
+      const priorProducts = [];
+      for (const ref of productRefs) priorProducts.push(await tx.get(ref));
+      const priorReceipt = await tx.get(receiptRef);
+      const priorAudit = await tx.get(saleHistoryRef);
+      const priorStockHistory = [];
+      for (const ref of stockHistoryRefs) priorStockHistory.push(await tx.get(ref));
+      const retryRecords = [];
+      for (let i = 0; i < priorProducts.length; i++) {
+        if (priorProducts[i].exists) retryRecords.push({
+          ...priorProducts[i].data(), expectedRevision: normalized[i].localRevision
+        });
+      }
+      for (const snap of priorStockHistory) if (snap.exists) retryRecords.push(snap.data());
+      if (priorReceipt.exists) retryRecords.push(priorReceipt.data());
+      if (priorAudit.exists) retryRecords.push(priorAudit.data());
+      retryRecords.push(priorBill.data());
+      return { alreadyCommitted: true, bill: priorBill.data(), records: retryRecords };
     }
     const productSnaps = [];
     for (const ref of productRefs) productSnaps.push(await tx.get(ref));
@@ -150,7 +170,7 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
     tx.create(receiptRef, receiptRecord);
     tx.create(saleHistoryRef, auditRecord);
     return { alreadyCommitted: false, bill: billRecord,
-      records: [...nextProducts.map(x => ({ ...x.record, expectedRevision: x.baseRevision })), ...stockHistoryRefs.map((ref, i) => ({
+      records: [...nextProducts.map((x, i) => ({ ...x.record, expectedRevision: normalized[i].localRevision })), ...stockHistoryRefs.map((ref, i) => ({
         storeId, recordId: ref.id, dataType: "stock_history", schemaVersion: 1, revision: 1,
         updatedAt: now, payload: { historyId: ref.id, productRecordId: normalized[i].productRecordId,
           productName: lineItems[i].name, barcode: lineItems[i].barcode, transactionType: "ขายสินค้า",
