@@ -18,7 +18,7 @@ function asRecord(storeId, recordId, dataType, revision, payload, extra = {}) {
     revision: Math.max(1, revision), updatedAt: Date.now(), payload, ...extra };
 }
 
-exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
+exports.commitPosSale = onCall({ enforceAppCheck: true, maxInstances: 10 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid || request.auth?.token?.email_verified !== true) {
     fail("unauthenticated", "เจ้าของร้านต้องเข้าสู่ระบบและยืนยันอีเมลก่อน");
