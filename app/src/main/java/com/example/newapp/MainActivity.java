@@ -3,6 +3,9 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -13,7 +16,21 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.example.newapp.datahub.DataHub;
+import com.example.newapp.datahub.StoreIdentity;
+import com.example.newapp.datahub.DeviceSessionManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.ListenerRegistration;
+import org.json.JSONObject;
+import java.util.List;
+
 public class MainActivity extends Activity {
+    private TextView managementNotice;
+    private ListenerRegistration deviceSessionListener;
+    private boolean sessionRedirecting;
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private volatile boolean reconciliationRunning;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -41,6 +58,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         setupSystemBars();
+        RetentionScheduler.schedule(getApplicationContext());
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -107,6 +125,18 @@ public class MainActivity extends Activity {
         ticker.setPadding(dp(4), dp(8), dp(4), dp(8));
         page.addView(ticker);
 
+        // Notification summary for successful store-management changes.
+        managementNotice = new TextView(this);
+        managementNotice.setTextColor(Color.rgb(45, 90, 55));
+        managementNotice.setTextSize(13);
+        managementNotice.setSingleLine(true);
+        managementNotice.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        managementNotice.setMarqueeRepeatLimit(-1);
+        managementNotice.setSelected(true);
+        managementNotice.setPadding(dp(8), dp(6), dp(8), dp(6));
+        managementNotice.setVisibility(View.GONE);
+        page.addView(managementNotice);
+
         // เมนูหลัก 6 ปุ่ม
         LinearLayout row1 = makeRow();
         LinearLayout row2 = makeRow();
@@ -132,6 +162,7 @@ public class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
+        refreshManagementNotice();
         setupSystemBars();
     }
 
@@ -139,6 +170,193 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         setupSystemBars();
+        refreshManagementNotice();
+        verifyActiveDeviceSession();
+        registerNetworkReconciliation();
+    }
+
+    private void verifyActiveDeviceSession() {
+        if (sessionRedirecting) return;
+        String storeId = StoreIdentity.get(this);
+        String ownerUid = StoreIdentity.getOwnerUid(this);
+        if (storeId.isEmpty() || ownerUid.isEmpty()) return;
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) return;
+        if (deviceSessionListener != null) deviceSessionListener.remove();
+        String deviceId = StoreIdentity.getOrCreateDeviceId(getApplicationContext());
+        deviceSessionListener = new DeviceSessionManager().watch(storeId, deviceId, active -> runOnUiThread(() -> {
+            if (active || isFinishing() || sessionRedirecting) return;
+            sessionRedirecting = true;
+            if (deviceSessionListener != null) {
+                deviceSessionListener.remove();
+                deviceSessionListener = null;
+            }
+            FirebaseAuth.getInstance().signOut();
+            android.widget.Toast.makeText(this,
+                    "เครื่องนี้ถูกแทนที่ด้วยการเข้าสู่ระบบจากอีกเครื่อง ข้อมูลในเครื่องยังคงเก็บไว้",
+                    android.widget.Toast.LENGTH_LONG).show();
+            startActivity(new Intent(this, StartupActivity.class));
+            finish();
+        }));
+    }
+
+    private void registerNetworkReconciliation() {
+        if (networkCallback != null) return;
+        connectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) return;
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onAvailable(Network network) {
+                reconcileCloudAfterReconnect();
+            }
+        };
+        try {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback);
+        } catch (RuntimeException error) {
+            networkCallback = null;
+        }
+    }
+
+    private synchronized void reconcileCloudAfterReconnect() {
+        if (reconciliationRunning) return;
+        String storeId = StoreIdentity.get(this);
+        String ownerUid = StoreIdentity.getOwnerUid(this);
+        com.google.firebase.auth.FirebaseUser user =
+                com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        if (storeId.isEmpty() || ownerUid.isEmpty() || user == null
+                || !ownerUid.equals(user.getUid())) return;
+
+        reconciliationRunning = true;
+        new OfflineSaleReconciler(getApplicationContext()).reconcile(storeId,
+                (offlineOk, offlineMessage) -> runOnUiThread(() -> {
+            if (!offlineOk) {
+                reconciliationRunning = false;
+                android.widget.Toast.makeText(MainActivity.this,
+                        offlineMessage + " ข้อมูลในเครื่องยังคงเก็บไว้ และจะลองใหม่เมื่อพร้อม",
+                        android.widget.Toast.LENGTH_LONG).show();
+                refreshManagementNotice();
+                return;
+            }
+
+            DataHub hub = DataHub.getInstance(getApplicationContext());
+            int duplicateBarcodes = hub.getDuplicateBarcodeCount(storeId);
+            if (duplicateBarcodes > 0) {
+                reconciliationRunning = false;
+                android.widget.Toast.makeText(MainActivity.this,
+                        "พบบาร์โค้ดซ้ำ " + duplicateBarcodes
+                                + " รายการ จึงหยุดซิงก์ไว้ก่อน",
+                        android.widget.Toast.LENGTH_LONG).show();
+                refreshManagementNotice();
+                return;
+            }
+
+            // Do not download or restore records during reconnect.
+            // Reconcile pending offline sales, then sync locally queued records.
+            hub.syncPendingRecords(storeId,
+                    (succeeded, syncFailed, message) -> runOnUiThread(() -> {
+                reconciliationRunning = false;
+                if (syncFailed > 0) {
+                    android.widget.Toast.makeText(MainActivity.this,
+                            message + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ "
+                                    + syncFailed + ")",
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
+                refreshManagementNotice();
+            }));
+        }));
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (deviceSessionListener != null) {
+            deviceSessionListener.remove();
+            deviceSessionListener = null;
+        }
+        if (connectivityManager != null && networkCallback != null) {
+            try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (RuntimeException ignored) { }
+            networkCallback = null;
+        }
+        super.onDestroy();
+    }
+
+    private void refreshManagementNotice() {
+        if (managementNotice == null) return;
+        String storeId = StoreIdentity.get(this);
+        if (storeId.isEmpty()) {
+            managementNotice.setVisibility(View.GONE);
+            return;
+        }
+        StockSalesRepository stockRepository = new StockSalesRepository(this);
+        if (!StockLimitNotifier.isReconciled(this, storeId)) {
+            StockLimitNotifier.reconcileIfNeeded(this, storeId, stockRepository.products());
+        }
+        StringBuilder summary = new StringBuilder();
+        if (StockLimitNotifier.hasAnyLowStock(this, storeId)) {
+            summary.append("มีสินค้า ต่ำกว่า ลิมิตสต๊อก");
+        }
+        String debtWarning = overdueDebtSummary(storeId);
+        if (!debtWarning.isEmpty()) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append(debtWarning);
+        }
+        DataHub dataHub = DataHub.getInstance(getApplicationContext());
+        int pendingSync = dataHub.getPendingSyncCount(storeId);
+        if (pendingSync > 0) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append("มีรายการรอซิงก์ ").append(pendingSync).append(" รายการ — แตะข้อความนี้เพื่อลองซิงก์อีกครั้ง");
+            managementNotice.setTextColor(Color.rgb(170, 80, 0));
+            managementNotice.setOnClickListener(v -> {
+                managementNotice.setText("กำลังตรวจสอบข้อมูล Cloud ก่อนซิงก์...");
+                // Manual retry uses the same offline-sale reconciliation before syncing.
+                // Never upload pending local records directly around reconciliation.
+                reconcileCloudAfterReconnect();
+            });
+        } else {
+            managementNotice.setTextColor(Color.rgb(45, 90, 55));
+            managementNotice.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, NotificationScreen.class)));
+        }
+        int duplicateBarcodes = dataHub.getDuplicateBarcodeCount(storeId);
+        if (duplicateBarcodes > 0) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append("⚠ พบบาร์โค้ดซ้ำ ").append(duplicateBarcodes)
+                    .append(" รายการ — เก็บข้อมูลเดิมไว้ กรุณาตรวจสอบก่อนใช้บาร์โค้ดเหล่านี้");
+            managementNotice.setTextColor(Color.rgb(170, 80, 0));
+        }
+        List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
+                .getRecordsByType(storeId, "app_notification");
+        if (!notices.isEmpty()) {
+            JSONObject payload = notices.get(0).optJSONObject("payload");
+            String message = payload == null ? "" : payload.optString("message", "");
+            if (!message.trim().isEmpty()) {
+                if (summary.length() > 0) summary.append(" | ");
+                summary.append("แจ้งเตือน: ").append(message);
+            }
+        }
+        if (summary.length() == 0) {
+            managementNotice.setVisibility(View.GONE);
+            return;
+        }
+        managementNotice.setText(summary.toString());
+        managementNotice.setVisibility(View.VISIBLE);
+    }
+
+    private String overdueDebtSummary(String storeId) {
+        long cutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L;
+        StringBuilder text = new StringBuilder();
+        for (JSONObject bill : DataHub.getInstance(getApplicationContext()).getRecordsByType(storeId, "sale_bill")) {
+            JSONObject p = bill.optJSONObject("payload");
+            if (p == null || !"credit".equals(p.optString("paymentType"))
+                    || !"ค้างชำระ".equals(p.optString("paymentStatus"))) continue;
+            long createdAt = p.optLong("createdAt", 0L);
+            if (createdAt <= 0L || createdAt > cutoff) continue;
+            if (text.length() > 0) text.append(", ");
+            text.append(p.optString("customerName", "ไม่ระบุชื่อลูกค้า"))
+                    .append(" ").append(String.format(java.util.Locale.US, "%.2f",
+                            Math.max(0d, p.optDouble("remainingBalance", p.optDouble("total", 0d)))))
+                    .append(" บาท");
+            if (text.length() > 180) { text.append("…"); break; }
+        }
+        return text.length() == 0 ? "" : "หนี้เกิน 30 วัน: " + text;
+
     }
 
     private LinearLayout makeRow() {
@@ -204,6 +422,26 @@ public class MainActivity extends Activity {
                         1f
                 )
         );
+
+        if ("จัดการร้านค้า".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, ManageStoreScreen.class)));
+        } else if ("ขายสินค้า".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, SellScreen.class)));
+        } else if ("คลังสินค้า".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, StockScreen.class)));
+        } else if ("สร้างบาร์โค้ด".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, BarcodeScreen.class)));
+        } else if ("ประวัติการขาย".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, HistoryScreen.class)));
+        } else if ("รายงานยอดขาย".equals(label)) {
+            tile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, ReportScreen.class)));
+        }
     }
 
     private void addSpace(

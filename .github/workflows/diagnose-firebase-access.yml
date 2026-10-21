@@ -38,11 +38,10 @@ jobs:
       - name: Verify credential identity without printing secrets
         run: |
           node -e 'const fs=require("fs"); const k=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,"utf8")); const expected="github-firebase-deploy@android-pos-593e9.iam.gserviceaccount.com"; if(k.client_email!==expected){console.error("Credential identity mismatch. Expected "+expected+"; found "+(k.client_email||"(missing)")+".");process.exit(1)} console.log("Credential identity matches the expected service account.")'
-      - name: Install diagnostic dependency outside the repository
-        run: |
-          npm install --prefix "$RUNNER_TEMP/firebase-diagnostic" firebase-admin --no-audit --no-fund
-          echo "NODE_PATH=$RUNNER_TEMP/firebase-diagnostic/node_modules" >> "$GITHUB_ENV"
+      - name: Install Functions dependencies
+        run: npm install --prefix functions --no-audit --no-fund
       - name: Test Authentication and Firestore read access only
+        working-directory: functions
         env:
           OWNER_EMAIL: ${{ inputs.owner_email }}
           STORE_ID: ${{ inputs.store_id }}
