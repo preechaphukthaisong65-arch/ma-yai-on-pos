@@ -30,7 +30,7 @@ public final class ServerSaleService {
     }
 
     public void commit(String storeId, String billId, String paymentType, double cashReceived,
-            String customerRecordId, List<JSONObject> items, Callback callback) {
+            String customerRecordId, JSONObject customer, List<JSONObject> items, Callback callback) {
         if (storeId == null || storeId.trim().isEmpty() || billId == null || billId.trim().isEmpty()
                 || items == null || items.isEmpty() || callback == null) {
             if (callback != null) callback.onFailure("ข้อมูลการขายไม่ครบถ้วน");
@@ -62,6 +62,17 @@ public final class ServerSaleService {
         request.put("paymentType", paymentType);
         request.put("cashReceived", cashReceived);
         request.put("customerRecordId", customerRecordId == null ? "" : customerRecordId.trim());
+        if (customer != null) {
+            JSONObject payload = customer.optJSONObject("payload");
+            if (payload != null) {
+                Map<String, Object> customerInput = new HashMap<>();
+                customerInput.put("recordId", customer.optString("recordId", ""));
+                customerInput.put("firstName", payload.optString("firstName", ""));
+                customerInput.put("lastName", payload.optString("lastName", ""));
+                customerInput.put("createdAt", payload.optLong("createdAt", System.currentTimeMillis()));
+                request.put("customer", customerInput);
+            }
+        }
         request.put("items", normalizedItems);
 
         functions.getHttpsCallable("commitPosSale").call(request)
