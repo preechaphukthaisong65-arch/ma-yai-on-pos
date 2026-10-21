@@ -58,7 +58,7 @@ final class DebtReminderNotifier {
         StringBuilder ids=new StringBuilder();for(String id:currentIds){if(ids.length()>0)ids.append(',');ids.append(id);}
         ContentValues cv=new ContentValues();cv.put("key","debt_notification_ids");cv.put("value",ids.toString());db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);
     }
-    static boolean hasOverdue(Context context){return !overdue(context).isEmpty();}
+    static boolean hasOverdue(Context context){return !overdue(context).isEmpty();}\n    static String homeSummary(Context context){StringBuilder out=new StringBuilder();for(Debt debt:overdue(context)){if(out.length()>0)out.append("     •     ");out.append(debt.message);}return out.toString();}
     static void showOverdue(Activity activity){
         ArrayList<Debt> debts=overdue(activity);
         if(debts.isEmpty()){new AlertDialog.Builder(activity).setMessage("ไม่มีลูกหนี้ค้างชำระเกิน 1 เดือน").setPositiveButton("ตกลง",null).show();return;}
