@@ -41,6 +41,7 @@ jobs:
       - name: Install Functions dependencies
         run: npm install --prefix functions --no-audit --no-fund
       - name: Test Authentication and Firestore read access only
+        working-directory: functions
         env:
           OWNER_EMAIL: ${{ inputs.owner_email }}
           STORE_ID: ${{ inputs.store_id }}
