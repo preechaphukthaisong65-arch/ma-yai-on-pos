@@ -25,7 +25,7 @@ public final class SyncQueue {
             JSONObject record
     ) {
         if (record == null
-                || !new BackupManager().isValidRecord(record)) {
+                || !new RecordValidator().isValidRecord(record)) {
             return false;
         }
 
