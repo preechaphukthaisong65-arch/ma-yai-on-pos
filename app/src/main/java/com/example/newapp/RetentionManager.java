@@ -15,8 +15,8 @@ final class RetentionManager {
         long operationsCutoff=now-90L*86400000L;
         Calendar calendar=Calendar.getInstance();calendar.setTimeInMillis(now);calendar.add(Calendar.MONTH,-15);
         long ledgerCutoff=calendar.getTimeInMillis();
-        db.beginTransaction();
         try{
+            db.beginTransaction();
             String expired="((status='PAID' AND paid_at IS NOT NULL AND paid_at<?) OR (status IN ('CANCELLED','RETURNED') AND archive_until IS NOT NULL AND archive_until<?))";
             db.delete("payments","bill_id IN (SELECT id FROM bills WHERE "+expired+")",new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
             db.delete("bills",expired,new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
@@ -25,6 +25,8 @@ final class RetentionManager {
             db.delete("sales_ledger_items","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
             db.delete("sales_ledger","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
             db.setTransactionSuccessful();
-        } finally { db.endTransaction(); }
+        } catch (android.database.sqlite.SQLiteException ignored) {
+            // Keep the app usable if storage is full; retry on the next home-screen visit.
+        } finally { if(db.inTransaction()) db.endTransaction(); }
     }
 }
