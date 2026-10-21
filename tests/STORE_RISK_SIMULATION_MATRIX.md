@@ -13,7 +13,7 @@ Run with `npm test` from the repository root (the GitHub Actions workflow instal
 | Different account reads/writes the store | Deny | Yes |
 | Active device creates a valid backup record | Allow | Yes |
 | Superseded device attempts to write | Deny | Yes |
-| Device A goes offline, device B takes over, A's queued write reconnects | Deny stale write | Yes |
+| Device A goes offline, device B takes over, A's queued write reconnects | Reconcile unique records; quarantine collisions; do not reject the entire offline batch | Not implemented yet |
 | Superseded device edits/deletes an existing backup | Deny | Yes |
 | Backup path ID and record ID disagree | Deny | Yes |
 | Revision stays the same or decreases | Deny | Yes |
@@ -51,7 +51,7 @@ These are required before calling the POS production-ready. They are not claimed
 
 ## Known residual risks found during this review
 
-- **Offline device takeover:** while device A is disconnected, it cannot learn that device B has taken over and may still record local sales. When A reconnects, stale cloud writes should be denied and its local records preserved, but those records may need manual reconciliation instead of syncing automatically. A hard single-active-device guarantee and unrestricted offline selling cannot both be guaranteed during a network partition.
+- **Offline device takeover (required behavior):** while device A is disconnected, it cannot learn that device B has taken over and may still record local sales. When A reconnects, do not reject the entire batch. Reconcile record IDs and business-level keys; import valid, non-conflicting records idempotently; quarantine conflicting revisions, duplicate barcodes, repeated payments, and stock/debt conflicts without overwriting either copy. Related sale, receipt, stock and payment records must be reconciled as a unit so the cloud cannot accept only half of a transaction. The current implementation still rejects stale-device writes and does not yet implement this reconciliation flow.
 - **Orphan barcode reservation:** if Firestore reserves a barcode but local product persistence subsequently fails, the reservation is intentionally not reused or automatically deleted. This avoids accidental duplicate assignment, but consumes that barcode number and needs an explicit, safe recovery procedure. The asynchronous double-tap window was fixed in `BarcodeScreen.java`; fault-injection testing for a local-save failure is still required.
 
 ## Safety boundaries
