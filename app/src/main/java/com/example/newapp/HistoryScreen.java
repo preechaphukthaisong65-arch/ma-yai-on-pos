@@ -91,6 +91,8 @@ public class HistoryScreen extends Activity {
         POSUi.button(this, root, "จ่ายแล้ว", () -> showBills("paid"));
         POSUi.button(this, root, "ค้างชำระ", () -> showBills("unpaid"));
         POSUi.button(this, root, "บัญชีลูกค้าเชื่อ ทั้งหมด", this::showCustomers);
+        POSUi.button(this, root, "ประวัติการชำระหนี้", () ->
+                startActivity(new android.content.Intent(this, CreditPaymentHistoryScreen.class)));
         POSUi.button(this, root, "กลับหน้าหลัก", this::finish);
         root.addView(POSUi.text(this, "บิลที่จ่ายแล้วแสดงตามวันที่ขาย/ชำระที่บันทึกไว้ ส่วนบิลค้างชำระจะยังแสดงจนกว่าจะชำระ", 13));
     }
