@@ -28,11 +28,14 @@ public class StockScreen extends Activity {
         PosUi.button(this,root,"ค้นหาประวัตินับสต๊อก",v->{mode="countHistory";scanAgain();});
         PosUi.back(this,root);
     }
-    private void showAll(){
+    private void showAll(){showAll(0);}
+    private void showAll(int offset){
         root=PosUi.page(this,"สินค้าทั้งหมด");
-        Cursor c=helper.getReadableDatabase().query("products",new String[]{"name","stock","unit"},"active=1",null,null,null,"stock ASC,name COLLATE NOCASE ASC");
-        while(c.moveToNext()) PosUi.line(this,root,c.getString(0)+" — "+c.getInt(1));
-        c.close(); PosUi.button(this,root,"สแกนเพื่อดูรายละเอียด",v->{mode="detail";scanAgain();}); PosUi.back(this,root);
+        Cursor c=helper.getReadableDatabase().query("products",new String[]{"name","stock"},"active=1",null,null,null,"stock ASC,name COLLATE NOCASE ASC","100 OFFSET "+offset);
+        int count=0;while(c.moveToNext()){PosUi.line(this,root,c.getString(0)+" — "+c.getInt(1));count++;}c.close();
+        if(offset>0)PosUi.button(this,root,"หน้าก่อนหน้า",v->showAll(Math.max(0,offset-100)));
+        if(count==100)PosUi.button(this,root,"โหลดสินค้าเพิ่ม",v->showAll(offset+100));
+        PosUi.button(this,root,"สแกนเพื่อดูรายละเอียด",v->{mode="detail";scanAgain();});PosUi.back(this,root);
     }
     private void scanAgain(){PosUi.scan(this);}
     @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){
