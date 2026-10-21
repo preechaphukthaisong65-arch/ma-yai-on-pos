@@ -75,7 +75,7 @@ public final class StockLimitNotifier {
             if (manager.areNotificationsEnabled()) {
                 manager.notify((storeId + ":" + productId).hashCode(), new NotificationCompat.Builder(app, CHANNEL)
                         .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                        .setContentTitle("แจ้งเตือนสต๊อก")
+                        .setContentTitle("มีสินค้า ต่ำกว่า ลิมิตสต๊อก")
                         .setContentText("มีสินค้า ต่ำกว่า ลิมิตสต๊อก")
                         .setStyle(new NotificationCompat.BigTextStyle().bigText("มีสินค้า ต่ำกว่า ลิมิตสต๊อก"))
                         .setAutoCancel(true).build());
