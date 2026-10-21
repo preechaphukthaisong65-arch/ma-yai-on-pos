@@ -243,7 +243,6 @@ public final class StartupActivity extends Activity {
     private void setBusy(boolean value) {
         progress.setVisibility(value ? View.VISIBLE : View.GONE);
         action.setEnabled(!value);
-        register.setEnabled(!value);
         emailInput.setEnabled(!value);
         passwordInput.setEnabled(!value);
         storeCode.setEnabled(!value);
