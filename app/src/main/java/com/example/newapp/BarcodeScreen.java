@@ -23,14 +23,23 @@ public class BarcodeScreen extends Activity {
     private void create(){
         root=PosUi.page(this,"สร้างบาร์โค้ดใหม่");EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
         PosUi.line(this,root,"ระบบกำหนดเลขบาร์โค้ดอัตโนมัติ ไม่สามารถเลือกเลขเองได้");
-        PosUi.button(this,root,"สร้างและบันทึก",v->{try{String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}long p=PosUi.satang(price);SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();String code=null;
-            try{long seq=100000000000L;Cursor c=db.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
-                for(int i=0;i<100000;i++){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=db.query("barcode_registry",new String[]{"barcode"},"barcode=?",new String[]{candidate},null,null,null,"1");boolean used=exists.moveToFirst();exists.close();if(!used){code=candidate;break;}seq++;}
-                if(code==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
-                ContentValues reg=new ContentValues();reg.put("barcode",code);reg.put("name",n);reg.put("price_satang",p);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,reg);
-                ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));db.update("app_meta",meta,"key='barcode_sequence'",null);db.setTransactionSuccessful();
+        PosUi.button(this,root,"สร้างและบันทึก",v->{try{
+            String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}long p=PosUi.satang(price);
+            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();String code=null;boolean reused=false;
+            try{
+                Cursor found=db.query("barcode_registry",new String[]{"barcode"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
+                if(found.moveToFirst()){code=found.getString(0);reused=true;}found.close();
+                if(!reused){
+                    long seq=100000000000L;Cursor c=db.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
+                    for(int i=0;i<100000;i++){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=db.query("barcode_registry",new String[]{"barcode"},"barcode=?",new String[]{candidate},null,null,null,"1");boolean used=exists.moveToFirst();exists.close();if(!used){code=candidate;break;}seq++;}
+                    if(code==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
+                    ContentValues reg=new ContentValues();reg.put("barcode",code);reg.put("name",n);reg.put("price_satang",p);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,reg);
+                    ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));db.update("app_meta",meta,"key='barcode_sequence'",null);
+                }
+                db.setTransactionSuccessful();
             }finally{db.endTransaction();}
-            final String generatedCode=code;new AlertDialog.Builder(this).setTitle("สร้างบาร์โค้ดสำเร็จ").setMessage("สินค้า: "+n+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+PosDatabase.money(p)+" บาท").setPositiveButton("ตกลง",(d,w)->home()).show();
+            final String generatedCode=code;final boolean wasReused=reused;
+            new AlertDialog.Builder(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ").setMessage("สินค้า: "+n+"\\nบาร์โค้ด: "+generatedCode+"\\nราคา: "+PosDatabase.money(p)+" บาท"+(wasReused?"\\nใช้บาร์โค้ดเดิมจากคลัง":"")).setPositiveButton("ตกลง",(d,w)->home()).show();
         }catch(Exception e){new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
         PosUi.back(this,root);
     }
