@@ -3,6 +3,9 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -15,11 +18,19 @@ import android.widget.TextView;
 
 import com.example.newapp.datahub.DataHub;
 import com.example.newapp.datahub.StoreIdentity;
+import com.example.newapp.datahub.DeviceSessionManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.ListenerRegistration;
 import org.json.JSONObject;
 import java.util.List;
 
 public class MainActivity extends Activity {
     private TextView managementNotice;
+    private ListenerRegistration deviceSessionListener;
+    private boolean sessionRedirecting;
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private volatile boolean reconciliationRunning;
 
     private int dp(int value) {
         return (int) (value * getResources()
@@ -158,6 +169,98 @@ public class MainActivity extends Activity {
         setupSystemBars();
         refreshManagementNotice();
         DebtReminderScheduler.scheduleNext(this);
+        verifyActiveDeviceSession();
+        registerNetworkReconciliation();
+    }
+
+    private void verifyActiveDeviceSession() {
+        if (sessionRedirecting) return;
+        String storeId = StoreIdentity.get(this);
+        String ownerUid = StoreIdentity.getOwnerUid(this);
+        if (storeId.isEmpty() || ownerUid.isEmpty()) return;
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) return;
+        if (deviceSessionListener != null) deviceSessionListener.remove();
+        String deviceId = StoreIdentity.getOrCreateDeviceId(getApplicationContext());
+        deviceSessionListener = new DeviceSessionManager().watch(storeId, deviceId, active -> runOnUiThread(() -> {
+            if (active || isFinishing() || sessionRedirecting) return;
+            sessionRedirecting = true;
+            if (deviceSessionListener != null) {
+                deviceSessionListener.remove();
+                deviceSessionListener = null;
+            }
+            FirebaseAuth.getInstance().signOut();
+            android.widget.Toast.makeText(this,
+                    "เครื่องนี้ถูกแทนที่ด้วยการเข้าสู่ระบบจากอีกเครื่อง ข้อมูลในเครื่องยังคงเก็บไว้",
+                    android.widget.Toast.LENGTH_LONG).show();
+            startActivity(new Intent(this, StartupActivity.class));
+            finish();
+        }));
+    }
+
+    private void registerNetworkReconciliation() {
+        if (networkCallback != null) return;
+        connectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) return;
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onAvailable(Network network) {
+                reconcileCloudAfterReconnect();
+            }
+        };
+        try {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback);
+        } catch (RuntimeException error) {
+            networkCallback = null;
+        }
+    }
+
+    private synchronized void reconcileCloudAfterReconnect() {
+        if (reconciliationRunning) return;
+        String storeId = StoreIdentity.get(this);
+        String ownerUid = StoreIdentity.getOwnerUid(this);
+        if (storeId.isEmpty() || ownerUid.isEmpty()
+                || com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser() == null
+                || !ownerUid.equals(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser().getUid())) {
+            return;
+        }
+        reconciliationRunning = true;
+        DataHub hub = DataHub.getInstance(getApplicationContext());
+        hub.restoreMissingRecords(storeId, (restored, skipped, failed, message) -> runOnUiThread(() -> {
+            int duplicateBarcodes = hub.getDuplicateBarcodeCount(storeId);
+            if (failed > 0 || duplicateBarcodes > 0) {
+                // Keep this attempt serialized through its terminal callback, then permit retry.
+                reconciliationRunning = false;
+                String warning = failed > 0
+                        ? "พบข้อมูลในเครื่องกับ Cloud ขัดแย้งกัน จึงหยุดซิงก์เพื่อรักษาข้อมูลเดิม"
+                        : "พบบาร์โค้ดซ้ำ " + duplicateBarcodes + " รายการ จึงหยุดซิงก์ไว้ก่อน";
+                android.widget.Toast.makeText(MainActivity.this, warning, android.widget.Toast.LENGTH_LONG).show();
+                refreshManagementNotice();
+                return;
+            }
+            // Do not release the guard between restore and upload: a second network callback
+            // here could start overlapping reconciliation while pending writes are uploading.
+            hub.backupPendingRecords(storeId, (succeeded, uploadFailed, syncMessage) -> runOnUiThread(() -> {
+                reconciliationRunning = false;
+                if (uploadFailed > 0) {
+                    android.widget.Toast.makeText(MainActivity.this,
+                            syncMessage + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + uploadFailed + ")",
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
+                refreshManagementNotice();
+            }));
+        }));
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (deviceSessionListener != null) {
+            deviceSessionListener.remove();
+            deviceSessionListener = null;
+        }
+        if (connectivityManager != null && networkCallback != null) {
+            try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (RuntimeException ignored) { }
+            networkCallback = null;
+        }
+        super.onDestroy();
     }
 
     private void refreshManagementNotice() {
@@ -187,17 +290,21 @@ public class MainActivity extends Activity {
             summary.append("สำรองข้อมูลค้าง ").append(pendingBackups).append(" รายการ — แตะข้อความนี้เพื่อลองซิงก์อีกครั้ง");
             managementNotice.setTextColor(Color.rgb(170, 80, 0));
             managementNotice.setOnClickListener(v -> {
-                managementNotice.setText("กำลังซิงก์ข้อมูลที่ค้าง...");
-                dataHub.backupPendingRecords(storeId, (succeeded, failed, message) -> runOnUiThread(() -> {
-                    android.widget.Toast.makeText(MainActivity.this,
-                            message + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + failed + ")",
-                            android.widget.Toast.LENGTH_LONG).show();
-                    refreshManagementNotice();
-                }));
+                managementNotice.setText("กำลังตรวจสอบข้อมูล Cloud ก่อนซิงก์...");
+                // Manual retry must use the same restore/conflict checks as reconnect.
+                // Never upload pending local records directly around reconciliation.
+                reconcileCloudAfterReconnect();
             });
         } else {
             managementNotice.setTextColor(Color.rgb(45, 90, 55));
             managementNotice.setOnClickListener(null);
+        }
+        int duplicateBarcodes = dataHub.getDuplicateBarcodeCount(storeId);
+        if (duplicateBarcodes > 0) {
+            if (summary.length() > 0) summary.append(" | ");
+            summary.append("⚠ พบบาร์โค้ดซ้ำ ").append(duplicateBarcodes)
+                    .append(" รายการ — เก็บข้อมูลเดิมไว้ กรุณาตรวจสอบก่อนใช้บาร์โค้ดเหล่านี้");
+            managementNotice.setTextColor(Color.rgb(170, 80, 0));
         }
         List<JSONObject> notices = DataHub.getInstance(getApplicationContext())
                 .getRecordsByType(storeId, "app_notification");

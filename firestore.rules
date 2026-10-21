@@ -3,17 +3,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedInVerified() {
-      return request.auth != null
-        && request.auth.token.email_verified == true;
+      return request.auth != null && request.auth.token.email_verified == true;
     }
 
-    // Ownership records are provisioned by a trusted administrator using
-    // Firebase Console or Admin SDK. The Android client cannot claim a shop.
     function ownsStore(storeId) {
       return signedInVerified()
         && exists(/databases/$(database)/documents/storeOwners/$(storeId))
-        && get(/databases/$(database)/documents/storeOwners/$(storeId)).data.ownerUid
-          == request.auth.uid;
+        && get(/databases/$(database)/documents/storeOwners/$(storeId)).data.ownerUid == request.auth.uid;
+    }
+
+    function hasActiveDevice(storeId) {
+      return ownsStore(storeId)
+        && exists(/databases/$(database)/documents/storeDeviceSessions/$(storeId))
+        && get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.ownerUid == request.auth.uid
+        && request.resource.data.deviceId is string
+        && request.resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId;
     }
 
     function validBackupRecord(storeId, recordId) {
@@ -30,34 +34,45 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    match /dataHubBackups/{storeId}/records/{recordId} {
-      // Reads are restricted to the verified, provisioned owner.
+    // An authenticated owner may claim the active installation at login.
+    // The transaction is the serialization point for competing logins.
+    match /storeDeviceSessions/{storeId} {
       allow read: if ownsStore(storeId);
+      allow create, update: if ownsStore(storeId)
+        && request.resource.data.storeId == storeId
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.activeDeviceId is string
+        && request.resource.data.activeDeviceId.size() > 0;
+      allow delete: if false;
+    }
 
-      // New records must carry identity fields matching the document path.
-      allow create: if ownsStore(storeId)
-        && validBackupRecord(storeId, recordId);
+    match /storeBarcodeReservations/{storeId}/barcodes/{barcode} {
+      allow read: if ownsStore(storeId);
+      allow create: if hasActiveDevice(storeId)
+        && request.resource.data.storeId == storeId
+        && request.resource.data.barcode == barcode
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId;
+      allow update, delete: if false;
+    }
 
-      // Reject stale/equal-revision writes at the security boundary too.
-      // CloudBackupService performs a transaction; this rule is defense in depth.
-      allow update: if ownsStore(storeId)
+    match /dataHubBackups/{storeId}/records/{recordId} {
+      allow read: if ownsStore(storeId);
+      allow create: if hasActiveDevice(storeId) && validBackupRecord(storeId, recordId);
+      allow update: if hasActiveDevice(storeId)
         && validBackupRecord(storeId, recordId)
         && request.resource.data.storeId == resource.data.storeId
         && request.resource.data.recordId == resource.data.recordId
         && request.resource.data.revision is int
         && resource.data.revision is int
         && request.resource.data.revision > resource.data.revision;
-
-      // Retention cleanup is supported by the client with identity/type/revision
-      // checks in a Firestore transaction. Only the verified store owner may delete.
       allow delete: if ownsStore(storeId)
+        && exists(/databases/$(database)/documents/storeDeviceSessions/$(storeId))
+        && resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId
         && (!('storeId' in resource.data) || resource.data.storeId == storeId)
         && (!('recordId' in resource.data) || resource.data.recordId == recordId);
     }
 
-    // Deny all other client access by default, including ownership claims
-    // and unrelated collections until each collection receives an explicit
-    // reviewed rule.
     match /{document=**} {
       allow read, write: if false;
     }

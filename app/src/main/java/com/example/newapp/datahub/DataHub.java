@@ -401,8 +401,17 @@ public class DataHub {
 
         final long uploadedRevision = record.optLong("revision", 1L);
 
+        JSONObject uploadRecord;
+        try {
+            uploadRecord = new JSONObject(record.toString());
+            uploadRecord.put("deviceId", StoreIdentity.getOrCreateDeviceId(appContext));
+        } catch (Exception error) {
+            processBackupRecords(storeId, records, index + 1, succeeded, failed + 1, callback);
+            return;
+        }
+
         cloudBackupService.upload(
-                record,
+                uploadRecord,
                 new CloudBackupService.BackupCallback() {
                     @Override
                     public void onSuccess() {
@@ -528,7 +537,26 @@ public class DataHub {
                                             );
 
                                     if (existing != null) {
-                                        skipped++;
+                                        // An existing local record is not automatically "the same"
+                                        // as its cloud counterpart. Keep local data untouched and
+                                        // flag mismatched revisions/content for manual reconciliation.
+                                        boolean identical = existing.optString("dataType", "")
+                                                        .equals(record.optString("dataType", ""))
+                                                && existing.optLong("revision", 0L)
+                                                        == record.optLong("revision", 0L)
+                                                && existing.optLong("updatedAt", 0L)
+                                                        == record.optLong("updatedAt", 0L)
+                                                && existing.optJSONObject("payload") != null
+                                                && record.optJSONObject("payload") != null
+                                                && existing.optJSONObject("payload").toString()
+                                                        .equals(record.optJSONObject("payload").toString());
+                                        if (identical) {
+                                            skipped++;
+                                        } else {
+                                            // Do not overwrite either copy. Count as a restore conflict
+                                            // so the caller cannot report a clean restore.
+                                            failed++;
+                                        }
                                     } else {
                                         failed++;
                                     }
@@ -539,11 +567,20 @@ public class DataHub {
                             }
                         }
 
+                        // Audit business-level barcode collisions after restore. A different
+                        // record ID can still represent the same barcode; never auto-delete it.
+                        int duplicateBarcodes = getDuplicateBarcodeCount(checkedStoreId);
                         refreshStatus(checkedStoreId);
 
-                        String message = failed == 0
-                                ? "กู้คืนข้อมูลเสร็จแล้ว"
-                                : "กู้คืนข้อมูลเสร็จบางส่วน";
+                        String message;
+                        if (failed > 0) {
+                            message = "กู้คืนข้อมูลเสร็จบางส่วน พบรายการข้อมูลขัดแย้งที่ต้องตรวจสอบ";
+                        } else if (duplicateBarcodes > 0) {
+                            message = "กู้คืนข้อมูลแล้ว แต่พบบาร์โค้ดซ้ำ " + duplicateBarcodes
+                                    + " รายการ ห้ามลบอัตโนมัติ กรุณาตรวจสอบก่อนสร้างบาร์โค้ดใหม่";
+                        } else {
+                            message = "กู้คืนข้อมูลเสร็จแล้ว ไม่พบข้อมูลขัดแย้งจากการตรวจนี้";
+                        }
 
                         completeRestore(
                                 callback,
@@ -613,6 +650,36 @@ public class DataHub {
                         completeRetentionDelete(callback, false, message == null ? "ลบข้อมูลสำรองไม่สำเร็จ" : message);
                     }
                 });
+    }
+
+    /**
+     * Returns the number of extra records sharing a non-empty barcode across
+     * product and barcode_item records. This is an audit only: no record is
+     * deleted or modified. Call after cloud restore/reconnect.
+     */
+    public int getDuplicateBarcodeCount(String storeId) {
+        java.util.Map<String, String> firstRecordByBarcode = new java.util.HashMap<>();
+        int duplicates = 0;
+        String[] types = new String[]{"product", "barcode_item"};
+        for (String type : types) {
+            try {
+                for (JSONObject record : localStore.getRecordsByType(storeId, type)) {
+                    JSONObject payload = record.optJSONObject("payload");
+                    if (payload == null) continue;
+                    String barcode = payload.optString("barcode", "").trim();
+                    if (barcode.isEmpty()) continue;
+                    String recordId = record.optString("recordId", "");
+                    String previous = firstRecordByBarcode.putIfAbsent(barcode, recordId);
+                    if (previous != null && !previous.equals(recordId)) {
+                        duplicates++;
+                    }
+                }
+            } catch (Exception ignored) {
+                // Audit failure must not mutate or delete any source records.
+                return Math.max(1, duplicates);
+            }
+        }
+        return duplicates;
     }
 
     private boolean isRetentionEligible(String storeId, JSONObject record, JSONObject payload, long cutoff) {
@@ -699,6 +766,72 @@ public class DataHub {
                     message
             );
         }
+    }
+
+    public void commitCreditPayment(String storeId, List<JSONObject> selectedBills,
+            double receivedAmount, OperationCallback callback) {
+        String checkedStore = storeId == null ? "" : storeId.trim();
+        if (checkedStore.isEmpty()) {
+            completeOperation(callback, 0, 1, "ไม่พบรหัสร้านค้า");
+            return;
+        }
+        // Validate public API inputs before iterating; a null/empty selection must
+        // fail closed with a callback instead of throwing on the caller's thread.
+        if (selectedBills == null || selectedBills.isEmpty() || selectedBills.size() > 100) {
+            completeOperation(callback, 0, 1, "กรุณาเลือกบิลที่ต้องการชำระ 1–100 บิล");
+            return;
+        }
+        try {
+            for (JSONObject selected : selectedBills) {
+                if (selected == null) {
+                    completeOperation(callback, 0, 1, "พบบิลที่ไม่มีข้อมูล");
+                    return;
+                }
+                JSONObject current = localStore.getRecord(checkedStore, selected.optString("recordId", ""));
+                if (current == null || current.optLong("revision", -1L) != selected.optLong("revision", -2L)) {
+                    completeOperation(callback, 0, 1, "ข้อมูลบิลในเครื่องเปลี่ยนไป กรุณาค้นหาบิลใหม่ก่อนรับชำระ");
+                    return;
+                }
+            }
+        } catch (Exception error) {
+            completeOperation(callback, 0, 1, "ตรวจสอบข้อมูลบิลในเครื่องไม่สำเร็จ");
+            return;
+        }
+        String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
+        cloudBackupService.commitCreditPayment(checkedStore, selectedBills, receivedAmount, deviceId,
+                new CloudBackupService.CreditPaymentCallback() {
+                    @Override public void onSuccess(List<JSONObject> committedRecords) {
+                        try {
+                            boolean saved = localStore.saveRecordsAtomically(committedRecords);
+                            if (!saved) {
+                                completeOperation(callback, 0, 1,
+                                        "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่เพื่อกู้คืนและตรวจสอบ ห้ามรับเงินซ้ำ");
+                                return;
+                            }
+                            refreshStatus(checkedStore);
+                            completeOperation(callback, committedRecords.size(), 0,
+                                    "บันทึกการชำระหนี้บนเซิร์ฟเวอร์แบบธุรกรรมเดียวแล้ว");
+                        } catch (Exception error) {
+                            completeOperation(callback, 0, 1,
+                                    "เซิร์ฟเวอร์รับชำระแล้ว แต่ซ่อมข้อมูลในเครื่องไม่สำเร็จ กรุณากู้คืนจาก Cloud และห้ามรับเงินซ้ำ");
+                        }
+                    }
+                    @Override public void onFailure(String message) {
+                        completeOperation(callback, 0, 1, message);
+                    }
+                });
+    }
+
+    public void reserveBarcode(String storeId, String barcode, OperationCallback callback) {
+        String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
+        cloudBackupService.reserveBarcode(storeId, barcode, deviceId, new CloudBackupService.BackupCallback() {
+            @Override public void onSuccess() {
+                if (callback != null) callback.onComplete(1, 0, "จองบาร์โค้ดสำเร็จ");
+            }
+            @Override public void onFailure(String message) {
+                if (callback != null) callback.onComplete(0, 1, message);
+            }
+        });
     }
 
     public DataHubStatus getStatus() {

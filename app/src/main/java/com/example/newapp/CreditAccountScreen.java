@@ -15,7 +15,7 @@ import java.util.Locale;
 public class CreditAccountScreen extends Activity {
     private StockSalesRepository repo; private LinearLayout root; private EditText first,last,received;
     private final List<JSONObject> bills=new ArrayList<>(); private final List<CheckBox> checks=new ArrayList<>();
-    private TextView totalText;
+    private TextView totalText; private boolean paying;
     @Override public void onCreate(Bundle b){super.onCreate(b);repo=new StockSalesRepository(this);renderSearch();}
     private void renderSearch(){root=POSUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         first=POSUi.input(this,root,"ค้นหาชื่อลูกค้า");last=POSUi.input(this,root,"นามสกุลลูกค้า");
@@ -53,7 +53,13 @@ public class CreditAccountScreen extends Activity {
         double total=selectedTotal(),cash=POSUi.number(received);
         if(chosen.isEmpty()){Toast.makeText(this,"เลือกบิลที่ต้องการชำระก่อน",Toast.LENGTH_SHORT).show();return;}
         if(!Double.isFinite(cash)||cash<=0||cash-total>.009){Toast.makeText(this,"เงินสดรับต้องมากกว่า 0 และไม่เกินยอดหนี้ที่เลือก: "+String.format(Locale.US,"%.2f",total)+" บาท",Toast.LENGTH_LONG).show();return;}
-        if(repo.payCreditBills(chosen,cash)){Toast.makeText(this,"บันทึกการชำระหนี้แล้ว",Toast.LENGTH_LONG).show();showBills();}
-        else Toast.makeText(this,"บันทึกไม่สำเร็จ กรุณาตรวจสอบสถานะบิล",Toast.LENGTH_LONG).show();
+        if (paying) return;
+        paying = true;
+        Toast.makeText(this, "กำลังตรวจสอบยอดหนี้ล่าสุดและบันทึกบนเซิร์ฟเวอร์…", Toast.LENGTH_SHORT).show();
+        repo.payCreditBillsOnline(chosen, cash, (succeeded, failed, message) -> runOnUiThread(() -> {
+            paying = false;
+            Toast.makeText(CreditAccountScreen.this, message, Toast.LENGTH_LONG).show();
+            if (failed == 0) showBills();
+        }));
     }
 }

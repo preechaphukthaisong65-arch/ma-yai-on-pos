@@ -7,9 +7,12 @@ on:
       - main
       - feature/complete-missing-menus
       - feat/owner-email-auth
+      - fix/single-active-device-lock
   pull_request:
     branches:
       - main
+      - feat/owner-email-auth
+      - fix/single-active-device-lock
       - feature/manage-store-price
       - feature/warehouse-sales
       - feature/complete-missing-menus
