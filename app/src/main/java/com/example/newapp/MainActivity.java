@@ -225,9 +225,10 @@ public class MainActivity extends Activity {
         reconciliationRunning = true;
         DataHub hub = DataHub.getInstance(getApplicationContext());
         hub.restoreMissingRecords(storeId, (restored, skipped, failed, message) -> runOnUiThread(() -> {
-            reconciliationRunning = false;
             int duplicateBarcodes = hub.getDuplicateBarcodeCount(storeId);
             if (failed > 0 || duplicateBarcodes > 0) {
+                // Keep this attempt serialized through its terminal callback, then permit retry.
+                reconciliationRunning = false;
                 String warning = failed > 0
                         ? "พบข้อมูลในเครื่องกับ Cloud ขัดแย้งกัน จึงหยุดซิงก์เพื่อรักษาข้อมูลเดิม"
                         : "พบบาร์โค้ดซ้ำ " + duplicateBarcodes + " รายการ จึงหยุดซิงก์ไว้ก่อน";
@@ -235,7 +236,10 @@ public class MainActivity extends Activity {
                 refreshManagementNotice();
                 return;
             }
+            // Do not release the guard between restore and upload: a second network callback
+            // here could start overlapping reconciliation while pending writes are uploading.
             hub.backupPendingRecords(storeId, (succeeded, uploadFailed, syncMessage) -> runOnUiThread(() -> {
+                reconciliationRunning = false;
                 if (uploadFailed > 0) {
                     android.widget.Toast.makeText(MainActivity.this,
                             syncMessage + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + uploadFailed + ")",
