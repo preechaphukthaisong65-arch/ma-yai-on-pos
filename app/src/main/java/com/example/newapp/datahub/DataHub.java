@@ -269,7 +269,7 @@ public class DataHub {
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
 
     private boolean hasPendingOfflineSales(String storeId) {
-        for (JSONObject record : localStore.getRecordsByType(storeId, "sale_bill")) {
+        for (JSONObject record : getRecordsByType(storeId, "sale_bill")) {
             JSONObject payload = record.optJSONObject("payload");
             if (payload != null && payload.optBoolean("offlinePending", false)) return true;
         }
