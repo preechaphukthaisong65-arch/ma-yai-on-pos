@@ -387,24 +387,32 @@ public class CloudBackupService {
         Query existingBarcodeQuery = firestore.collection(COLLECTION_BACKUPS)
                 .document(store).collection(COLLECTION_RECORDS)
                 .whereEqualTo("payload.barcode", code);
-        firestore.runTransaction(transaction -> {
-            DocumentSnapshot existing = transaction.get(reservation);
-            if (existing.exists()) throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
-
-            // The reservation collection alone does not know about factory barcodes
-            // already saved as product records. Check the store's canonical backup
-            // records inside the same transaction before reserving a generated code.
-            QuerySnapshot matchingRecords = transaction.get(existingBarcodeQuery);
-            for (DocumentSnapshot matching : matchingRecords.getDocuments()) {
-                String type = matching.getString("dataType");
-                if ("product".equals(type) || "barcode_item".equals(type)) {
-                    throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
-                }
-            }
-            transaction.set(reservation, data);
-            return null;
-        }).addOnSuccessListener(unused -> { if (callback != null) callback.onSuccess(); })
-          .addOnFailureListener(error -> failBackup(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+        // Android Firestore transactions read document references, not queries.
+        // Check existing factory/product/library records first, then atomically
+        // reserve the code so concurrent generated-code requests cannot collide.
+        existingBarcodeQuery.get()
+                .addOnSuccessListener(matchingRecords -> {
+                    for (DocumentSnapshot matching : matchingRecords.getDocuments()) {
+                        String type = matching.getString("dataType");
+                        if ("product".equals(type) || "barcode_item".equals(type)) {
+                            failBackup(callback, "บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                            return;
+                        }
+                    }
+                    firestore.runTransaction(transaction -> {
+                        DocumentSnapshot existing = transaction.get(reservation);
+                        if (existing.exists()) {
+                            throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                        }
+                        transaction.set(reservation, data);
+                        return null;
+                    }).addOnSuccessListener(unused -> {
+                        if (callback != null) callback.onSuccess();
+                    }).addOnFailureListener(error ->
+                            failBackup(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+                })
+                .addOnFailureListener(error ->
+                        failBackup(callback, "ตรวจสอบบาร์โค้ดเดิมไม่สำเร็จ: " + safeMessage(error)));
     }
 
     /**
