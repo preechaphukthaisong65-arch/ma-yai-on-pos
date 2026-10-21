@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 4;
+    private static final int DB_VERSION = 5;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -64,6 +64,8 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_price_history_barcode ON price_history(barcode,created_at)");
         db.execSQL("CREATE TABLE payments (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL UNIQUE," +
                 "amount_satang INTEGER NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(bill_id) REFERENCES bills(id))");
+        db.execSQL("CREATE TABLE payment_history (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL UNIQUE, bill_code TEXT NOT NULL, amount_satang INTEGER NOT NULL, created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX idx_payment_history_created ON payment_history(created_at)");
         db.execSQL("CREATE TABLE sales_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL," +
                 "bill_code TEXT NOT NULL, sale_type TEXT NOT NULL, event_type TEXT NOT NULL," +
                 "subtotal_satang INTEGER NOT NULL, fee_satang INTEGER NOT NULL, total_satang INTEGER NOT NULL," +
@@ -99,6 +101,11 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_ledger_items_product ON sales_ledger_items(barcode,created_at)");
             db.execSQL("INSERT INTO sales_ledger_items(bill_id,bill_code,event_type,barcode,product_name,quantity,unit_price_satang,line_total_satang,created_at) SELECT bi.bill_id,b.bill_code,'SALE',bi.barcode,bi.product_name,bi.quantity,bi.unit_price_satang,bi.line_total_satang,b.created_at FROM bill_items bi JOIN bills b ON b.id=bi.bill_id WHERE EXISTS (SELECT 1 FROM sales_ledger l WHERE l.bill_id=b.id AND l.event_type='SALE')");
             db.execSQL("INSERT INTO sales_ledger_items(bill_id,bill_code,event_type,barcode,product_name,quantity,unit_price_satang,line_total_satang,created_at) SELECT bi.bill_id,b.bill_code,l.event_type,bi.barcode,bi.product_name,-bi.quantity,bi.unit_price_satang,-bi.line_total_satang,l.created_at FROM bill_items bi JOIN bills b ON b.id=bi.bill_id JOIN sales_ledger l ON l.bill_id=b.id AND l.event_type IN ('CANCEL','RETURN')");
+        }
+        if (oldVersion < 5) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS payment_history (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL UNIQUE, bill_code TEXT NOT NULL, amount_satang INTEGER NOT NULL, created_at INTEGER NOT NULL)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_payment_history_created ON payment_history(created_at)");
+            db.execSQL("INSERT OR IGNORE INTO payment_history(bill_id,bill_code,amount_satang,created_at) SELECT p.bill_id,b.bill_code,p.amount_satang,p.created_at FROM payments p JOIN bills b ON b.id=p.bill_id");
         }
     }
 
