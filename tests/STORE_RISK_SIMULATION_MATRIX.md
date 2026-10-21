@@ -13,7 +13,7 @@ Run with `npm test` from the repository root (the GitHub Actions workflow instal
 | Different account reads/writes the store | Deny | Yes |
 | Active device creates a valid backup record | Allow | Yes |
 | Superseded device attempts to write | Deny | Yes |
-| Device A goes offline, device B takes over, A's queued write reconnects | Reconcile unique records; quarantine collisions; do not reject the entire offline batch | Not implemented yet |
+| Same single phone goes offline, continues selling, then reconnects | Replay its pending sales in order; each bill is committed once; stock/cash/debt/history reconcile | Needs single-device Android integration test |
 | Superseded device edits/deletes an existing backup | Deny | Yes |
 | Backup path ID and record ID disagree | Deny | Yes |
 | Revision stays the same or decreases | Deny | Yes |
@@ -44,14 +44,14 @@ These are required before calling the POS production-ready. They are not claimed
 | Payment amount exceeds current debt or bill already paid | Reject without changing any record | Guard exists; needs Firebase emulator integration test |
 | Network loss before/during/after sale or payment | No silent success; local pending data preserved; no duplicate on retry | Needs Android offline/online integration test |
 | Reconnect with identical, missing, conflicting, or duplicate-barcode records | Restore missing only; never overwrite/delete conflict silently | Restore code has conflict checks; needs seeded DB integration test |
-| Second device logs in while first is offline | One active device; stale writes rejected after reconnection | Rules scenario covered; needs two-device runtime test |
+| Owner replaces a broken phone or reinstalls app while old phone is unavailable | Restore last cloud-confirmed data; clearly disclose any backup lag; never invent missing local-only sales | Needs backup/restore integration test |
 | App force-stop/restart, Android kills process, backup retry | Pending records survive and are retried without duplication | Needs Android lifecycle test |
 | Receipt reprint, reports, debt reminders, retention cleanup | No financial records altered by viewing/printing/notifications; retention preserves required history | Needs app-level regression tests |
 | Firestore rules deployed to actual Firebase project | Production backend enforces the same rules tested in CI | Not verified; deployment requires project-owner access |
 
 ## Known residual risks found during this review
 
-- **Offline device takeover (required behavior):** while device A is disconnected, it cannot learn that device B has taken over and may still record local sales. When A reconnects, do not reject the entire batch. Reconcile record IDs and business-level keys; import valid, non-conflicting records idempotently; quarantine conflicting revisions, duplicate barcodes, repeated payments, and stock/debt conflicts without overwriting either copy. Related sale, receipt, stock and payment records must be reconciled as a unit so the cloud cannot accept only half of a transaction. The current implementation still rejects stale-device writes and does not yet implement this reconciliation flow.
+- **Single-device offline recovery:** the primary expected case is the same phone temporarily losing internet, continuing to sell locally, then reconnecting. Offline bills must replay in deterministic order, and bill, receipt, stock, debt, and history effects must be idempotent. A replacement phone is a separate disaster-recovery case: cloud can restore only data that had actually been backed up before the old phone failed; the app must expose backup freshness and cannot promise recovery of unuploaded local-only changes.
 - **Orphan barcode reservation:** if Firestore reserves a barcode but local product persistence subsequently fails, the reservation is intentionally not reused or automatically deleted. This avoids accidental duplicate assignment, but consumes that barcode number and needs an explicit, safe recovery procedure. The asynchronous double-tap window was fixed in `BarcodeScreen.java`; fault-injection testing for a local-save failure is still required.
 
 ## Safety boundaries
@@ -116,3 +116,12 @@ Severity: **P0** = can lose money or corrupt stock/debt; **P1** = sale blocked o
 ## Release gate
 
 Production release is blocked while any P0 scenario is FAIL, BLOCKED, or NOT RUN. In particular, offline device takeover with pending sales, two-device concurrent final-unit sales, lost-response idempotency, and uninstall/reinstall restore require real integration evidence. Hardware receipt-printer and physical barcode-printer tests are intentionally outside this suite; barcode lookup/generation and stored sale records remain in scope.
+
+
+## Corrected operating assumptions for Ma Yai On POS
+
+- The normal checkout flow uses one physical phone at a time. Do not treat two simultaneous checkout devices as a routine shop workflow.
+- The local database is the working source for day-to-day screens and offline continuity. Cloud is used to protect and restore records. However, code currently also contains a server-committed sale path; verify the actual sale call path before changing the consistency model. Do not assume “cloud backup only” unless the app code has been changed and integration-tested accordingly.
+- Scanning a barcode proves only that a product identifier was read. It does not prove positive stock. Before confirming a sale, validate the current local stock and requested quantity, prevent duplicate scan events from accidentally multiplying quantity, and make the final sale + stock decrement a single local database transaction.
+- The main real-world scenarios are: scan an existing item; unknown barcode; repeated scan; change quantity; remove item; insufficient cash; exact cash; excess cash/change; app killed before/after save; phone offline before/during/after sale; reconnect/retry; backup failure; low storage; database migration; restore after reinstall; restore on replacement phone; and end-of-day reconciliation.
+- Cloud backup is not equivalent to a real-time replica. Record and show the last successful backup time/status. A phone failure can lose changes created after that successful backup unless there is a separately verified durable recovery path.
