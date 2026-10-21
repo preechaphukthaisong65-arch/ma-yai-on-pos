@@ -45,9 +45,9 @@ public class ReportScreen extends Activity {
     }
     private void returnedCancelled(){
         root=PosUi.page(this,"รายการบิลคืนสินค้า / ยกเลิก");
-        Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"bill_code","event_type","subtotal_satang","fee_satang","total_satang","created_at","sale_type"},"event_type IN ('RETURN','CANCEL')",null,null,null,"created_at DESC");
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT bill_code,event_type,subtotal_satang,fee_satang,total_satang,created_at,sale_type,CASE WHEN event_type='RETURN' AND sale_type='CREDIT' AND fee_satang=0 THEN COALESCE((SELECT s.fee_satang FROM sales_ledger s WHERE s.bill_id=sales_ledger.bill_id AND s.event_type='SALE'),0) ELSE fee_satang END AS display_fee FROM sales_ledger WHERE event_type IN ('RETURN','CANCEL') ORDER BY created_at DESC",null);
         if(!c.moveToFirst())PosUi.line(this,root,"ยังไม่มีบิลคืนสินค้าหรือยกเลิก");
-        else do{String event=c.getString(1);String feeText="CREDIT".equals(c.getString(6))?" • ค่าบริการ "+PosDatabase.money(Math.abs(c.getLong(3)))+" บาท":"";PosUi.line(this,root,c.getString(0)+" • "+(event.equals("RETURN")?"คืนสินค้า":"ยกเลิก")+" • ยอดสินค้า "+PosDatabase.money(Math.abs(c.getLong(2)))+" บาท"+feeText+" • "+new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(5))));}while(c.moveToNext());
+        else do{String event=c.getString(1);String feeText="CREDIT".equals(c.getString(6))&&c.getLong(7)!=0?" • ค่าบริการ "+PosDatabase.money(c.getLong(7))+" บาท":"";PosUi.line(this,root,c.getString(0)+" • "+(event.equals("RETURN")?"คืนสินค้า":"ยกเลิก")+" • ยอดสินค้า "+PosDatabase.money(Math.abs(c.getLong(2)))+" บาท"+feeText+" • "+new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(5))));}while(c.moveToNext());
         c.close();PosUi.back(this,root);
     }
     private long startOfDay(){Calendar c=Calendar.getInstance();c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
