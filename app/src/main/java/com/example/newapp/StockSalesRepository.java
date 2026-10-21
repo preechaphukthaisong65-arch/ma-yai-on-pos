@@ -212,6 +212,11 @@ public final class StockSalesRepository {
                 || soldProducts.size() != quantities.size() || soldProducts.isEmpty()) return false;
         if (hub.getRecord(storeId, billId) != null) return false;
         try {
+            // This local-only sale must be reconciled as one server transaction.
+            // Preserve the cloud revision observed before each local stock decrement.
+            billPayload.put("offlinePending", true);
+            org.json.JSONArray saleItems = billPayload.optJSONArray("items");
+            if (saleItems == null || saleItems.length() != soldProducts.size()) return false;
             // Validate every line against the latest stored product before preparing any writes.
             List<JSONObject> currentProducts = new ArrayList<>();
             List<JSONObject> updatedPayloads = new ArrayList<>();
@@ -228,6 +233,7 @@ public final class StockSalesRepository {
                 if (productId.trim().isEmpty() || !seenProductIds.add(productId)) return false;
                 JSONObject current = hub.getRecord(storeId, productId);
                 if (current == null || !PRODUCT.equals(current.optString("dataType"))) return false;
+                saleItems.getJSONObject(i).put("localRevision", current.optLong("revision", 0L));
                 JSONObject p = new JSONObject(payload(current).toString());
                 double before = p.optDouble("stockQuantity", 0d);
                 if (!Double.isFinite(before) || before < 0d || qty > before + 0.000001d) return false;
