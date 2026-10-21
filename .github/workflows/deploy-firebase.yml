@@ -7,8 +7,8 @@ on:
         description: "Store ID to bind to the verified owner account"
         required: true
         type: string
-      owner_uid:
-        description: "Firebase Authentication UID of the verified owner account"
+      owner_email:
+        description: "Email of the existing Firebase owner account (must be verified)"
         required: true
         type: string
       confirm_production:
@@ -50,10 +50,10 @@ jobs:
       - name: Install Cloud Functions dependencies
         run: npm install --prefix functions --no-audit --no-fund
 
-      - name: Preflight owner UID and store binding (read-only)
+      - name: Preflight owner account and store binding (read-only)
         env:
           STORE_ID: ${{ inputs.store_id }}
-          OWNER_UID: ${{ inputs.owner_uid }}
+          OWNER_EMAIL: ${{ inputs.owner_email }}
           CHECK_ONLY: "true"
         run: node functions/scripts/provision-owner.js
 
@@ -63,7 +63,7 @@ jobs:
       - name: Bind verified owner to store ID without overwriting an existing owner
         env:
           STORE_ID: ${{ inputs.store_id }}
-          OWNER_UID: ${{ inputs.owner_uid }}
+          OWNER_EMAIL: ${{ inputs.owner_email }}
         run: node functions/scripts/provision-owner.js
 
       - name: Remove temporary credentials
