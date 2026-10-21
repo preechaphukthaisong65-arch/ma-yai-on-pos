@@ -28,7 +28,7 @@ public final class StockLimitNotifier {
                 .getBoolean("reconciled_" + storeId, false);
     }
 
-    /** Scan existing records once after restore, then the home screen uses the small saved count. */
+    /** Reconcile existing local records once, then the home screen uses the saved low-stock count. */
     public static synchronized void reconcileIfNeeded(Context context, String storeId, List<JSONObject> products) {
         initialize(context);
         if (app == null || storeId == null || storeId.trim().isEmpty() || isReconciled(app, storeId)) return;
