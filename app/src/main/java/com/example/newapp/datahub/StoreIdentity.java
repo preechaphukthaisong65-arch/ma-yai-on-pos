@@ -7,7 +7,7 @@ import android.content.SharedPreferences;
 public final class StoreIdentity {
     private static final String PREFS = "ma_yai_on_pos_store";
     private static final String KEY_STORE_ID = "store_id";
-    private static final String KEY_INITIAL_RESTORE = "initial_restore_complete";
+    private static final String KEY_INITIAL_SETUP = "initial_setup_complete";
     private static final String KEY_OWNER_UID = "owner_uid";
     private static final String KEY_DEVICE_ID = "device_id";
 
@@ -56,11 +56,11 @@ public final class StoreIdentity {
         return !get(context).isEmpty();
     }
 
-    public static boolean isInitialRestoreComplete(Context context) {
-        return prefs(context).getBoolean(KEY_INITIAL_RESTORE, false);
+    public static boolean isInitialSetupComplete(Context context) {
+        return prefs(context).getBoolean(KEY_INITIAL_SETUP, false);
     }
 
-    public static void markInitialRestoreComplete(Context context) {
-        prefs(context).edit().putBoolean(KEY_INITIAL_RESTORE, true).apply();
+    public static void markInitialSetupComplete(Context context) {
+        prefs(context).edit().putBoolean(KEY_INITIAL_SETUP, true).apply();
     }
 }
