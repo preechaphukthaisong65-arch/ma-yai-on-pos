@@ -40,9 +40,24 @@ public class HistoryScreen extends Activity {
     private void customerBills(long customerId,String name){
         root=PosUi.page(this,name+" • บิลค้างชำระ");
         Cursor c=helper.getReadableDatabase().query("bills",new String[]{"id","bill_code","total_satang","created_at"},"customer_id=? AND status='UNPAID'",new String[]{String.valueOf(customerId)},null,null,"created_at ASC");
-        ArrayList<Long> ids=new ArrayList<>();long total=0;while(c.moveToNext()){long id=c.getLong(0);ids.add(id);total+=c.getLong(2);PosUi.line(this,root,c.getString(1)+" • "+PosDatabase.money(c.getLong(2))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(3))));}
+        ArrayList<Long> allIds=new ArrayList<>();final java.util.HashSet<Long> selected=new java.util.HashSet<>();final java.util.HashMap<Long,Long> amounts=new java.util.HashMap<>();long total=0;
+        while(c.moveToNext()){
+            long id=c.getLong(0),amount=c.getLong(2);allIds.add(id);selected.add(id);amounts.put(id,amount);total+=amount;
+            android.widget.CheckBox box=new android.widget.CheckBox(this);
+            box.setText(c.getString(1)+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(3))));
+            box.setChecked(true);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
+            root.addView(box,new LinearLayout.LayoutParams(-1,-2));
+        }
         c.close();PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
-        if(!ids.isEmpty()){final long totalDue=total;PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,ids,totalDue));}
+        if(!allIds.isEmpty()){
+            final long allTotal=total;
+            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,allTotal));
+            PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
+                ArrayList<Long> chosen=new ArrayList<>(selected);long selectedTotal=0;for(Long id:chosen)selectedTotal+=amounts.get(id);
+                if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
+                payAll(customerId,chosen,selectedTotal);
+            });
+        }
         PosUi.back(this,root);
     }
     private void payAll(long customerId,ArrayList<Long> ids,long total){
