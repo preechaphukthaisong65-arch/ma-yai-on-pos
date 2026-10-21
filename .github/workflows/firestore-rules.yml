@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - feat/owner-email-auth
+      - fix/single-active-device-lock
+      - feat/server-atomic-sales
   pull_request:
     branches:
       - feature/complete-missing-menus
       - feat/owner-email-auth
+      - fix/single-active-device-lock
 
 permissions:
   contents: read
