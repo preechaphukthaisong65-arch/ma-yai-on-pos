@@ -97,7 +97,7 @@ public class BarcodeLibraryScreen extends Activity {
                 }
             }
             count++;
-            results.addView(POSUi.text(this, name + "\\nบาร์โค้ด: " + code + "\\nราคา: "
+            results.addView(POSUi.text(this, name + "\nบาร์โค้ด: " + code + "\nราคา: "
                     + String.format(Locale.US, "%.2f", p.optDouble("price", 0d)) + " บาท", 16));
             POSUi.button(this, results, "พิมพ์บาร์โค้ดเดิม", () -> printExisting(name, code, p.optDouble("price", 0d)));
         }
