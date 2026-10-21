@@ -47,6 +47,10 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
+      - name: Verify service account identity (no secrets printed)
+        run: |
+          node -e 'const fs = require("fs"); const p = process.env.GOOGLE_APPLICATION_CREDENTIALS; const key = JSON.parse(fs.readFileSync(p, "utf8")); const expected = "github-firebase-deploy@android-pos-593e9.iam.gserviceaccount.com"; if (key.client_email !== expected) { console.error("::error::FIREBASE_SERVICE_ACCOUNT_JSON belongs to a different service account. Expected " + expected + "; found " + (key.client_email || "(missing client_email)") + ". Update the GitHub secret with the JSON key for the expected service account."); process.exit(1); } console.log("Service account identity verified: " + key.client_email);'
+
       - name: Install Cloud Functions dependencies
         run: npm install --prefix functions --no-audit --no-fund
 
