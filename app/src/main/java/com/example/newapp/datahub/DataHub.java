@@ -707,7 +707,7 @@ public class DataHub {
                             boolean saved = localStore.saveRecordsAtomically(committedRecords);
                             if (!saved) {
                                 completeOperation(callback, 0, 1,
-                                        "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่เพื่อโหลดจาก Cloudและตรวจสอบ ห้ามรับเงินซ้ำ");
+                                        "เซิร์ฟเวอร์รับชำระแล้ว แต่ข้อมูลในเครื่องมีการเปลี่ยนแปลง กรุณาตรวจสอบข้อมูลกับเซิร์ฟเวอร์ ห้ามรับเงินซ้ำ");
                                 return;
                             }
                             refreshStatus(checkedStore);
@@ -715,7 +715,7 @@ public class DataHub {
                                     "บันทึกการชำระหนี้บนเซิร์ฟเวอร์แบบธุรกรรมเดียวแล้ว");
                         } catch (Exception error) {
                             completeOperation(callback, 0, 1,
-                                    "เซิร์ฟเวอร์รับชำระแล้ว แต่ซ่อมข้อมูลในเครื่องไม่สำเร็จ กรุณาโหลดจาก Cloudจาก Cloud และห้ามรับเงินซ้ำ");
+                                    "เซิร์ฟเวอร์รับชำระแล้ว แต่ซ่อมข้อมูลในเครื่องไม่สำเร็จ กรุณาตรวจสอบข้อมูลกับเซิร์ฟเวอร์ และห้ามรับเงินซ้ำ");
                         }
                     }
                     @Override public void onFailure(String message) {
