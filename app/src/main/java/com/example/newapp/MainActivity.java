@@ -313,7 +313,8 @@ public class MainActivity extends Activity {
             });
         } else {
             managementNotice.setTextColor(Color.rgb(45, 90, 55));
-            managementNotice.setOnClickListener(null);
+            managementNotice.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, NotificationScreen.class)));
         }
         int duplicateBarcodes = dataHub.getDuplicateBarcodeCount(storeId);
         if (duplicateBarcodes > 0) {
