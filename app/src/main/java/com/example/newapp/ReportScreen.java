@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,12 +36,14 @@ public class ReportScreen extends Activity {
         String key;
         String name;
         String barcode;
+        String unit;
         double quantity;
 
-        ProductSales(String key, String name, String barcode) {
+        ProductSales(String key, String name, String barcode, String unit) {
             this.key = key;
             this.name = name;
             this.barcode = barcode;
+            this.unit = unit;
         }
     }
 
@@ -285,6 +288,13 @@ public class ReportScreen extends Activity {
         c.setTimeInMillis(now);
         c.add(Calendar.DAY_OF_MONTH, -30);
         long cutoff = c.getTimeInMillis();
+        Map<String, String> currentUnits = new HashMap<>();
+        for (JSONObject product : hub.getRecordsByType(storeId, "product")) {
+            JSONObject payload = product.optJSONObject("payload");
+            if (payload == null) continue;
+            String id = product.optString("recordId", "").trim();
+            if (!id.isEmpty()) currentUnits.put(id, payload.optString("unit", "หน่วย"));
+        }
         Map<String, ProductSales> totals = new LinkedHashMap<>();
         for (JSONObject record : hub.getRecordsByType(storeId, "stock_history")) {
             JSONObject p = record.optJSONObject("payload");
@@ -299,7 +309,7 @@ public class ReportScreen extends Activity {
             String key = !productId.isEmpty() ? productId : (!barcode.isEmpty() ? barcode : name);
             ProductSales entry = totals.get(key);
             if (entry == null) {
-                entry = new ProductSales(key, name, barcode);
+                entry = new ProductSales(key, name, barcode, currentUnits.getOrDefault(productId, "หน่วย"));
                 totals.put(key, entry);
             }
             entry.quantity += sold;
