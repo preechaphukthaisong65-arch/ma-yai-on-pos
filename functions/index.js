@@ -48,7 +48,14 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
     normalized.push({ productRecordId: item.productRecordId, quantity: item.quantity, localRevision: item.localRevision });
   }
   const customerId = typeof input.customerRecordId === "string" ? input.customerRecordId : "";
+  const inputCustomer = input.customer && typeof input.customer === "object" ? input.customer : null;
   if (customerId && !validId(customerId)) fail("invalid-argument", "รหัสลูกค้าไม่ถูกต้อง");
+  if (paymentType === "credit" && (!customerId || !inputCustomer
+      || inputCustomer.recordId !== customerId
+      || typeof inputCustomer.firstName !== "string" || !inputCustomer.firstName.trim()
+      || typeof inputCustomer.lastName !== "string" || !inputCustomer.lastName.trim())) {
+    fail("invalid-argument", "ข้อมูลลูกค้าสำหรับขายเชื่อไม่ครบถ้วน");
+  }
   const requestHash = crypto.createHash("sha256").update(JSON.stringify({
     storeId, deviceId, billId, paymentType, cashReceived: paymentType === "cash" ? received : 0,
     customerRecordId: customerId, items: normalized.map(x => ({ productRecordId: x.productRecordId, quantity: x.quantity }))
@@ -100,9 +107,36 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
     const productSnaps = [];
     for (const ref of productRefs) productSnaps.push(await tx.get(ref));
     const customerSnap = customerRef ? await tx.get(customerRef) : null;
-    if (paymentType === "credit" && (!customerSnap || !customerSnap.exists
-        || customerSnap.get("storeId") !== storeId || customerSnap.get("dataType") !== "credit_customer")) {
-      fail("failed-precondition", "ไม่พบข้อมูลลูกค้าที่ผูกกับร้านนี้");
+    let customerPayload = customerSnap?.exists ? (customerSnap.get("payload") || {}) : null;
+    let customerToCreate = null;
+    if (paymentType === "credit") {
+      if (customerSnap?.exists) {
+        if (customerSnap.get("storeId") !== storeId || customerSnap.get("dataType") !== "credit_customer") {
+          fail("failed-precondition", "ข้อมูลลูกค้าไม่ตรงกับร้านนี้");
+        }
+      } else {
+        // A new offline-created customer may not have reached Firestore yet.
+        // Check server-side names before creating its stable local record ID.
+        const customersQuery = records.where("dataType", "==", "credit_customer");
+        const customersSnapshot = await tx.get(customersQuery);
+        const first = inputCustomer.firstName.trim().toLocaleLowerCase("th");
+        const last = inputCustomer.lastName.trim().toLocaleLowerCase("th");
+        for (const existing of customersSnapshot.docs) {
+          if (existing.id === customerId || existing.get("storeId") !== storeId) continue;
+          const p = existing.get("payload") || {};
+          if (String(p.firstName || "").trim().toLocaleLowerCase("th") === first
+              && String(p.lastName || "").trim().toLocaleLowerCase("th") === last) {
+            fail("failed-precondition", "พบลูกค้าชื่อเดียวกันในข้อมูลกลาง กรุณาซิงก์และเลือกบัญชีลูกค้าเดิมก่อน");
+          }
+        }
+        customerPayload = {
+          firstName: inputCustomer.firstName.trim(),
+          lastName: inputCustomer.lastName.trim(),
+          createdAt: Number(inputCustomer.createdAt) || Date.now()
+        };
+        customerToCreate = asRecord(storeId, customerId, "credit_customer", 1, customerPayload,
+          { uploadedBy: uid, deviceId });
+      }
     }
 
     const now = Date.now(), nextProducts = [], lineItems = [];
@@ -129,7 +163,7 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
     const total = Math.round((subtotal + serviceFee + Number.EPSILON) * 100) / 100;
     if (paymentType === "cash" && received < total) fail("failed-precondition", "เงินสดที่รับมาต่ำกว่ายอดขาย");
 
-    const customerPayload = customerSnap?.get("payload") || {};
+    customerPayload = customerPayload || {};
     const customerName = customerId ? (String(customerPayload.firstName || "") + " " + String(customerPayload.lastName || "")).trim() : "";
     const billPayload = { billId, createdAt: now, paymentType,
       paymentStatus: paymentType === "cash" ? "จ่ายแล้ว" : "ค้างชำระ",
@@ -154,6 +188,7 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
     const auditRecord = asRecord(storeId, saleHistoryId, "sale_history", 1, auditPayload, { uploadedBy: uid, deviceId });
 
     // All reads are completed before writes; Firestore retries this transaction on contention.
+    if (customerToCreate) tx.create(customerRef, customerToCreate);
     for (let i = 0; i < nextProducts.length; i++) {
       tx.set(nextProducts[i].ref, nextProducts[i].record);
       const oldStock = Number(productSnaps[i].get("payload").stockQuantity);
@@ -170,7 +205,7 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
     tx.create(receiptRef, receiptRecord);
     tx.create(saleHistoryRef, auditRecord);
     return { alreadyCommitted: false, bill: billRecord,
-      records: [...nextProducts.map((x, i) => ({ ...x.record, expectedRevision: normalized[i].localRevision })), ...stockHistoryRefs.map((ref, i) => ({
+      records: [...(customerToCreate ? [customerToCreate] : []), ...nextProducts.map((x, i) => ({ ...x.record, expectedRevision: normalized[i].localRevision })), ...stockHistoryRefs.map((ref, i) => ({
         storeId, recordId: ref.id, dataType: "stock_history", schemaVersion: 1, revision: 1,
         updatedAt: now, payload: { historyId: ref.id, productRecordId: normalized[i].productRecordId,
           productName: lineItems[i].name, barcode: lineItems[i].barcode, transactionType: "ขายสินค้า",
