@@ -267,6 +267,14 @@ public class DataHub {
 
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
 
+    private boolean hasPendingOfflineSales(String storeId) {
+        for (JSONObject record : localStore.getRecordsByType(storeId, "sale_bill")) {
+            JSONObject payload = record.optJSONObject("payload");
+            if (payload != null && payload.optBoolean("offlinePending", false)) return true;
+        }
+        return false;
+    }
+
     /**
      * Apply records returned by a successful authoritative Cloud Function.
      * Unlike ordinary local edits, these snapshots are already committed in
@@ -349,6 +357,15 @@ public class DataHub {
                     0,
                     "ไม่พบรหัสร้านค้า"
             );
+            return;
+        }
+
+        // An offline sale changes several related records (bill, stock, receipt,
+        // ledger and possibly customer). Never upload those records one-by-one:
+        // the dedicated idempotent server transaction must reconcile the sale first.
+        if (hasPendingOfflineSales(checkedStoreId)) {
+            completeOperation(callback, 0, 1,
+                    "มีรายการขายออฟไลน์รอยืนยันกับเซิร์ฟเวอร์ จึงพักการสำรองรายรายการเพื่อป้องกันข้อมูลขัดแย้ง");
             return;
         }
 
