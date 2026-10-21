@@ -2,10 +2,10 @@ package com.example.newapp.datahub;
 
 import org.json.JSONObject;
 
-public class BackupManager {
+public final class RecordValidator {
 
     /**
-     * Validate a record before sending it to cloud backup.
+     * Validate a local record before synchronization.
      */
     public boolean isValidRecord(JSONObject record) {
         if (record == null) {
@@ -31,10 +31,10 @@ public class BackupManager {
     }
 
     /**
-     * Create a validated copy for cloud backup.
+     * Create a validated copy for cloud synchronization.
      * The original local record is not modified.
      */
-    public JSONObject prepareBackup(JSONObject record) {
+    public JSONObject prepareSyncRecord(JSONObject record) {
         if (!isValidRecord(record)) {
             return null;
         }

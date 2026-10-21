@@ -50,6 +50,15 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     @Override
+    public void onOpen(SQLiteDatabase db) {
+        super.onOpen(db);
+        // Safe, non-destructive index for store/type queries and large stock ledgers.
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_hub_records_store_type_updated "
+                + "ON " + TABLE_RECORDS + " (" + COL_STORE_ID + ", "
+                + COL_DATA_TYPE + ", " + COL_UPDATED_AT + " DESC)");
+    }
+
+    @Override
     public void onUpgrade(
             SQLiteDatabase db,
             int oldVersion,
@@ -66,7 +75,7 @@ public final class LocalStore extends SQLiteOpenHelper {
             throws JSONException {
 
         if (record == null
-                || !new BackupManager().isValidRecord(record)) {
+                || !new RecordValidator().isValidRecord(record)) {
             return false;
         }
 
@@ -95,9 +104,9 @@ public final class LocalStore extends SQLiteOpenHelper {
                 )
         );
 
-        int revision = Math.max(
-                1,
-                record.optInt("revision", 1)
+        long revision = Math.max(
+                1L,
+                record.optLong("revision", 1L)
         );
 
         JSONObject payload = record.getJSONObject("payload");
@@ -144,7 +153,7 @@ public final class LocalStore extends SQLiteOpenHelper {
         JSONObject payloadObject = new JSONObject(payload);
         SQLiteDatabase db = getWritableDatabase();
         long now = System.currentTimeMillis();
-        int revision = 1;
+        long revision = 1L;
 
         Cursor cursor = db.query(
                 TABLE_RECORDS,
@@ -159,7 +168,7 @@ public final class LocalStore extends SQLiteOpenHelper {
 
         try {
             if (cursor.moveToFirst()) {
-                revision = cursor.getInt(0) + 1;
+                revision = cursor.getLong(0) + 1L;
             }
         } finally {
             cursor.close();
@@ -230,9 +239,9 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * อ่านรายการที่ยังไม่ได้สำรอง รวมรายการที่เคยล้มเหลว
+     * อ่านรายการที่ยังไม่ได้ซิงก์ รวมรายการที่เคยล้มเหลว
      */
-    public synchronized List<JSONObject> getRecordsNeedingBackup(
+    public synchronized List<JSONObject> getRecordsNeedingSync(
             String storeId,
             int limit
     ) throws JSONException {
@@ -268,8 +277,109 @@ public final class LocalStore extends SQLiteOpenHelper {
         return records;
     }
 
+    /** Read records of a type for one store, newest first. */
+    public synchronized List<JSONObject> getRecordsByType(String storeId, String dataType) throws JSONException {
+        if (isBlank(storeId) || isBlank(dataType)) throw new IllegalArgumentException("storeId/dataType must not be blank");
+        List<JSONObject> records = new ArrayList<>();
+        Cursor cursor = getReadableDatabase().query(TABLE_RECORDS, null,
+                COL_STORE_ID + " = ? AND " + COL_DATA_TYPE + " = ?",
+                new String[]{storeId.trim(), dataType.trim()}, null, null, COL_UPDATED_AT + " DESC");
+        try { while (cursor.moveToNext()) records.add(readRecord(cursor)); }
+        finally { cursor.close(); }
+        return records;
+    }
+
+    /** Save related records atomically; any failure rolls the whole transaction back. */
+    public synchronized boolean saveRecordsAtomically(List<JSONObject> records) {
+        if (records == null || records.isEmpty()) return false;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (JSONObject record : records) {
+                if (record == null) return false;
+                // Validate expected revisions inside the same SQLite transaction
+                // as the writes, so a stale screen cannot overwrite a newer local
+                // product or bill after it has read the record.
+                if (record.has("expectedRevision")) {
+                    String expectedStore = record.optString("storeId", "").trim();
+                    String expectedId = record.optString("recordId", "").trim();
+                    long expectedRevision = record.optLong("expectedRevision", -1L);
+                    if (isBlank(expectedStore) || isBlank(expectedId) || expectedRevision < 0L) {
+                        return false;
+                    }
+                    long actualRevision = 0L;
+                    Cursor revisionCursor = db.query(
+                            TABLE_RECORDS,
+                            new String[]{COL_REVISION},
+                            COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ?",
+                            new String[]{expectedStore, expectedId},
+                            null, null, null, "1"
+                    );
+                    try {
+                        if (revisionCursor.moveToFirst()) actualRevision = revisionCursor.getLong(0);
+                    } finally {
+                        revisionCursor.close();
+                    }
+                    if (actualRevision != expectedRevision) return false;
+                }
+                if (!saveRecord(record)) return false;
+            }
+            db.setTransactionSuccessful();
+            return true;
+        } catch (Exception error) {
+            return false;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     /**
-     * นับทุกรายการที่ยังไม่ได้สำรองสำเร็จ
+     * Persist snapshots returned by a successful server transaction and mark them
+     * synced in the SAME SQLite transaction. They already exist in Firestore;
+     * sending them through the generic sync worker could create a second,
+     * stale write after the server has committed the sale.
+     */
+    public synchronized boolean saveServerCommittedRecordsAtomically(List<JSONObject> records) {
+        if (records == null || records.isEmpty()) return false;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            java.util.HashSet<String> keys = new java.util.HashSet<>();
+            for (JSONObject record : records) {
+                if (record == null || !new RecordValidator().isValidRecord(record)) return false;
+                String storeId = record.optString("storeId", "").trim();
+                String recordId = record.optString("recordId", "").trim();
+                if (isBlank(storeId) || isBlank(recordId)
+                        || !keys.add(storeId + "::" + recordId)) return false;
+                if (record.has("expectedRevision")) {
+                    long expected = record.optLong("expectedRevision", -1L);
+                    long actual = 0L;
+                    Cursor cursor = db.query(TABLE_RECORDS, new String[]{COL_REVISION},
+                            COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ?",
+                            new String[]{storeId, recordId}, null, null, null, "1");
+                    try { if (cursor.moveToFirst()) actual = cursor.getLong(0); }
+                    finally { cursor.close(); }
+                    if (expected < 0L || actual != expected) return false;
+                }
+                if (!saveRecord(record)) return false;
+                ContentValues synced = new ContentValues();
+                synced.put(COL_SYNC_STATUS, DataHub.SYNC_SYNCED);
+                int changed = db.update(TABLE_RECORDS, synced,
+                        COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ? AND " + COL_REVISION + " = ?",
+                        new String[]{storeId, recordId, Long.toString(Math.max(1L, record.optLong("revision", 1L)))});
+                if (changed != 1) return false;
+            }
+            db.setTransactionSuccessful();
+            return true;
+        } catch (Exception error) {
+            return false;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    /**
+     * นับทุกรายการที่ยังไม่ได้ซิงก์สำเร็จ
      */
     public synchronized int getPendingCount() {
         Cursor cursor = getReadableDatabase().rawQuery(
@@ -286,7 +396,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * นับรายการที่ยังไม่ได้สำรองของร้านค้าที่ระบุ
+     * นับรายการที่ยังไม่ได้ซิงก์ของร้านค้าที่ระบุ
      */
     public synchronized int getPendingCount(String storeId) {
         Cursor cursor = getReadableDatabase().rawQuery(
@@ -304,7 +414,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * เปลี่ยนสถานะหลังการสำรองข้อมูล
+     * เปลี่ยนสถานะหลังการซิงก์ข้อมูล
      */
     public synchronized boolean markSyncStatus(
             String storeId,
@@ -334,54 +444,45 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
-     * ไม่เขียนทับรายการที่มีอยู่แล้ว
+     * Mark an upload result only if the local record has not changed
+     * since the upload started. Prevents an older callback from marking
+     * a newer revision as synced.
      */
-    public synchronized boolean insertRestoredRecordIfAbsent(
-            JSONObject record
-    ) throws JSONException {
-
-        if (record == null
-                || !new BackupManager().isValidRecord(record)) {
-            throw new IllegalArgumentException(
-                    "Invalid backup record"
-            );
-        }
+    public synchronized boolean markSyncStatusIfRevision(
+            String storeId,
+            String recordId,
+            long revision,
+            String status
+    ) {
+        if (isBlank(storeId) || isBlank(recordId)) return false;
+        if (!DataHub.SYNC_PENDING.equals(status)
+                && !DataHub.SYNC_SYNCED.equals(status)
+                && !DataHub.SYNC_FAILED.equals(status)) return false;
 
         ContentValues values = new ContentValues();
-        values.put(COL_RECORD_ID, record.getString("recordId"));
-        values.put(COL_STORE_ID, record.getString("storeId"));
-        values.put(COL_DATA_TYPE, record.getString("dataType"));
-        values.put(
-                COL_SCHEMA_VERSION,
-                record.getInt("schemaVersion")
-        );
-        values.put(
-                COL_UPDATED_AT,
-                record.optLong(
-                        "updatedAt",
-                        System.currentTimeMillis()
-                )
-        );
-        values.put(COL_REVISION, record.getInt("revision"));
-        values.put(
-                COL_PAYLOAD,
-                record.getJSONObject("payload").toString()
-        );
-
-        // รายการที่กู้คืนมาจากคลาวด์ถือว่ามีสำเนาบนคลาวด์แล้ว
-        values.put(COL_SYNC_STATUS, DataHub.SYNC_SYNCED);
-
-        long result = getWritableDatabase().insertWithOnConflict(
+        values.put(COL_SYNC_STATUS, status);
+        return getWritableDatabase().update(
                 TABLE_RECORDS,
-                null,
                 values,
-                SQLiteDatabase.CONFLICT_IGNORE
-        );
-
-        return result != -1L;
+                COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ? AND "
+                        + COL_REVISION + " = ?",
+                new String[]{storeId, recordId, Long.toString(revision)}
+        ) == 1;
     }
 
+    /** Delete only an unchanged revision whose cloud deletion was confirmed. */
+    public synchronized boolean deleteRecordIfSyncedAndRevision(String storeId, String recordId, long revision) {
+        if (isBlank(storeId) || isBlank(recordId) || revision < 1L) return false;
+        return getWritableDatabase().delete(TABLE_RECORDS,
+                COL_STORE_ID + " = ? AND " + COL_RECORD_ID + " = ? AND "
+                        + COL_REVISION + " = ? AND " + COL_SYNC_STATUS + " = ?",
+                new String[]{storeId.trim(), recordId.trim(), Long.toString(revision),
+                        DataHub.SYNC_SYNCED}) == 1;
+    }
+
+    /**
+     * อ่านข้อมูลรายการจากฐานข้อมูลในเครื่อง
+     */
     private JSONObject readRecord(
             Cursor cursor
     ) throws JSONException {
@@ -402,7 +503,7 @@ public final class LocalStore extends SQLiteOpenHelper {
                 cursor.getLong(
                         cursor.getColumnIndexOrThrow(COL_UPDATED_AT)
                 ),
-                cursor.getInt(
+                cursor.getLong(
                         cursor.getColumnIndexOrThrow(COL_REVISION)
                 ),
                 new JSONObject(
@@ -422,7 +523,7 @@ public final class LocalStore extends SQLiteOpenHelper {
             String dataType,
             int schemaVersion,
             long updatedAt,
-            int revision,
+            long revision,
             JSONObject payload,
             String syncStatus
     ) throws JSONException {

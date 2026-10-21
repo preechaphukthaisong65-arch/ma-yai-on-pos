@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function ownsStore(storeId) {
+      return signedInVerified()
+        && exists(/databases/$(database)/documents/storeOwners/$(storeId))
+        && get(/databases/$(database)/documents/storeOwners/$(storeId)).data.ownerUid == request.auth.uid;
+    }
+
+    function hasActiveDevice(storeId) {
+      return ownsStore(storeId)
+        && exists(/databases/$(database)/documents/storeDeviceSessions/$(storeId))
+        && get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.ownerUid == request.auth.uid
+        && request.resource.data.deviceId is string
+        && request.resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId;
+    }
+
+    function validBackupRecord(storeId, recordId) {
+      return request.resource.data.storeId == storeId
+        && request.resource.data.recordId == recordId
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.revision is int
+        && request.resource.data.revision > 0
+        && request.resource.data.payload is map;
+    }
+
+    match /storeOwners/{storeId} {
+      allow read: if ownsStore(storeId);
+      allow create, update, delete: if false;
+    }
+
+    // An authenticated owner may claim the active installation at login.
+    // The transaction is the serialization point for competing logins.
+    match /storeDeviceSessions/{storeId} {
+      allow read: if ownsStore(storeId);
+      allow create, update: if ownsStore(storeId)
+        && request.resource.data.storeId == storeId
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.activeDeviceId is string
+        && request.resource.data.activeDeviceId.size() > 0;
+      allow delete: if false;
+    }
+
+    match /storeBarcodeReservations/{storeId}/barcodes/{barcode} {
+      allow read: if ownsStore(storeId);
+      allow create: if hasActiveDevice(storeId)
+        && request.resource.data.storeId == storeId
+        && request.resource.data.barcode == barcode
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId;
+      allow update, delete: if false;
+    }
+
+    match /dataHubBackups/{storeId}/records/{recordId} {
+      allow read: if ownsStore(storeId);
+      allow create: if hasActiveDevice(storeId) && validBackupRecord(storeId, recordId);
+      allow update: if hasActiveDevice(storeId)
+        && validBackupRecord(storeId, recordId)
+        && request.resource.data.storeId == resource.data.storeId
+        && request.resource.data.recordId == resource.data.recordId
+        && request.resource.data.revision is int
+        && resource.data.revision is int
+        && request.resource.data.revision > resource.data.revision;
+      allow delete: if ownsStore(storeId)
+        && exists(/databases/$(database)/documents/storeDeviceSessions/$(storeId))
+        && resource.data.deviceId == get(/databases/$(database)/documents/storeDeviceSessions/$(storeId)).data.activeDeviceId
+        && (!('storeId' in resource.data) || resource.data.storeId == storeId)
+        && (!('recordId' in resource.data) || resource.data.recordId == recordId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

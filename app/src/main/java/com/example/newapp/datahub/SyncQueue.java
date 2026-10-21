@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * คิวรายการที่รอซิงก์หรือสำรองข้อมูล
+ * คิวรายการที่รอซิงก์
  *
  * เวอร์ชันเริ่มต้นเก็บคิวในหน่วยความจำเท่านั้น
  */
@@ -25,7 +25,7 @@ public final class SyncQueue {
             JSONObject record
     ) {
         if (record == null
-                || !new BackupManager().isValidRecord(record)) {
+                || !new RecordValidator().isValidRecord(record)) {
             return false;
         }
 

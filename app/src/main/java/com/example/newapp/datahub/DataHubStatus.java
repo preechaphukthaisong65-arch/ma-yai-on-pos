@@ -3,7 +3,7 @@ package com.example.newapp.datahub;
 public class DataHubStatus {
 
     private String status = DataHub.SYNC_PENDING;
-    private String message = "ระบบสำรองข้อมูลพร้อมใช้งาน";
+    private String message = "ระบบซิงก์ข้อมูลพร้อมใช้งาน";
     private long updatedAt = System.currentTimeMillis();
 
     public synchronized void setStatus(String newStatus, String newMessage) {
@@ -29,7 +29,7 @@ public class DataHubStatus {
         return updatedAt;
     }
 
-    public synchronized boolean hasPendingBackup() {
+    public synchronized boolean hasPendingSync() {
         return DataHub.SYNC_PENDING.equals(status)
                 || DataHub.SYNC_FAILED.equals(status);
     }
