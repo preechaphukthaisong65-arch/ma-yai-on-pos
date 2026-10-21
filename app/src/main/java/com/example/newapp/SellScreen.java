@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name,unit;int qty,stock; Item(long i,String b,String n,String u,long p,int s){id=i;barcode=b;name=n;unit=u;price=p;stock=s;qty=1;} }
-    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private DecoratedBarcodeView barcodeView; private boolean scanning=false; private String lastBarcode=""; private long lastScanAt=0;
+    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private DecoratedBarcodeView barcodeView; private boolean scanning=false; private String lastBarcode=""; private long lastScanAt=0; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
         PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"กลับหน้าหลัก",v->finish());}
@@ -89,36 +89,59 @@ public class SellScreen extends Activity {
         PosUi.back(this,root);
     }
     private void commitSale(boolean credit,String customerName,long cash){
-        String duplicate=findDuplicate(credit,customerName);
+        if(saleInProgress||duplicatePromptOpen)return;
+        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        String duplicate=findDuplicate(credit,customerName,cash);
         if(duplicate!=null){
-            new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ").setMessage("พบบิลที่มีรายละเอียดสินค้าเหมือนกันใน 1 ชั่วโมงที่ผ่านมา ("+duplicate+") ต้องการสร้างบิลใหม่หรือไม่?")
-                    .setNegativeButton("ยกเลิก",(d,w)->home())
-                    .setPositiveButton("สร้างบิลใหม่",(d,w)->saveSale(credit,customerName,cash)).show();
+            duplicatePromptOpen=true;
+            new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ")
+                    .setMessage("พบบิลที่มีรายละเอียดตรงกันใน 1 ชั่วโมงที่ผ่านมา ("+duplicate+") ต้องการสร้างบิลใหม่หรือไม่?")
+                    .setNegativeButton("ยกเลิก",(d,w)->{duplicatePromptOpen=false;home();})
+                    .setPositiveButton("ยืนยันว่าเป็นการขายจริง",(d,w)->{duplicatePromptOpen=false;saveSale(credit,customerName,cash);})
+                    .setOnCancelListener(d->duplicatePromptOpen=false).show();
         }else saveSale(credit,customerName,cash);
     }
-    private String findDuplicate(boolean credit,String customerName){
+    private String findDuplicate(boolean credit,String customerName,long cash){
         SQLiteDatabase db=helper.getReadableDatabase();
-        Cursor bills=db.rawQuery("SELECT b.id,b.bill_code,c.full_name FROM bills b LEFT JOIN customers c ON c.id=b.customer_id WHERE b.created_at>=? AND b.sale_type=? AND b.status IN ('PAID','UNPAID') ORDER BY b.created_at DESC",
-                new String[]{String.valueOf(PosDatabase.now()-3600000L),credit?"CREDIT":"CASH"});
+        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=sub+fee,change=credit?0:cash-sub;
+        Cursor bills=db.rawQuery("SELECT b.id,b.bill_code,c.full_name,b.cash_received_satang,b.change_satang,b.subtotal_satang,b.fee_satang,b.total_satang FROM bills b LEFT JOIN customers c ON c.id=b.customer_id WHERE b.created_at>=? AND b.created_at<=? AND b.sale_type=? AND b.status IN ('PAID','UNPAID') ORDER BY b.created_at DESC",
+                new String[]{String.valueOf(now-3600000L),String.valueOf(now),credit?"CREDIT":"CASH"});
+        java.util.ArrayList<Item> current=new java.util.ArrayList<>(cart.values());
+        current.sort((a,b)->a.barcode.compareTo(b.barcode));
         String match=null;
         while(bills.moveToNext()){
             if(credit&&(bills.isNull(2)||!customerName.equalsIgnoreCase(bills.getString(2))))continue;
-            long billId=bills.getLong(0);Cursor items=db.query("bill_items",new String[]{"product_id","quantity","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,null);
-            java.util.HashMap<Long,long[]> existing=new java.util.HashMap<>();
-            while(items.moveToNext())existing.put(items.getLong(0),new long[]{items.getInt(1),items.getLong(2)});items.close();
-            if(existing.size()!=cart.size())continue;boolean same=true;
-            for(Item item:cart.values()){long[] x=existing.get(item.id);if(x==null||x[0]!=item.qty||x[1]!=item.price){same=false;break;}}
-            if(same){match=bills.getString(1);break;}
+            if(bills.getLong(3)!=cash||bills.getLong(4)!=change||bills.getLong(5)!=sub||bills.getLong(6)!=fee||bills.getLong(7)!=total)continue;
+            long billId=bills.getLong(0);
+            Cursor items=db.query("bill_items",new String[]{"barcode","product_name","unit","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,"barcode ASC");
+            boolean same=true;int index=0;
+            while(items.moveToNext()){
+                if(index>=current.size()){same=false;break;}
+                Item item=current.get(index++);
+                if(!item.barcode.equals(items.getString(0))||!item.name.equals(items.getString(1))||!item.unit.equals(items.getString(2))
+                        ||item.qty!=items.getInt(3)||item.price!=items.getLong(4)||item.price*item.qty!=items.getLong(5)){same=false;break;}
+            }
+            items.close();
+            if(same&&index==current.size()){match=bills.getString(1);break;}
         }
         bills.close();return match;
     }
     private void saveSale(boolean credit,String customerName,long cash){
-        SQLiteDatabase db=helper.getWritableDatabase();long now=PosDatabase.now();String code="B"+now;
-        long sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=sub+fee;db.beginTransaction();
+        if(saleInProgress)return;
+        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        saleInProgress=true;
+        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null,code=null;
+        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=sub+fee;
         try{
+            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
+            code="B"+now;int suffix=1;
+            while(true){Cursor existing=db.query("bills",new String[]{"id"},"bill_code=?",new String[]{code},null,null,null,"1");boolean used=existing.moveToFirst();existing.close();if(!used)break;code="B"+now+"-"+(suffix++);}
             Long customerId=null;
-            if(credit){Cursor c=db.query("customers",new String[]{"id"},"full_name=?",new String[]{customerName},null,null,null);if(c.moveToFirst())customerId=c.getLong(0);c.close();
-                if(customerId==null){ContentValues cv=new ContentValues();cv.put("full_name",customerName);cv.put("created_at",now);customerId=db.insertOrThrow("customers",null,cv);}}
+            if(credit){
+                Cursor c=db.query("customers",new String[]{"id"},"full_name=?",new String[]{customerName},null,null,null);
+                if(c.moveToFirst())customerId=c.getLong(0);c.close();
+                if(customerId==null){ContentValues cv=new ContentValues();cv.put("full_name",customerName);cv.put("created_at",now);customerId=db.insertOrThrow("customers",null,cv);}
+            }
             ContentValues bill=new ContentValues();bill.put("bill_code",code);if(customerId!=null)bill.put("customer_id",customerId);bill.put("sale_type",credit?"CREDIT":"CASH");bill.put("status",credit?"UNPAID":"PAID");bill.put("subtotal_satang",sub);bill.put("fee_satang",fee);bill.put("total_satang",total);bill.put("cash_received_satang",cash);bill.put("change_satang",credit?0:cash-total);bill.put("created_at",now);if(!credit)bill.put("paid_at",now);
             long billId=db.insertOrThrow("bills",null,bill);
             for(Item i:cart.values()){
@@ -130,10 +153,15 @@ public class SellScreen extends Activity {
                 ContentValues h=new ContentValues();h.put("product_id",i.id);h.put("barcode",i.barcode);h.put("product_name",i.name);h.put("change_type","SALE");h.put("before_qty",i.stock);h.put("after_qty",i.stock-i.qty);h.put("difference",-i.qty);h.put("reference",code);h.put("created_at",now);db.insertOrThrow("stock_history",null,h);
             }
             ContentValues ledger=new ContentValues();ledger.put("bill_id",billId);ledger.put("bill_code",code);ledger.put("sale_type",credit?"CREDIT":"CASH");ledger.put("event_type","SALE");ledger.put("subtotal_satang",sub);ledger.put("fee_satang",fee);ledger.put("total_satang",total);ledger.put("created_at",now);db.insertOrThrow("sales_ledger",null,ledger);
-            db.setTransactionSuccessful();
-            new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage("เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท")).setPositiveButton("ตกลง",(d,w)->home()).show();
+            db.setTransactionSuccessful();saved=true;
+        }catch(Exception e){error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();saved=false;}
+        finally{
+            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
+            saleInProgress=false;
+        }
+        if(saved){
             cart.clear();
-        }catch(Exception e){new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(e.getMessage()).setPositiveButton("ตกลง",null).show();}
-        finally{db.endTransaction();}
+            new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage("เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท")).setPositiveButton("ตกลง",(d,w)->home()).show();
+        }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
     }
 }
