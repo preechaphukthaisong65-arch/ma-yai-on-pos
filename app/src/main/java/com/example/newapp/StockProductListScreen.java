@@ -45,7 +45,13 @@ public class StockProductListScreen extends Activity {
     }
 
     private void render() {
-        LinearLayout root = POSUi.page(this, "สินค้าทั้งหมด");
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(POSUi.dp(this, 12), POSUi.dp(this, 8), POSUi.dp(this, 12), POSUi.dp(this, 8));
+        root.setBackgroundColor(android.graphics.Color.WHITE);
+        TextView heading = POSUi.text(this, "สินค้าทั้งหมด", 22);
+        heading.setGravity(android.view.Gravity.CENTER);
+        root.addView(heading, new LinearLayout.LayoutParams(-1, -2));
         searchInput = POSUi.input(this, root, "ค้นหาชื่อสินค้าหรือบาร์โค้ด");
         POSUi.button(this, root, "ค้นหา", this::applySearch);
         POSUi.button(this, root, "สแกนบาร์โค้ดเพื่อดูรายละเอียด", this::scan);
