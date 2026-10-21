@@ -176,8 +176,9 @@ public class DataHub {
                 record.put("dataType", dataType);
                 record.put("schemaVersion", Math.max(1, input.optInt("schemaVersion", 1)));
                 record.put("updatedAt", Math.max(1L, input.optLong("updatedAt", System.currentTimeMillis())));
-                record.put("revision", Math.max(input.optLong("revision", 1L),
-                        previous == null ? 1L : previous.optLong("revision", 0L) + 1L));
+                // Keep the server's revision authoritative. Offline local writes may
+                // already have advanced the local revision to this same value.
+                record.put("revision", Math.max(1L, input.optLong("revision", 1L)));
                 // Internal compare-and-set metadata is consumed by LocalStore and
                 // never persisted in the user payload or SQLite columns.
                 if (input.has("expectedRevision")) {
