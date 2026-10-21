@@ -57,15 +57,15 @@ public class BarcodeScreen extends Activity {
         priceInput = POSUi.input(this, root, "ราคาสินค้า (บาท)");
         priceInput.setInputType(8194);
         POSUi.button(this, root, "สร้างบาร์โค้ด", this::createBarcode);
+        resultContainer = new LinearLayout(this);
+        resultContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(resultContainer);
         status = POSUi.text(this, "สถานะเครื่องพิมพ์: ใช้บริการพิมพ์ของ Android (ยังไม่ทราบรุ่นเครื่องพิมพ์)", 13);
         root.addView(status);
         POSUi.button(this, root, "ค้นหาเครื่องพิมพ์", this::openPrintSettings);
         POSUi.button(this, root, "เชื่อมต่อเครื่องพิมพ์", this::openPrintSettings);
         POSUi.button(this, root, "คลังบาร์โค้ด", () -> startActivity(new Intent(this, BarcodeLibraryScreen.class)));
         POSUi.button(this, root, "กลับหน้าหลัก", this::finish);
-        resultContainer = new LinearLayout(this);
-        resultContainer.setOrientation(LinearLayout.VERTICAL);
-        root.addView(resultContainer);
     }
 
     private void createBarcode() {
