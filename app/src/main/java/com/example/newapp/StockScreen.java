@@ -41,6 +41,7 @@ public class StockScreen extends Activity {
         if(result!=null){if(result.getContents()==null){home();return;} scanned=result.getContents(); handleScan(scanned);}
     }
     private void handleScan(String barcode){
+        if("countHistory".equals(mode)){showStockHistory(barcode);return;}
         SQLiteDatabase db=helper.getReadableDatabase();
         Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
         if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else if("countHistory".equals(mode)){showStockHistory(barcode);return;}else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
