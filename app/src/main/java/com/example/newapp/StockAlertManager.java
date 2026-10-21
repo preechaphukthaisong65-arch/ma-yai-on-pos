@@ -30,6 +30,7 @@ final class StockAlertManager {
         ContentValues cv=new ContentValues();StringBuilder value=new StringBuilder();for(String id:low){if(value.length()>0)value.append(',');value.append(id);}cv.put("value",value.toString());
         if(db.update("app_meta",cv,"key='low_alert_ids'",null)==0){cv.put("key","low_alert_ids");db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);}
         if(newLow&&!low.isEmpty())notify(activity);
+        else if(low.isEmpty()){NotificationManager manager=(NotificationManager)activity.getSystemService(Context.NOTIFICATION_SERVICE);if(manager!=null)manager.cancel(NOTICE_ID);}
         return !low.isEmpty();
         } catch (android.database.sqlite.SQLiteException e) { return false; }
     }
