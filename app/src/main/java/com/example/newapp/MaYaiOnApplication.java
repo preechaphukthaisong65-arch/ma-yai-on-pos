@@ -1,6 +1,7 @@
 package com.example.newapp;
 
 import android.app.Application;
+import android.content.pm.ApplicationInfo;
 import android.util.Log;
 
 import com.google.firebase.FirebaseApp;
@@ -14,7 +15,7 @@ public final class MaYaiOnApplication extends Application {
         super.onCreate();
         FirebaseApp.initializeApp(this);
         FirebaseAppCheck appCheck = FirebaseAppCheck.getInstance();
-        if (BuildConfig.DEBUG) {
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             // Register this debug token in Firebase Console > App Check for local testing only.
             appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance());
             Log.i("MaYaiOnAppCheck", "Debug App Check provider active; register the logged debug token in Firebase Console.");
