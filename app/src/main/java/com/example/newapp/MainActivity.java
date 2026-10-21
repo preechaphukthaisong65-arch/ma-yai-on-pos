@@ -163,7 +163,6 @@ public class MainActivity extends Activity {
         setContentView(scroll);
 
         refreshManagementNotice();
-        DebtReminderScheduler.scheduleNext(this);
         setupSystemBars();
     }
 
@@ -172,7 +171,6 @@ public class MainActivity extends Activity {
         super.onResume();
         setupSystemBars();
         refreshManagementNotice();
-        DebtReminderScheduler.scheduleNext(this);
         verifyActiveDeviceSession();
         registerNetworkReconciliation();
     }
