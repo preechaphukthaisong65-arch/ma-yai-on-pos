@@ -39,7 +39,7 @@ These are required before calling the POS production-ready. They are not claimed
 | Double-tap confirm / process recreation | One sale only; no duplicate bill or stock deduction | Bill-ID and UI guards exist; needs runtime test |
 | Receive stock / stocktake / update stock limit | Correct stock and history, no lost update on stale revision | Needs Android integration test |
 | Concurrent edits to same product | Compare-and-set rejects stale edit; no partial related records | Needs SQLite concurrency test |
-| Full and partial debt payment | Amount allocated once; balance/status/receipt/history agree | Cloud transaction code exists; needs Firebase emulator integration test |
+| Full payment of selected debt bills only | Each selected bill is settled in full; underpayment and overpayment are rejected; balance/status/receipt/history agree | Cloud transaction code exists; needs Firebase emulator integration test |
 | Double-tap payment / two devices pay same debt | At most one valid allocation per current bill revision | Needs concurrent transaction test |
 | Payment amount exceeds current debt or bill already paid | Reject without changing any record | Guard exists; needs Firebase emulator integration test |
 | Network loss before/during/after sale or payment | No silent success; local pending data preserved; no duplicate on retry | Needs Android offline/online integration test |
@@ -88,7 +88,7 @@ Severity: **P0** = can lose money or corrupt stock/debt; **P1** = sale blocked o
 | FLOW-17 | Two requests sell the final unit concurrently | At most one succeeds; stock never below zero; rejected request has no partial bill | P0 | Not run concurrently |
 | FLOW-18 | Two devices submit the same sale simultaneously | One committed bill only; duplicate request returns same outcome | P0 | Not run concurrently |
 | FLOW-19 | Credit sale to new and existing customer | Correct fee per configured policy, debt and customer link; bill, receipt, stock and history committed consistently | P0 | Not run on Android |
-| FLOW-20 | Partial/full debt payment is tapped twice or submitted from two sessions | Payment allocated once; balance/status/receipt/history remain consistent | P0 | Not run concurrently |
+| FLOW-20 | Full payment of selected bill(s) is tapped twice or submitted from two sessions; partial payment is attempted | One full settlement only; partial or excess amount rejected; balance/status/receipt/history remain consistent | P0 | Not run concurrently |
 | FLOW-21 | Debt payment exceeds remaining debt or targets already-paid bill | Reject without changing debt, cash, receipt or history | P0 | Not run on Android |
 | FLOW-22 | Receive stock and sell same SKU during overlapping writes | No lost update; final stock equals initial + accepted receipts - accepted sales | P0 | Not run concurrently |
 | FLOW-23 | Stocktake/edit races with a sale based on an old revision | One conflicting mutation rejects/reloads; no silent overwrite | P0 | Not run concurrently |

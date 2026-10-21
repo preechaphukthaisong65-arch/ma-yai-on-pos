@@ -49,16 +49,16 @@ public class BarcodeLibraryScreen extends Activity {
     }
 
     private void loadItems() {
-        // Include generated items stored as product records and legacy barcode_item records.
-        // Prefer product records when a barcode appears in both types, because sales use products.
+        // Barcode-library records are canonical. Product records are read only as a
+        // compatibility fallback for factory barcodes created before the library existed.
         java.util.LinkedHashMap<String, JSONObject> byBarcode = new java.util.LinkedHashMap<>();
-        for (JSONObject record : hub.getRecordsByType(storeId, "barcode_item")) {
+        for (JSONObject record : hub.getRecordsByType(storeId, "product")) {
             JSONObject p = record.optJSONObject("payload");
             if (p == null) continue;
             String code = p.optString("barcode", "").trim();
             if (!code.isEmpty()) byBarcode.put(code, record);
         }
-        for (JSONObject record : hub.getRecordsByType(storeId, "product")) {
+        for (JSONObject record : hub.getRecordsByType(storeId, "barcode_item")) {
             JSONObject p = record.optJSONObject("payload");
             if (p == null) continue;
             String code = p.optString("barcode", "").trim();
@@ -73,14 +73,29 @@ public class BarcodeLibraryScreen extends Activity {
     private void search() {
         if (results == null) return;
         results.removeAllViews();
-        String q = POSUi.value(query).toLowerCase(Locale.ROOT);
+        String rawQuery = POSUi.value(query).trim();
+        String q = rawQuery.toLowerCase(Locale.ROOT);
+        boolean exactBarcodeQuery = false;
+        for (JSONObject record : items) {
+            JSONObject p = record.optJSONObject("payload");
+            if (p != null && rawQuery.equals(p.optString("barcode", "").trim())) {
+                exactBarcodeQuery = true;
+                break;
+            }
+        }
         int count = 0;
         for (JSONObject record : items) {
             JSONObject p = record.optJSONObject("payload");
             if (p == null) continue;
             String name = p.optString("name", "");
-            String code = p.optString("barcode", "");
-            if (!q.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(q) && !code.contains(q)) continue;
+            String code = p.optString("barcode", "").trim();
+            if (!q.isEmpty()) {
+                if (exactBarcodeQuery) {
+                    if (!rawQuery.equals(code)) continue;
+                } else if (!name.toLowerCase(Locale.ROOT).contains(q)) {
+                    continue;
+                }
+            }
             count++;
             results.addView(POSUi.text(this, name + "\nบาร์โค้ด: " + code + "\nราคา: "
                     + String.format(Locale.US, "%.2f", p.optDouble("price", 0d)) + " บาท", 16));

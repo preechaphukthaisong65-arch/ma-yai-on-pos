@@ -729,28 +729,33 @@ public class DataHub {
      * deleted or modified. Call after cloud restore/reconnect.
      */
     public int getDuplicateBarcodeCount(String storeId) {
-        java.util.Map<String, String> firstRecordByBarcode = new java.util.HashMap<>();
+        java.util.Map<String, Integer> productCounts = new java.util.HashMap<>();
+        java.util.Map<String, Integer> libraryCounts = new java.util.HashMap<>();
         int duplicates = 0;
-        String[] types = new String[]{"product", "barcode_item"};
-        for (String type : types) {
-            try {
-                for (JSONObject record : localStore.getRecordsByType(storeId, type)) {
-                    JSONObject payload = record.optJSONObject("payload");
-                    if (payload == null) continue;
-                    String barcode = payload.optString("barcode", "").trim();
-                    if (barcode.isEmpty()) continue;
-                    String recordId = record.optString("recordId", "");
-                    String previous = firstRecordByBarcode.putIfAbsent(barcode, recordId);
-                    if (previous != null && !previous.equals(recordId)) {
-                        duplicates++;
-                    }
-                }
-            } catch (Exception ignored) {
-                // Audit failure must not mutate or delete any source records.
-                return Math.max(1, duplicates);
+        try {
+            for (JSONObject record : localStore.getRecordsByType(storeId, "product")) {
+                JSONObject payload = record.optJSONObject("payload");
+                if (payload == null) continue;
+                String barcode = payload.optString("barcode", "").trim();
+                if (!barcode.isEmpty()) productCounts.put(barcode, productCounts.getOrDefault(barcode, 0) + 1);
             }
+            for (JSONObject record : localStore.getRecordsByType(storeId, "barcode_item")) {
+                JSONObject payload = record.optJSONObject("payload");
+                if (payload == null) continue;
+                String barcode = payload.optString("barcode", "").trim();
+                if (!barcode.isEmpty()) libraryCounts.put(barcode, libraryCounts.getOrDefault(barcode, 0) + 1);
+            }
+            // One product record plus one barcode-library record for the same
+            // barcode is an intentional cross-reference, not a duplicate.
+            // Duplicates are multiple product records or multiple library records
+            // sharing the same barcode value.
+            for (Integer count : productCounts.values()) duplicates += Math.max(0, count - 1);
+            for (Integer count : libraryCounts.values()) duplicates += Math.max(0, count - 1);
+            return duplicates;
+        } catch (Exception ignored) {
+            // Audit failure must not mutate or delete any source records.
+            return Math.max(1, duplicates);
         }
-        return duplicates;
     }
 
     private boolean isRetentionEligible(String storeId, JSONObject record, JSONObject payload, long cutoff) {

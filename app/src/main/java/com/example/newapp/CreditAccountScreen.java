@@ -39,7 +39,7 @@ public class CreditAccountScreen extends Activity {
         }
         root.addView(POSUi.text(this,"ยอดหนี้คงค้างทั้งหมด: "+String.format(Locale.US,"%.2f",outstanding)+" บาท",18));
         totalText=POSUi.text(this,"ยอดหนี้ที่เลือก: 0.00 บาท",18);root.addView(totalText);
-        received=POSUi.input(this,root,"เงินสดที่รับ (จ่ายบางส่วนได้ ไม่เกินยอดหนี้ที่เลือก)");received.setInputType(8194);
+        received=POSUi.input(this,root,"เงินสดที่รับ (ต้องเท่ากับยอดบิลที่เลือกเต็มจำนวน)");received.setInputType(8194);
         if(bills.isEmpty())root.addView(POSUi.text(this,"ไม่มีบิลค้างชำระ",16));
         POSUi.button(this,root,"ยืนยันรับชำระเงินสด",this::pay);
         POSUi.button(this,root,"ค้นหาลูกค้ารายอื่น",this::renderSearch);
@@ -47,12 +47,16 @@ public class CreditAccountScreen extends Activity {
         updateTotal();
     }
     private double selectedTotal(){double total=0;for(int i=0;i<checks.size();i++)if(checks.get(i).isChecked()){JSONObject p=bills.get(i).optJSONObject("payload");total+=Math.max(0d,p.optDouble("remainingBalance",p.optDouble("total",0d)));}return total;}
-    private void updateTotal(){if(totalText!=null)totalText.setText("ยอดหนี้ที่เลือก: "+String.format(Locale.US,"%.2f",selectedTotal())+" บาท");}
+    private void updateTotal(){
+        double total=selectedTotal();
+        if(totalText!=null)totalText.setText("ยอดหนี้ที่เลือก: "+String.format(Locale.US,"%.2f",total)+" บาท");
+        if(received!=null)received.setText(total>0?String.format(Locale.US,"%.2f",total):"");
+    }
     private void pay(){
         List<JSONObject> chosen=new ArrayList<>();for(int i=0;i<checks.size();i++)if(checks.get(i).isChecked())chosen.add(bills.get(i));
         double total=selectedTotal(),cash=POSUi.number(received);
         if(chosen.isEmpty()){Toast.makeText(this,"เลือกบิลที่ต้องการชำระก่อน",Toast.LENGTH_SHORT).show();return;}
-        if(!Double.isFinite(cash)||cash<=0||cash-total>.009){Toast.makeText(this,"เงินสดรับต้องมากกว่า 0 และไม่เกินยอดหนี้ที่เลือก: "+String.format(Locale.US,"%.2f",total)+" บาท",Toast.LENGTH_LONG).show();return;}
+        if(!Double.isFinite(cash)||cash<=0||Math.abs(cash-total)>.009){Toast.makeText(this,"เงินสดรับต้องเท่ากับยอดเต็มของบิลที่เลือก: "+String.format(Locale.US,"%.2f",total)+" บาท",Toast.LENGTH_LONG).show();return;}
         if (paying) return;
         paying = true;
         Toast.makeText(this, "กำลังตรวจสอบยอดหนี้ล่าสุดและบันทึกบนเซิร์ฟเวอร์…", Toast.LENGTH_SHORT).show();

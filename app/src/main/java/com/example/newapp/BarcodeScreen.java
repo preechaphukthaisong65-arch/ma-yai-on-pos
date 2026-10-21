@@ -8,7 +8,6 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.print.PrintManager;
 import android.provider.Settings;
-import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -28,8 +27,9 @@ import java.util.Locale;
 
 public class BarcodeScreen extends Activity {
     private static final Object CREATE_LOCK = new Object();
+    private static final long FIRST_BARCODE = 2000001L;
     private EditText nameInput, priceInput;
-    private LinearLayout root;
+    private LinearLayout root, resultContainer;
     private TextView status, barcodeText;
     private ImageView preview;
     private String lastBarcode = "", lastName = "";
@@ -57,6 +57,9 @@ public class BarcodeScreen extends Activity {
         priceInput = POSUi.input(this, root, "ราคาสินค้า (บาท)");
         priceInput.setInputType(8194);
         POSUi.button(this, root, "สร้างบาร์โค้ด", this::createBarcode);
+        resultContainer = new LinearLayout(this);
+        resultContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(resultContainer);
         status = POSUi.text(this, "สถานะเครื่องพิมพ์: ใช้บริการพิมพ์ของ Android (ยังไม่ทราบรุ่นเครื่องพิมพ์)", 13);
         root.addView(status);
         POSUi.button(this, root, "ค้นหาเครื่องพิมพ์", this::openPrintSettings);
@@ -75,60 +78,85 @@ public class BarcodeScreen extends Activity {
         }
         saving = true;
         synchronized (CREATE_LOCK) {
-            try {
-                // Generated barcodes are saved as product records so the existing scanner,
-                // sales flow, stock ledger and product search can use them immediately.
-                List<JSONObject> products = hub.getRecordsByType(storeId, "product");
-                List<JSONObject> barcodeItems = hub.getRecordsByType(storeId, "barcode_item");
-                long max = 0L;
-                for (JSONObject record : products) {
-                    JSONObject p = record.optJSONObject("payload");
-                    if (p == null) continue;
-                    try { max = Math.max(max, Long.parseLong(p.optString("barcode", ""))); }
-                    catch (NumberFormatException ignored) { }
-                }
-                for (JSONObject record : barcodeItems) {
-                    JSONObject p = record.optJSONObject("payload");
-                    if (p == null) continue;
-                    try { max = Math.max(max, Long.parseLong(p.optString("barcode", ""))); }
-                    catch (NumberFormatException ignored) { }
-                }
-                String code;
-                do {
-                    max++;
-                    code = String.format(Locale.US, "%012d", max);
-                } while (barcodeExists(products, code) || barcodeExists(barcodeItems, code));
+            reserveNextAvailable(name, price, FIRST_BARCODE);
+        }
+    }
 
-                final String reservedCode = code;
-                // Keep the UI locked for the entire asynchronous reservation + local-save
-                // operation. Releasing the guard in finally here would permit a second tap
-                // while the Firestore transaction is still in flight.
-                hub.reserveBarcode(storeId, reservedCode, (succeeded, failed, message) -> runOnUiThread(() -> {
-                    if (failed > 0) {
-                        saving = false;
-                        Toast.makeText(BarcodeScreen.this, message, Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    StockSalesRepository repository = new StockSalesRepository(BarcodeScreen.this);
-                    boolean saved = repository.createProduct(name, reservedCode, price, 0d, "ชิ้น", 0d, 0d);
-                    saving = false;
-                    if (!saved) {
-                        Toast.makeText(BarcodeScreen.this,
-                                "จองเลขบาร์โค้ดแล้ว แต่บันทึกสินค้าไม่สำเร็จ เลขนี้จะไม่ถูกนำกลับมาใช้ซ้ำ",
-                                Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    lastBarcode = reservedCode;
-                    lastName = name;
-                    lastPrice = price;
-                    showCreated();
-                }));
+    /**
+     * Barcode creation only writes a barcode_item record. It must never create
+     * a product, stock-history entry, or otherwise mutate inventory.
+     */
+    private void reserveNextAvailable(String name, double price, long candidate) {
+        if (isFinishing()) {
+            saving = false;
+            return;
+        }
+        if (candidate < FIRST_BARCODE || candidate == Long.MAX_VALUE) {
+            saving = false;
+            Toast.makeText(this, "ไม่พบเลขบาร์โค้ดว่างที่ใช้งานได้", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        List<JSONObject> products = hub.getRecordsByType(storeId, "product");
+        List<JSONObject> barcodeItems = hub.getRecordsByType(storeId, "barcode_item");
+        long next = candidate;
+        while (next < Long.MAX_VALUE) {
+            String code = Long.toString(next);
+            if (!barcodeExists(products, code) && !barcodeExists(barcodeItems, code)
+                    && hub.getRecord(storeId, "barcode_item_" + code) == null) {
+                break;
+            }
+            next++;
+        }
+        if (next >= Long.MAX_VALUE) {
+            saving = false;
+            Toast.makeText(this, "ไม่พบเลขบาร์โค้ดว่างที่ใช้งานได้", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        final long selectedNumber = next;
+        final String selectedCode = Long.toString(selectedNumber);
+        hub.reserveBarcode(storeId, selectedCode, (succeeded, failed, message) -> runOnUiThread(() -> {
+            if (failed > 0) {
+                String detail = message == null ? "" : message;
+                String lower = detail.toLowerCase(Locale.ROOT);
+                if (detail.contains("ถูกจองแล้ว") || lower.contains("already reserved")
+                        || lower.contains("already exists")) {
+                    reserveNextAvailable(name, price, selectedNumber + 1L);
+                    return;
+                }
+                saving = false;
+                Toast.makeText(BarcodeScreen.this,
+                        "จองเลขบาร์โค้ดไม่สำเร็จ จึงยังไม่ได้สร้างรายการ: " + detail,
+                        Toast.LENGTH_LONG).show();
                 return;
+            }
+
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("name", name.trim());
+                payload.put("barcode", selectedCode);
+                payload.put("price", price);
+                payload.put("source", "shop");
+                payload.put("createdAt", System.currentTimeMillis());
+                boolean saved = hub.saveRecord(storeId, "barcode_item_" + selectedCode,
+                        "barcode_item", 1, 1L, payload);
+                saving = false;
+                if (!saved) {
+                    Toast.makeText(BarcodeScreen.this,
+                            "จองเลขบาร์โค้ดแล้ว แต่บันทึกคลังบาร์โค้ดไม่สำเร็จ เลขนี้จะไม่ถูกนำกลับมาใช้ซ้ำ",
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                lastBarcode = selectedCode;
+                lastName = name.trim();
+                lastPrice = price;
+                showCreated();
             } catch (Exception error) {
                 saving = false;
-                Toast.makeText(this, "สร้างบาร์โค้ดไม่สำเร็จ", Toast.LENGTH_LONG).show();
+                Toast.makeText(BarcodeScreen.this, "บันทึกคลังบาร์โค้ดไม่สำเร็จ", Toast.LENGTH_LONG).show();
             }
-        }
+        }));
     }
 
     private boolean barcodeExists(List<JSONObject> records, String code) {
@@ -140,21 +168,22 @@ public class BarcodeScreen extends Activity {
     }
 
     private void showCreated() {
+        resultContainer.removeAllViews();
         barcodeText = POSUi.text(this, "บาร์โค้ด: " + lastBarcode, 18);
-        root.addView(barcodeText);
+        resultContainer.addView(barcodeText);
         preview = new ImageView(this);
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         try {
             BitMatrix matrix = new MultiFormatWriter().encode(lastBarcode, BarcodeFormat.CODE_128, 700, 180);
             Bitmap bitmap = Bitmap.createBitmap(matrix.getWidth(), matrix.getHeight(), Bitmap.Config.ARGB_8888);
-            for (int y=0;y<matrix.getHeight();y++) for(int x=0;x<matrix.getWidth();x++)
-                bitmap.setPixel(x,y,matrix.get(x,y)? Color.BLACK:Color.WHITE);
+            for (int y = 0; y < matrix.getHeight(); y++) for (int x = 0; x < matrix.getWidth(); x++)
+                bitmap.setPixel(x, y, matrix.get(x, y) ? Color.BLACK : Color.WHITE);
             preview.setImageBitmap(bitmap);
-            root.addView(preview, new LinearLayout.LayoutParams(-1, POSUi.dp(this, 100)));
+            resultContainer.addView(preview, new LinearLayout.LayoutParams(-1, POSUi.dp(this, 100)));
         } catch (Exception ignored) { }
-        root.addView(POSUi.text(this, lastName + " — " + String.format(Locale.US, "%.2f", lastPrice) + " บาท", 16));
-        POSUi.button(this, root, "พิมพ์บาร์โค้ด", this::askPrintQuantity);
+        resultContainer.addView(POSUi.text(this, lastName + " — " + String.format(Locale.US, "%.2f", lastPrice) + " บาท", 16));
+        POSUi.button(this, resultContainer, "พิมพ์บาร์โค้ด", this::askPrintQuantity);
     }
 
     private void askPrintQuantity() {

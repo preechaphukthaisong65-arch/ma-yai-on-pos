@@ -38,7 +38,7 @@ public final class StartupActivity extends Activity {
             storeCode.setText(savedStoreId);
         }
         status.setText("เข้าสู่ระบบด้วยบัญชีเจ้าของร้านที่ยืนยันอีเมลแล้ว "
-                + "เพื่อเชื่อมต่อข้อมูลร้านเดียวกันทุกเครื่อง");
+                + "เพื่อกู้คืนข้อมูลร้าน โดยอนุญาตให้ใช้งานได้ครั้งละหนึ่งเครื่อง");
     }
 
     private void showSetup() {
@@ -55,7 +55,7 @@ public final class StartupActivity extends Activity {
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView description = new TextView(this);
-        description.setText("บัญชีเจ้าของร้านหนึ่งบัญชี ใช้งานได้หลายเครื่อง");
+        description.setText("ใช้งานได้ครั้งละ 1 เครื่องเท่านั้น การย้ายเครื่องใช้เมื่อจำเป็นต้องกู้คืน");
         description.setTextSize(16);
         description.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(-1, -2);

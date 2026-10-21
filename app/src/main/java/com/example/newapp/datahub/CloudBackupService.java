@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
 
 import org.json.JSONArray;
@@ -245,7 +246,7 @@ public class CloudBackupService {
                 dueCents += cents;
                 cloudBills.add(cloud);
             }
-            if (receivedCents > dueCents) throw new IllegalStateException("เงินรับเกินยอดหนี้ล่าสุด");
+            if (receivedCents != dueCents) throw new IllegalStateException("ยอดรับชำระต้องเท่ากับยอดรวมเต็มจำนวนของบิลที่เลือก");
 
             List<JSONObject> committed = new ArrayList<>();
             List<Map<String, Object>> changedBillMaps = new ArrayList<>();
@@ -305,7 +306,7 @@ public class CloudBackupService {
             payment.put("paymentMethod", "cash");
             payment.put("billIds", billIds);
             payment.put("allocations", allocations);
-            payment.put("isPartialPayment", receivedCents < dueCents);
+            payment.put("isPartialPayment", false);
             JSONObject receipt = new JSONObject();
             receipt.put("receiptId", "receipt:" + paymentId);
             receipt.put("paymentId", paymentId);
@@ -314,7 +315,7 @@ public class CloudBackupService {
             receipt.put("total", receivedCents / 100d);
             receipt.put("billIds", billIds);
             receipt.put("allocations", allocations);
-            receipt.put("paymentStatus", receivedCents < dueCents ? "ชำระบางส่วน" : "รับชำระแล้ว");
+            receipt.put("paymentStatus", "รับชำระแล้ว");
             receipt.put("printStatus", "pending");
             JSONObject history = new JSONObject();
             history.put("paymentId", paymentId);
@@ -382,13 +383,35 @@ public class CloudBackupService {
         data.put("ownerUid", user.getUid());
         data.put("deviceId", deviceId);
         data.put("createdAt", System.currentTimeMillis());
-        firestore.runTransaction(transaction -> {
-            DocumentSnapshot existing = transaction.get(reservation);
-            if (existing.exists()) throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
-            transaction.set(reservation, data);
-            return null;
-        }).addOnSuccessListener(unused -> { if (callback != null) callback.onSuccess(); })
-          .addOnFailureListener(error -> failBackup(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+        Query existingBarcodeQuery = firestore.collection(COLLECTION_BACKUPS)
+                .document(store).collection(COLLECTION_RECORDS)
+                .whereEqualTo("payload.barcode", code);
+        // Android Firestore transactions read document references, not queries.
+        // Check existing factory/product/library records first, then atomically
+        // reserve the code so concurrent generated-code requests cannot collide.
+        existingBarcodeQuery.get()
+                .addOnSuccessListener(matchingRecords -> {
+                    for (DocumentSnapshot matching : matchingRecords.getDocuments()) {
+                        String type = matching.getString("dataType");
+                        if ("product".equals(type) || "barcode_item".equals(type)) {
+                            failBackup(callback, "บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                            return;
+                        }
+                    }
+                    firestore.runTransaction(transaction -> {
+                        DocumentSnapshot existing = transaction.get(reservation);
+                        if (existing.exists()) {
+                            throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                        }
+                        transaction.set(reservation, data);
+                        return null;
+                    }).addOnSuccessListener(unused -> {
+                        if (callback != null) callback.onSuccess();
+                    }).addOnFailureListener(error ->
+                            failBackup(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+                })
+                .addOnFailureListener(error ->
+                        failBackup(callback, "ตรวจสอบบาร์โค้ดเดิมไม่สำเร็จ: " + safeMessage(error)));
     }
 
     /**
