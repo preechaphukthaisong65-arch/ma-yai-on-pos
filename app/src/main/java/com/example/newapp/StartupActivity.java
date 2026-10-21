@@ -23,7 +23,6 @@ public final class StartupActivity extends Activity {
     private EditText storeCode;
     private TextView status;
     private Button action;
-    private Button register;
     private Button continueOffline;
     private ProgressBar progress;
     private boolean busy;
@@ -98,11 +97,6 @@ public final class StartupActivity extends Activity {
         action.setText("เข้าสู่ระบบและยืนยันสิทธิ์ร้าน");
         action.setOnClickListener(v -> signInOwner());
         addField(root, action, pad / 2);
-
-        register = new Button(this);
-        register.setText("สมัครบัญชีเจ้าของร้าน");
-        register.setOnClickListener(v -> registerOwner());
-        addField(root, register, pad / 3);
 
         continueOffline = new Button(this);
         continueOffline.setText("ใช้งานข้อมูลในเครื่องแบบออฟไลน์");
@@ -186,35 +180,6 @@ public final class StartupActivity extends Activity {
                 })
                 .addOnFailureListener(error -> showFailure(
                         "เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจอีเมล รหัสผ่าน และการตั้งค่า Firebase: "
-                                + safeMessage(error)));
-    }
-
-    private void registerOwner() {
-        if (busy || !validateInputs(false)) return;
-        FirebaseAuth auth = getAuthOrShowError();
-        if (auth == null) return;
-
-        busy = true;
-        setBusy(true);
-        status.setText("กำลังสร้างบัญชีเจ้าของร้าน…");
-        auth.createUserWithEmailAndPassword(normalizedEmail(), enteredPassword())
-                .addOnSuccessListener(result -> {
-                    FirebaseUser user = result.getUser();
-                    if (user == null) {
-                        auth.signOut();
-                        showFailure("สร้างบัญชีไม่สำเร็จ กรุณาลองใหม่");
-                        return;
-                    }
-                    user.sendEmailVerification().addOnCompleteListener(task -> {
-                        auth.signOut();
-                        showFailure(task.isSuccessful()
-                                ? "สร้างบัญชีแล้ว กรุณายืนยันอีเมลจากกล่องจดหมาย จากนั้นเข้าสู่ระบบ "
-                                    + "บัญชีจะเข้าถึงข้อมูลร้านได้หลังผูกสิทธิ์โดยผู้ดูแลระบบ"
-                                : "สร้างบัญชีแล้ว แต่ส่งอีเมลยืนยันไม่สำเร็จ กรุณาตรวจ Firebase Auth");
-                    });
-                })
-                .addOnFailureListener(error -> showFailure(
-                        "สมัครบัญชีไม่สำเร็จ กรุณาตรวจอีเมลและการตั้งค่า Firebase: "
                                 + safeMessage(error)));
     }
 
