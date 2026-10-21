@@ -214,7 +214,7 @@ public class SellScreen extends Activity {
                 }
                 new ServerSaleService(getApplicationContext()).commit(
                         repo.getStoreId(), billId, type, received,
-                        bill.optString("customerRecordId", ""), serverItems,
+                        bill.optString("customerRecordId", ""), customer, serverItems,
                         new ServerSaleService.Callback() {
                             @Override public void onSuccess(List<JSONObject> records, boolean alreadyCommitted) {
                                 runOnUiThread(() -> {
