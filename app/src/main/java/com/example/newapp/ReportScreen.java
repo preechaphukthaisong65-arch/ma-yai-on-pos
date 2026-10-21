@@ -46,8 +46,23 @@ public class ReportScreen extends Activity {
         PosUi.back(this,root);
     }
     private void topProducts(boolean best){
-        root=PosUi.page(this,best?"สินค้าขายดี 20 อันดับ":"สินค้าขายน้อย 20 อันดับ");long from=PosDatabase.now()-30L*86400000L;
-        String sql="SELECT i.product_name, SUM(i.quantity) qty FROM sales_ledger_items i WHERE i.bill_id IN (SELECT bill_id FROM sales_ledger_items WHERE event_type='SALE' AND created_at>=?) AND i.event_type IN ('SALE','CANCEL','RETURN') GROUP BY i.barcode,i.product_name ORDER BY qty "+(best?"DESC":"ASC")+",i.product_name LIMIT 20";
-        Cursor c=helper.getReadableDatabase().rawQuery(sql,new String[]{String.valueOf(from)});int i=1;while(c.moveToNext())PosUi.line(this,root,i+++". "+c.getString(0)+" — "+c.getLong(1)+" ชิ้น");if(i==1)PosUi.line(this,root,"ยังไม่มีข้อมูลการขายในช่วงนี้");c.close();PosUi.back(this,root);
+        root=PosUi.page(this,best?"สินค้าขายดี 20 อันดับ":"สินค้าขายน้อย 20 อันดับ");
+        long now=PosDatabase.now(),from=now-30L*86400000L;
+        String eligible="WITH eligible AS (SELECT DISTINCT bill_id FROM sales_ledger_items WHERE event_type='SALE' AND created_at>=? AND created_at<=?), qty AS (SELECT barcode, SUM(quantity) AS qty FROM sales_ledger_items WHERE bill_id IN (SELECT bill_id FROM eligible) AND event_type IN ('SALE','CANCEL','RETURN') GROUP BY barcode) ";
+        String sql;
+        if(best){
+            sql=eligible+"SELECT i.product_name, SUM(i.quantity) AS qty FROM sales_ledger_items i WHERE i.bill_id IN (SELECT bill_id FROM eligible) AND i.event_type IN ('SALE','CANCEL','RETURN') GROUP BY i.barcode,i.product_name HAVING SUM(i.quantity)>0 ORDER BY qty DESC,i.product_name COLLATE NOCASE ASC LIMIT 20";
+        }else{
+            sql=eligible+"SELECT p.name, MAX(0,COALESCE(q.qty,0)) AS qty FROM products p LEFT JOIN qty q ON q.barcode=p.barcode WHERE p.active=1 ORDER BY qty ASC,p.name COLLATE NOCASE ASC LIMIT 20";
+        }
+        Cursor c=helper.getReadableDatabase().rawQuery(sql,new String[]{String.valueOf(from),String.valueOf(now)});
+        int i=1;
+        while(c.moveToNext()){
+            long qty=c.getLong(1);
+            String note=!best&&qty==0?" • ไม่มีประวัติขายสุทธิใน 30 วัน":"";
+            PosUi.line(this,root,i+++". "+c.getString(0)+" — "+qty+" ชิ้น"+note);
+        }
+        if(i==1)PosUi.line(this,root,best?"ยังไม่มีสินค้าที่มียอดขายสุทธิในช่วงนี้":"ยังไม่มีสินค้าในคลัง");
+        c.close();PosUi.back(this,root);
     }
 }
