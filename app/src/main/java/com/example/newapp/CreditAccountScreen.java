@@ -20,14 +20,31 @@ public class CreditAccountScreen extends Activity {
     private void renderSearch(){root=POSUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         first=POSUi.input(this,root,"ค้นหาชื่อลูกค้า");last=POSUi.input(this,root,"นามสกุลลูกค้า");
         POSUi.button(this,root,"ค้นหาบัญชีลูกค้า",()->showBills());
+        root.addView(POSUi.text(this,"เลือกลูกค้าจากบัญชีที่มีอยู่",16));
+        List<JSONObject> customers=repo.customers();
+        if(customers.isEmpty()) root.addView(POSUi.text(this,"ยังไม่มีบัญชีลูกค้าเชื่อ",14));
+        for(JSONObject customer:customers){
+            JSONObject p=customer.optJSONObject("payload");
+            if(p==null) continue;
+            String name=(p.optString("firstName","").trim()+" "+p.optString("lastName","").trim()).trim();
+            if(name.isEmpty()) name="ไม่ระบุชื่อลูกค้า";
+            POSUi.button(this,root,name,()->showBills(customer));
+        }
         POSUi.button(this,root,"กลับ",this::finish);}
     private void showBills(){
         String f=POSUi.value(first),l=POSUi.value(last);
         if(f.isEmpty()||l.isEmpty()){Toast.makeText(this,"กรอกชื่อและนามสกุลลูกค้า",Toast.LENGTH_SHORT).show();return;}
         JSONObject customer=repo.findCustomer(f,l);
         if(customer==null){Toast.makeText(this,"ไม่พบลูกค้ารายนี้",Toast.LENGTH_LONG).show();return;}
+        showBills(customer);
+    }
+    private void showBills(JSONObject customer){
+        if(customer==null){Toast.makeText(this,"ไม่พบลูกค้ารายนี้",Toast.LENGTH_LONG).show();return;}
+        JSONObject customerPayload=customer.optJSONObject("payload");
+        String f=customerPayload==null?"":customerPayload.optString("firstName","").trim();
+        String l=customerPayload==null?"":customerPayload.optString("lastName","").trim();
         String customerId=customer.optString("recordId");
-        root=POSUi.page(this,"หนี้ค้างชำระ: "+f+" "+l);bills.clear();checks.clear();
+        root=POSUi.page(this,"หนี้ค้างชำระ: "+(f+" "+l).trim());bills.clear();checks.clear();
         double outstanding=0;
         for(JSONObject bill:repo.records("sale_bill")){
             JSONObject p=bill.optJSONObject("payload");if(p==null)continue;
