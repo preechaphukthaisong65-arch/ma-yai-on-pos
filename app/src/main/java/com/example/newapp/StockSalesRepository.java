@@ -260,13 +260,23 @@ public final class StockSalesRepository {
             // Preserve the complete sale snapshot so retained reports/history remain useful
             // after the original bill reaches its retention deadline.
             saleAudit.put("saleSnapshot", new JSONObject(billPayload.toString()));
-            records.add(record(newId("sale_history"), "sale_history", saleAudit));
+            records.add(record("sale_history:" + billId, "sale_history", saleAudit));
             for (int i = 0; i < currentProducts.size(); i++) {
                 JSONObject current = currentProducts.get(i);
                 records.add(recordExpected(current.optString("recordId"), PRODUCT,
                         updatedPayloads.get(i), current.optLong("revision", 0L)));
-                records.add(history(current, "ขายสินค้า", beforeQuantities.get(i),
-                        afterQuantities.get(i), "ใบขาย " + billId));
+                JSONObject saleHistory = new JSONObject();
+                saleHistory.put("historyId", "stock_history:sale:" + billId + ":" + i);
+                saleHistory.put("productRecordId", current.optString("recordId"));
+                saleHistory.put("productName", payload(current).optString("name", ""));
+                saleHistory.put("barcode", payload(current).optString("barcode", ""));
+                saleHistory.put("transactionType", "ขายสินค้า");
+                saleHistory.put("beforeQuantity", beforeQuantities.get(i));
+                saleHistory.put("afterQuantity", afterQuantities.get(i));
+                saleHistory.put("delta", afterQuantities.get(i) - beforeQuantities.get(i));
+                saleHistory.put("changedAt", System.currentTimeMillis());
+                saleHistory.put("note", "ขายบิล " + billId);
+                records.add(record("stock_history:sale:" + billId + ":" + i, STOCK_HISTORY, saleHistory));
             }
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) {
