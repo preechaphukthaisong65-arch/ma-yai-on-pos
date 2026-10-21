@@ -47,7 +47,7 @@ public class CloudSyncService {
      */
     public void upload(JSONObject record, SyncCallback callback) {
         if (record == null) {
-            failSync(callback, "ไม่มีข้อมูลสำหรับสำรอง");
+            failSync(callback, "ไม่มีข้อมูลสำหรับซิงก์");
             return;
         }
 
