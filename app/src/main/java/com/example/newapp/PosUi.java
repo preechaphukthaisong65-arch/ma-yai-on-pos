@@ -39,9 +39,10 @@ final class PosUi {
         root.addView(e,new LinearLayout.LayoutParams(-1,-2)); return e;
     }
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
-    static void scan(Activity a) {
+    static void scan(Activity a) { scan(a,"สแกนบาร์โค้ดสินค้า"); }
+    static void scan(Activity a,String prompt) {
         IntentIntegrator scan=new IntentIntegrator(a);
-        scan.setPrompt("สแกนบาร์โค้ดสินค้า"); scan.setBeepEnabled(false);
+        scan.setPrompt(prompt); scan.setBeepEnabled(false);
         scan.setOrientationLocked(true); scan.setDesiredBarcodeFormats(IntentIntegrator.ONE_D_CODE_TYPES);
         scan.initiateScan();
     }
