@@ -1,0 +1,82 @@
+name: Diagnose Firebase access (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner_email:
+        description: "Existing Firebase Authentication user email"
+        required: true
+        type: string
+      store_id:
+        description: "Store ID document to inspect (read-only)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Configure Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || {
+            echo "::error::Repository secret FIREBASE_SERVICE_ACCOUNT_JSON is not configured."
+            exit 1
+          }
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+      - name: Verify credential identity without printing secrets
+        run: |
+          node -e 'const fs=require("fs"); const k=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,"utf8")); const expected="github-firebase-deploy@android-pos-593e9.iam.gserviceaccount.com"; if(k.client_email!==expected){console.error("Credential identity mismatch. Expected "+expected+"; found "+(k.client_email||"(missing)")+".");process.exit(1)} console.log("Credential identity matches the expected service account.")'
+      - name: Install Functions dependencies
+        run: npm install --prefix functions --no-audit --no-fund
+      - name: Test Authentication and Firestore read access only
+        env:
+          OWNER_EMAIL: ${{ inputs.owner_email }}
+          STORE_ID: ${{ inputs.store_id }}
+        run: |
+          node <<'NODE'
+          const { initializeApp, applicationDefault } = require("firebase-admin/app");
+          const { getAuth } = require("firebase-admin/auth");
+          const { getFirestore } = require("firebase-admin/firestore");
+          (async () => {
+            const app = initializeApp({ credential: applicationDefault(), projectId: "android-pos-593e9" });
+            let authUser = null;
+            try {
+              authUser = await getAuth(app).getUserByEmail(process.env.OWNER_EMAIL);
+              console.log("AUTH_LOOKUP=PASS");
+              console.log("OWNER_EMAIL_VERIFIED=" + String(authUser.emailVerified === true));
+              console.log("OWNER_ACCOUNT_DISABLED=" + String(authUser.disabled === true));
+            } catch (e) {
+              console.error("AUTH_LOOKUP=FAIL");
+              console.error("AUTH_ERROR_CODE=" + (e.code || "unknown"));
+              console.error("AUTH_ERROR_MESSAGE=" + (e.message || "No message"));
+            }
+            try {
+              const snap = await getFirestore(app).collection("storeOwners").doc(process.env.STORE_ID).get();
+              console.log("FIRESTORE_READ=PASS");
+              console.log("STORE_BINDING_EXISTS=" + String(snap.exists));
+              if (snap.exists && authUser) {
+                console.log("STORE_OWNER_MATCHES_USER=" + String(snap.get("ownerUid") === authUser.uid));
+              }
+            } catch (e) {
+              console.error("FIRESTORE_READ=FAIL");
+              console.error("FIRESTORE_ERROR_CODE=" + (e.code || "unknown"));
+              console.error("FIRESTORE_ERROR_MESSAGE=" + (e.message || "No message"));
+            }
+            await app.delete();
+          })().catch(e => { console.error("DIAGNOSTIC_FAILURE=" + (e.message || "unknown")); process.exitCode = 1; });
+          NODE
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
