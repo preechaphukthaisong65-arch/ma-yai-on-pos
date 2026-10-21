@@ -1,16 +1,87 @@
 package com.example.newapp;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
-import android.graphics.Color;
-import android.view.View;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 
 public class StockScreen extends Activity {
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        View blankPage = new View(this);
-        blankPage.setBackgroundColor(Color.WHITE);
-        setContentView(blankPage);
+    private PosDatabase helper; private LinearLayout root; private String mode=""; private String scanned="";
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    private void home(){
+        root=PosUi.page(this,"คลังสินค้า");
+        PosUi.button(this,root,"สินค้าทั้งหมด",v->showAll());
+        PosUi.button(this,root,"นับสต๊อกสินค้า",v->{mode="count";scanAgain();});
+        PosUi.button(this,root,"ตั้งค่าลิมิตสต๊อก",v->{mode="limit";scanAgain();});
+        PosUi.button(this,root,"เพิ่มสินค้าเข้าสต๊อก",v->{mode="add";scanAgain();});
+        PosUi.back(this,root);
+    }
+    private void showAll(){
+        root=PosUi.page(this,"สินค้าทั้งหมด");
+        Cursor c=helper.getReadableDatabase().query("products",new String[]{"name","stock","unit"},"active=1",null,null,null,"stock ASC,name COLLATE NOCASE ASC");
+        while(c.moveToNext()) PosUi.line(this,root,c.getString(0)+" — "+c.getInt(1)+" "+c.getString(2));
+        c.close(); PosUi.button(this,root,"สแกนเพื่อดูรายละเอียด",v->{mode="detail";scanAgain();}); PosUi.back(this,root);
+    }
+    private void scanAgain(){PosUi.scan(this);}
+    @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        IntentResult result=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);
+        if(result!=null){if(result.getContents()==null){home();return;} scanned=result.getContents(); handleScan(scanned);}
+    }
+    private void handleScan(String barcode){
+        SQLiteDatabase db=helper.getReadableDatabase();
+        Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
+        if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
+        long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));String unit=c.getString(c.getColumnIndexOrThrow("unit"));
+        int stock=c.getInt(c.getColumnIndexOrThrow("stock"));int limit=c.getInt(c.getColumnIndexOrThrow("stock_limit"));long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
+        c.close();
+        if("detail".equals(mode)){new AlertDialog.Builder(this).setTitle(name).setMessage("บาร์โค้ด: "+barcode+"\nคงเหลือ: "+stock+" "+unit+"\nราคาขาย: "+PosDatabase.money(price)+" บาท").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;}
+        root=PosUi.page(this,name);
+        PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock+" "+unit);
+        if("count".equals(mode)){
+            EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
+            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,qty,"COUNT");home();}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+        } else if("limit".equals(mode)){
+            EditText lim=PosUi.input(this,root,"ลิมิตสต๊อกปัจจุบัน "+limit);
+            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();ContentValues cv=new ContentValues();cv.put("stock_limit",q);cv.put("updated_at",PosDatabase.now());helper.getWritableDatabase().update("products",cv,"id=?",new String[]{String.valueOf(id)});home();}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+        } else if("add".equals(mode)){
+            PosUi.speak(this,name+"ค่ะ"); EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
+            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,stock+q,"RECEIVE");home();}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
+        }
+        PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
+    }
+    private void saveStock(long id,String barcode,String name,int before,int after,String type){
+        SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
+            ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
+            int n=db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
+            if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+            ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
+            h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
+            db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
+        }catch(Exception e){new AlertDialog.Builder(this).setMessage(e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
+    }
+    private void newProduct(String barcode){
+        root=PosUi.page(this,"เพิ่มสินค้าใหม่");
+        PosUi.line(this,root,"บาร์โค้ด: "+barcode);PosUi.speak(this,"สินค้าใหม่ค่ะ");
+        EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
+        EditText cost=PosUi.input(this,root,"ต้นทุน (บาท)");EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
+        EditText qty=PosUi.input(this,root,"จำนวนเริ่มต้น");
+        PosUi.button(this,root,"บันทึกสินค้า",v->{try{
+            String nm=PosUi.str(name),un=PosUi.str(unit);if(nm.isEmpty()||un.isEmpty())throw new IllegalArgumentException();
+            int q=Integer.parseInt(PosUi.str(qty)),l=Integer.parseInt(PosUi.str(lim));long p=PosUi.satang(price),co=PosUi.satang(cost);if(q<0||l<0)throw new IllegalArgumentException();
+            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
+                ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
+                long id=db.insertOrThrow("products",null,cv);
+                ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertWithOnConflict("barcode_registry",null,br,SQLiteDatabase.CONFLICT_IGNORE);
+                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
+            }finally{db.endTransaction();}home();
+        }catch(Exception e){new AlertDialog.Builder(this).setMessage("บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
+        PosUi.back(this,root);
     }
 }
