@@ -26,7 +26,7 @@ public class SellScreen extends Activity {
         PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"กลับหน้าหลัก",v->finish());
         addSalesChart("ยอดขายรายสัปดาห์ • 8 สัปดาห์ล่าสุด","week",8);
         addSalesChart("ยอดขายรายเดือน • 12 เดือนล่าสุด","month",12);
-        addSalesChart("ยอดขายรายปี • ปีปัจจุบันและปีก่อน (เก็บข้อมูล 15 เดือน)","year",2);
+        addSalesChart("ยอดขายรายปี • ปีปัจจุบันและข้อมูลที่เหลือของปีก่อน","year",2);
     }
     private void addSalesChart(String title,String unit,int count){
         String[] labels=new String[count];long[] values=new long[count];Calendar base=Calendar.getInstance();
