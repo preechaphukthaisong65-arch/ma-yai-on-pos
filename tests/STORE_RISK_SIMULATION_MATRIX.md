@@ -8,21 +8,21 @@ Run with `npm test` from the repository root (the GitHub Actions workflow instal
 
 | Scenario | Expected safe result | Automated coverage |
 |---|---|---|
-| Verified owner reads their store backup | Allow | Yes |
-| Unverified account accesses backup | Deny | Yes |
+| Verified owner reads a store sync record | Allow | Yes |
+| Unverified account accesses store sync records | Deny | Yes |
 | Different account reads/writes the store | Deny | Yes |
-| Active device creates a valid backup record | Allow | Yes |
+| Active device creates a valid store sync record | Allow | Yes |
 | Superseded device attempts to write | Deny | Yes |
 | Same single phone goes offline, continues selling, then reconnects | Replay its pending sales in order; each bill is committed once; stock/cash/debt/history reconcile | Needs single-device Android integration test |
-| Superseded device edits/deletes an existing backup | Deny | Yes |
-| Backup path ID and record ID disagree | Deny | Yes |
+| Superseded device edits/deletes an existing store record | Deny | Yes |
+| Cloud record path ID and record ID disagree | Deny | Yes |
 | Revision stays the same or decreases | Deny | Yes |
 | Negative revision or non-object payload | Deny | Yes |
 | Store owner identity is changed by client | Deny | Yes |
 | Active device reserves a barcode once | Allow first create | Yes |
 | Same barcode reservation is created a second time | Deny | Yes |
 | Barcode reservation is edited/deleted | Deny | Yes |
-| Barcode or backup write occurs without a device session | Deny | Yes |
+| Barcode reservation or cloud sync write occurs without a device session | Deny | Yes |
 | Unreviewed Firestore collections are accessed | Deny | Yes |
 | Retention cleanup deletes a record belonging to the active device | Allow | Yes |
 
@@ -43,15 +43,15 @@ These are required before calling the POS production-ready. They are not claimed
 | Double-tap payment / two devices pay same debt | At most one valid allocation per current bill revision | Needs concurrent transaction test |
 | Payment amount exceeds current debt or bill already paid | Reject without changing any record | Guard exists; needs Firebase emulator integration test |
 | Network loss before/during/after sale or payment | No silent success; local pending data preserved; no duplicate on retry | Needs Android offline/online integration test |
-| Reconnect with identical, missing, conflicting, or duplicate-barcode records | Restore missing only; never overwrite/delete conflict silently | Restore code has conflict checks; needs seeded DB integration test |
-| Owner replaces a broken phone or reinstalls app while old phone is unavailable | Restore last cloud-confirmed data; clearly disclose any backup lag; never invent missing local-only sales | Needs backup/restore integration test |
+| Reconnect with identical, missing, conflicting, or duplicate-barcode records | Sync only locally queued records; never download/restore or overwrite local records | Needs Android integration test |
+| Owner replaces a broken phone or reinstalls app while old phone is unavailable | No automatic restore or migration in current scope; do not promise recovery | Out of scope until separately approved |
 | App force-stop/restart, Android kills process, backup retry | Pending records survive and are retried without duplication | Needs Android lifecycle test |
 | Receipt reprint, reports, debt reminders, retention cleanup | No financial records altered by viewing/printing/notifications; retention preserves required history | Needs app-level regression tests |
 | Firestore rules deployed to actual Firebase project | Production backend enforces the same rules tested in CI | Not verified; deployment requires project-owner access |
 
 ## Known residual risks found during this review
 
-- **Single-device offline recovery:** the primary expected case is the same phone temporarily losing internet, continuing to sell locally, then reconnecting. Offline bills must replay in deterministic order, and bill, receipt, stock, debt, and history effects must be idempotent. A replacement phone is a separate disaster-recovery case: cloud can restore only data that had actually been backed up before the old phone failed; the app must expose backup freshness and cannot promise recovery of unuploaded local-only changes.
+- **Single-device offline continuity:** the expected case is the same phone temporarily losing internet, continuing to sell locally, then reconnecting. Offline bills must replay in deterministic order, and bill, receipt, stock, debt, and history effects must be idempotent. Replacement-phone migration is not supported while restore is removed; do not promise recovery on a new installation.
 - **Orphan barcode reservation:** if Firestore reserves a barcode but local product persistence subsequently fails, the reservation is intentionally not reused or automatically deleted. This avoids accidental duplicate assignment, but consumes that barcode number and needs an explicit, safe recovery procedure. The asynchronous double-tap window was fixed in `BarcodeScreen.java`; fault-injection testing for a local-save failure is still required.
 
 ## Safety boundaries
@@ -92,8 +92,8 @@ Severity: **P0** = can lose money or corrupt stock/debt; **P1** = sale blocked o
 | FLOW-21 | Debt payment exceeds remaining debt or targets already-paid bill | Reject without changing debt, cash, receipt or history | P0 | Not run on Android |
 | FLOW-22 | Receive stock and sell same SKU during overlapping writes | No lost update; final stock equals initial + accepted receipts - accepted sales | P0 | Not run concurrently |
 | FLOW-23 | Stocktake/edit races with a sale based on an old revision | One conflicting mutation rejects/reloads; no silent overwrite | P0 | Not run concurrently |
-| FLOW-24 | Restore after reinstall or new device login | Recover only cloud-confirmed records; preserve identity and links; no duplicate bills/products/payments | P0 | Not run on Android |
-| FLOW-25 | Restore encounters same ID with different payload/revision | Preserve both evidence and quarantine conflict; never silently overwrite/delete | P0 | Not run on Android |
+| FLOW-24 | Restore after reinstall or new device login | Not supported in current scope; do not download or overwrite local data automatically | Out of scope |
+| FLOW-25 | Restore encounters same ID with different payload/revision | Restore flow removed; no automatic cloud restore is performed | Out of scope |
 | FLOW-26 | Duplicate barcode reservation or local save failure after reservation | No duplicate barcode; reservation failure is visible and has documented recovery | P1 | Fault injection not run |
 | FLOW-27 | App process is killed with pending offline queue; device restarts | Queue survives, retries idempotently, and does not reorder dependent stock/debt mutations | P0 | Not run on Android |
 | FLOW-28 | Owner signs out, unverified account logs in, or a different account tries store access | Enforce verified owner identity and active-device authorization; no data leakage or writes | P0 | Rules tests cover parts; app flow not run |
@@ -121,7 +121,7 @@ Production release is blocked while any P0 scenario is FAIL, BLOCKED, or NOT RUN
 ## Corrected operating assumptions for Ma Yai On POS
 
 - The normal checkout flow uses one physical phone at a time. Do not treat two simultaneous checkout devices as a routine shop workflow.
-- The local database is the working source for day-to-day screens and offline continuity. Cloud is used to protect and restore records. However, code currently also contains a server-committed sale path; verify the actual sale call path before changing the consistency model. Do not assume “cloud backup only” unless the app code has been changed and integration-tested accordingly.
+- The local database is the working source for day-to-day screens and offline continuity. Cloud is used for record synchronization and server-authoritative operations. The Android app no longer exposes automatic backup/restore; do not assume a replacement device can restore the local database.
 - Scanning a barcode proves only that a product identifier was read. It does not prove positive stock. Before confirming a sale, validate the current local stock and requested quantity, prevent duplicate scan events from accidentally multiplying quantity, and make the final sale + stock decrement a single local database transaction.
-- The main real-world scenarios are: scan an existing item; unknown barcode; repeated scan; change quantity; remove item; insufficient cash; exact cash; excess cash/change; app killed before/after save; phone offline before/during/after sale; reconnect/retry; backup failure; low storage; database migration; restore after reinstall; restore on replacement phone; and end-of-day reconciliation.
-- Cloud backup is not equivalent to a real-time replica. Record and show the last successful backup time/status. A phone failure can lose changes created after that successful backup unless there is a separately verified durable recovery path.
+- The main real-world scenarios are: scan an existing item; unknown barcode; repeated scan; change quantity; remove item; insufficient cash; exact cash; excess cash/change; app killed before/after save; phone offline before/during/after sale; reconnect/retry; sync failure; low storage; database migration; and end-of-day reconciliation.
+- Cloud sync is not equivalent to a fully tested multi-device replica. Report sync status only from actual server confirmations. A phone failure or reinstall may lose local-only changes, and automatic restore is not available in the current scope.
