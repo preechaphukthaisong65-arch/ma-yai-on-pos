@@ -283,7 +283,7 @@ public final class StockSalesRepository {
                     || record.optString("recordId", "").trim().isEmpty()
                     || record.optJSONObject("payload") == null) return false;
         }
-        boolean saved = hub.saveRecordsAtomically(storeId, records);
+        boolean saved = hub.saveServerCommittedRecordsAtomically(storeId, records);
         if (saved) {
             invalidateProductCache();
             for (JSONObject record : records) {
