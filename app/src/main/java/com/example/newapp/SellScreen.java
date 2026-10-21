@@ -47,6 +47,7 @@ public class SellScreen extends Activity {
     private long lastBarcodeAt = 0;
     private final LinkedHashMap<String, CartLine> cart = new LinkedHashMap<>();
     private String currentBillId;
+    private String pendingBillId;
     private TextView changeText;
     private EditText cashReceived;
     private static final class CartLine {
@@ -163,7 +164,8 @@ public class SellScreen extends Activity {
         if(type.equals("cash")&&received<total){Toast.makeText(this,"จำนวนเงินที่รับมาต้องไม่น้อยกว่ายอดชำระ",Toast.LENGTH_LONG).show();return;}
         if(cart.isEmpty()){Toast.makeText(this,"ไม่มีสินค้าในรายการ",Toast.LENGTH_SHORT).show();return;}
         confirmed=true;
-        String billId=repo.newId("sale_bill");
+        String billId = pendingBillId == null ? repo.newId("sale_bill") : pendingBillId;
+        pendingBillId = billId;
         try{
             double sub=subtotal();double fee=type.equals("credit")?sub*.05:0;
             JSONObject bill=new JSONObject();bill.put("billId",billId);bill.put("createdAt",System.currentTimeMillis());
@@ -207,6 +209,7 @@ public class SellScreen extends Activity {
                     JSONObject item = new JSONObject();
                     item.put("productRecordId", products.get(i).optString("recordId"));
                     item.put("quantity", quantities.get(i));
+                    item.put("localRevision", products.get(i).optLong("revision", 0L));
                     serverItems.add(item);
                 }
                 new ServerSaleService(getApplicationContext()).commit(
@@ -215,7 +218,7 @@ public class SellScreen extends Activity {
                         new ServerSaleService.Callback() {
                             @Override public void onSuccess(List<JSONObject> records, boolean alreadyCommitted) {
                                 runOnUiThread(() -> {
-                                    if (alreadyCommitted || records == null || records.isEmpty()) {
+                                    if (records == null || records.isEmpty()) {
                                         confirmed = true;
                                         cart.clear();
                                         currentBillId = billId;
@@ -235,6 +238,7 @@ public class SellScreen extends Activity {
                                     }
                                     cart.clear();
                                     currentBillId = billId;
+                                    pendingBillId = null;
                                     showSaleSaved(billId, bill.optString("paymentStatus"), total);
                                 });
                             }
@@ -253,7 +257,7 @@ public class SellScreen extends Activity {
             // Offline sales remain in SQLite and pending sync; reconnect reconciliation
             // must still detect conflicts rather than blindly overwrite the server.
             if (repo.confirmSale(billId,bill,products,quantities,receipt)) {
-                cart.clear(); currentBillId=billId;
+                cart.clear(); currentBillId=billId; pendingBillId=null;
                 showSaleSaved(billId, bill.optString("paymentStatus"), total);
             } else {
                 confirmed=false;
