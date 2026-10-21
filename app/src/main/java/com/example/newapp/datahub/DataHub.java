@@ -496,7 +496,7 @@ public class DataHub {
 
                     @Override
                     public void onFailure(String message) {
-                        // เก็บรายการที่สำรองไม่สำเร็จไว้ให้ลองใหม่ภายหลัง
+                        // เก็บรายการที่ซิงก์ไม่สำเร็จไว้ให้ลองใหม่ภายหลัง
                         localStore.markSyncStatusIfRevision(
                                 storeId,
                                 recordId,
@@ -561,7 +561,7 @@ public class DataHub {
                                         : "คลาวด์ลบแล้ว แต่ข้อมูลในเครื่องเปลี่ยนระหว่างดำเนินการ จึงเก็บข้อมูลในเครื่องไว้");
                     }
                     @Override public void onFailure(String message) {
-                        completeRetentionDelete(callback, false, message == null ? "ลบข้อมูลสำรองไม่สำเร็จ" : message);
+                        completeRetentionDelete(callback, false, message == null ? "ลบข้อมูลบน Cloud ไม่สำเร็จ" : message);
                     }
                 });
     }
@@ -645,7 +645,7 @@ public class DataHub {
         if (pending == 0) {
             dataHubStatus.setStatus(
                     SYNC_SYNCED,
-                    "ไม่มีรายการค้างสำรอง"
+                    "ไม่มีรายการรอซิงก์"
             );
         } else {
             dataHubStatus.setStatus(
