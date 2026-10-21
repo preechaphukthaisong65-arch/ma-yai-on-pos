@@ -22,26 +22,7 @@ public class ReportScreen extends Activity {
         PosUi.button(this,root,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
         PosUi.button(this,root,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
-        addChart("ยอดขายรายวัน • 7 วันล่าสุด","day");
-        addChart("ยอดขายรายสัปดาห์ • 4 สัปดาห์ล่าสุด","week");
-        addChart("ยอดขายรายปี • 12 เดือนล่าสุด","month");
         PosUi.back(this,root);
-    }
-    private void addChart(String title,String unit){
-        int count=unit.equals("day")?7:unit.equals("week")?4:12;
-        String[] labels=new String[count];long[] values=new long[count];Calendar base=Calendar.getInstance();
-        if(unit.equals("day")){base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);}
-        else if(unit.equals("week")){base.setFirstDayOfWeek(Calendar.MONDAY);base.set(Calendar.DAY_OF_WEEK,Calendar.MONDAY);base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);}
-        else{base.set(Calendar.DAY_OF_MONTH,1);base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);}
-        for(int i=0;i<count;i++){
-            Calendar start=(Calendar)base.clone();int offset=i-(count-1);
-            if(unit.equals("day"))start.add(Calendar.DAY_OF_MONTH,offset);else if(unit.equals("week"))start.add(Calendar.WEEK_OF_YEAR,offset);else start.add(Calendar.MONTH,offset);
-            Calendar end=(Calendar)start.clone();if(unit.equals("day"))end.add(Calendar.DAY_OF_MONTH,1);else if(unit.equals("week"))end.add(Calendar.WEEK_OF_YEAR,1);else end.add(Calendar.MONTH,1);long from=start.getTimeInMillis(),to=end.getTimeInMillis()-1;
-            String sql="SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')";
-            Cursor q=helper.getReadableDatabase().rawQuery(sql,new String[]{String.valueOf(from),String.valueOf(to)});if(q.moveToFirst())values[i]=q.getLong(0);q.close();
-            labels[i]=unit.equals("day")?new SimpleDateFormat("dd/MM",Locale.getDefault()).format(start.getTime()):unit.equals("week")?"ส"+(i+1):new SimpleDateFormat("MM/yy",Locale.getDefault()).format(start.getTime());
-        }
-        SalesChartView chart=new SalesChartView(this);chart.setData(title,labels,values);root.addView(chart,new LinearLayout.LayoutParams(-1,PosUi.dp(this,180)));
     }
     private void returnedCancelled(){
         root=PosUi.page(this,"รายการบิลคืนสินค้า / ยกเลิก");
