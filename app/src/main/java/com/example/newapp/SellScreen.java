@@ -32,8 +32,19 @@ public class SellScreen extends Activity {
     private void showCart(){
         root=PosUi.page(this,"ตรวจสอบรายการขาย");
         if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());return;}
-        StringBuilder speech=new StringBuilder();for(Item i:cart.values()){PosUi.line(this,root,i.name+"  "+i.qty+" "+i.unit+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(i.price*i.qty)+" บาท");speech.append(i.name).append(" ").append(i.qty).append(" ").append(i.unit).append(" ");}PosUi.line(this,root,"รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");PosUi.speak(this,"ยอดรวม "+PosDatabase.money(subtotal())+" บาท");
-        PosUi.button(this,root,"สแกนเพิ่ม",v->scan());PosUi.button(this,root,"ขายเงินสด",v->cashSale());PosUi.button(this,root,"ขายเชื่อ",v->creditSale());PosUi.button(this,root,"ยกเลิกบิลนี้",v->home());
+        StringBuilder speech=new StringBuilder();
+        for(Item i:cart.values()){
+            PosUi.line(this,root,i.name+"  "+i.qty+" "+i.unit+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(i.price*i.qty)+" บาท");
+            speech.append(i.name).append(" ").append(i.qty).append(" ").append(i.unit).append(" ราคา ").append(PosDatabase.money(i.price)).append(" บาท รวม ").append(PosDatabase.money(i.price*i.qty)).append(" บาท ");
+        }
+        PosUi.line(this,root,"รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");
+        final String summary=speech.append("ยอดรวม ").append(PosDatabase.money(subtotal())).append(" บาท").toString();
+        PosUi.speakThen(this,summary,()->{
+            PosUi.button(this,root,"สแกนเพิ่ม",v->scan());
+            PosUi.button(this,root,"ขายเงินสด",v->cashSale());
+            PosUi.button(this,root,"ขายเชื่อ",v->creditSale());
+            PosUi.button(this,root,"ยกเลิกบิลนี้",v->home());
+        });
     }
     private void cashSale(){
         root=PosUi.page(this,"รับชำระเงินสด");PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(subtotal())+" บาท");
@@ -43,10 +54,12 @@ public class SellScreen extends Activity {
     }
     private void creditSale(){
         root=PosUi.page(this,"ขายเชื่อ");EditText customer=PosUi.input(this,root,"ชื่อลูกค้า-ชื่อและนามสกุล");
-        PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(subtotal())+" บาท");
-        PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(PosDatabase.creditFee(subtotal()))+" บาท");
-        PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(subtotal()+PosDatabase.creditFee(subtotal()))+" บาท");
-        PosUi.button(this,root,"ยืนยันขายเชื่อ",v->{String n=PosUi.str(customer);if(n.isEmpty()){customer.setError("กรอกชื่อเต็มลูกค้า");return;}commitSale(true,n,0);});PosUi.back(this,root);
+        long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
+        PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
+        PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
+        PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
+        PosUi.speakThen(this,"ขายเชื่อ ค่าบริการ 5 เปอร์เซ็นต์ "+PosDatabase.money(fee)+" บาท ยอดหนี้รวม "+PosDatabase.money(total)+" บาท",()->PosUi.button(this,root,"ยืนยันขายเชื่อ",v->{String n=PosUi.str(customer);if(n.isEmpty()){customer.setError("กรอกชื่อเต็มลูกค้า");return;}commitSale(true,n,0);}));
+        PosUi.back(this,root);
     }
     private void commitSale(boolean credit,String customerName,long cash){
         String duplicate=findDuplicate(credit,customerName);
