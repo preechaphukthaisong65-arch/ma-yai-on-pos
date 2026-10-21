@@ -102,5 +102,5 @@ public class MainActivity extends Activity {\n    private TextView tickerView;\n
         parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(8)));
     }
 
-    @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); boolean low=StockAlertManager.check(this); if(tickerView!=null) tickerView.setText(low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE); }
+    @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); boolean low=StockAlertManager.check(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;tickerView.setText(message);} }
 }
