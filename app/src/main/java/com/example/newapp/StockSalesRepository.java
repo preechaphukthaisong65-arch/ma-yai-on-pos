@@ -348,8 +348,8 @@ public final class StockSalesRepository {
     }
 
     /**
-     * Record a cash payment against one or more credit bills. Partial payments are supported;
-     * each payment stores explicit per-bill allocations and unpaid bills remain outstanding.
+     * Record a cash payment against one or more credit bills.
+     * Every selected bill must be paid in full; partial bill payments are not supported.
      */
     public synchronized boolean payCreditBills(List<JSONObject> selectedBills, double received) {
         if (!isReady() || selectedBills == null || selectedBills.isEmpty()
@@ -381,7 +381,7 @@ public final class StockSalesRepository {
                 refreshed.add(current);
             }
             long receivedCents = Math.round(received * 100d);
-            if (receivedCents <= 0L || receivedCents > dueCents) return false;
+            if (receivedCents <= 0L || receivedCents != dueCents) return false;
 
             String paymentId = newId("credit_payment");
             long now = System.currentTimeMillis();
@@ -426,7 +426,7 @@ public final class StockSalesRepository {
             payment.put("paymentMethod", "cash");
             payment.put("billIds", ids);
             payment.put("allocations", allocations);
-            payment.put("isPartialPayment", receivedCents < dueCents);
+            payment.put("isPartialPayment", false);
             records.add(record(paymentId, "credit_payment", payment));
 
             JSONObject receipt = new JSONObject();
@@ -437,7 +437,7 @@ public final class StockSalesRepository {
             receipt.put("total", receivedCents / 100d);
             receipt.put("billIds", ids);
             receipt.put("allocations", allocations);
-            receipt.put("paymentStatus", receivedCents < dueCents ? "ชำระบางส่วน" : "รับชำระแล้ว");
+            receipt.put("paymentStatus", "รับชำระแล้ว");
             receipt.put("printStatus", "pending");
             records.add(record("receipt:" + paymentId, "receipt", receipt));
 
