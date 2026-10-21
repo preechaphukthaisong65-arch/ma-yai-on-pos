@@ -51,6 +51,7 @@ public final class ServerSaleService {
             Map<String, Object> normalized = new HashMap<>();
             normalized.put("productRecordId", productId);
             normalized.put("quantity", quantity);
+            normalized.put("localRevision", item.optLong("localRevision", 0L));
             normalizedItems.add(normalized);
         }
         Map<String, Object> request = new HashMap<>();
