@@ -227,6 +227,21 @@ public class SellScreen extends Activity {
                                                 + "ห้ามกดยืนยันขายซ้ำ ให้ตรวจใบเสร็จและข้อมูลร้านก่อน");
                                         return;
                                     }
+                                    JSONObject authoritativeBill = null;
+                                    for (JSONObject record : records) {
+                                        if ("sale_bill".equals(record.optString("dataType"))) {
+                                            authoritativeBill = record.optJSONObject("payload");
+                                            break;
+                                        }
+                                    }
+                                    if (authoritativeBill == null) {
+                                        confirmed = true;
+                                        cart.clear();
+                                        currentBillId = billId;
+                                        showSaleNeedsReconciliation(billId,
+                                                "เซิร์ฟเวอร์บันทึกคำขอแล้ว แต่ไม่ส่งรายละเอียดบิลกลับมา ห้ามขายซ้ำ");
+                                        return;
+                                    }
                                     if (!repo.applyServerCommittedSaleRecords(records)) {
                                         confirmed = true;
                                         cart.clear();
@@ -239,7 +254,8 @@ public class SellScreen extends Activity {
                                     cart.clear();
                                     currentBillId = billId;
                                     pendingBillId = null;
-                                    showSaleSaved(billId, bill.optString("paymentStatus"), total);
+                                    showSaleSaved(billId, authoritativeBill.optString("paymentStatus"),
+                                            authoritativeBill.optDouble("total", total));
                                 });
                             }
                             @Override public void onFailure(String message) {
