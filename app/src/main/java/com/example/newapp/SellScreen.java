@@ -114,7 +114,8 @@ public class SellScreen extends Activity {
     private void commitSale(boolean credit,String customerName,long cash){
         if(saleInProgress||duplicatePromptOpen)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
-        String duplicate=findDuplicate(credit,customerName,cash);
+        String duplicate;
+        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){new AlertDialog.Builder(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
         if(duplicate!=null){
             duplicatePromptOpen=true;
             new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ")
