@@ -11,6 +11,7 @@ on:
       - fix/single-active-device-lock
       - feat/server-atomic-sales
       - fix/server-committed-local-sync
+      - work/complete-pos-no-backup
   pull_request:
     branches:
       - main
