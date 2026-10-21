@@ -10,7 +10,7 @@ The app applies the returned records to SQLite with expected-revision compare-an
 
 - This protects **online sales routed through the callable function**. Offline sales still use the existing local SQLite transaction and remain pending.
 - It does not yet safely import every stale-device offline sale/debt/payment batch. Reconnect conflict detection remains fail-closed and preserves the local records, but a conflicting batch can remain unresolved until a dedicated reconciliation/import flow is implemented.
-- A Firebase Functions deployment and enabling App Check are not performed by this repository change. Do not claim production readiness until the function is deployed to the confirmed project and the app is configured for the deployed region / App Check policy.
+- Firebase Functions are not deployed by this repository change. App Check is wired in the Android app: debug builds use the debug provider and release builds use Play Integrity; register the debug token for test builds and register the production app / SHA-256 fingerprint in Firebase Console before enforcing rollout. Do not claim production readiness until the function is deployed to the confirmed project and App Check attestation is verified.
 - The callable function currently uses the default Functions region. If the project deploys to another region, configure the Android Functions client to that same region before rollout.
 - Existing legacy cloud records must have the expected record shape: `dataType=product`, `payload.price`, and `payload.stockQuantity`. Test against a copy of real-shaped data before production rollout.
 
@@ -21,7 +21,7 @@ The app applies the returned records to SQLite with expected-revision compare-an
 3. Configure Firebase Authentication Email/Password and verify the owner account.
 4. Provision `storeOwners/{storeId}.ownerUid` using a trusted admin process.
 5. Deploy reviewed Firestore Rules and Functions to the explicitly selected project; never store service-account credentials in the repository or APK.
-6. Configure and enforce App Check after the Android app has a valid production provider configuration.
+6. Register the Android app in Firebase App Check, add the production signing certificate SHA-256, configure Play Integrity, and verify valid tokens from a release-signed build. For debug builds only, register the debug token emitted in Logcat; never ship a debug token. The callable functions require App Check.
 7. Test two-device contention for the last unit, duplicate taps, network loss after commit, same-bill retry, stale local revision, credit sale, and rejected cash amount in a staging project.
 8. Verify products, stock ledger, sale bill, receipt and sale history agree after each test.
 9. Only then enable the server sale path in production.
