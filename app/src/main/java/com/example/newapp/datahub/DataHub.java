@@ -474,7 +474,7 @@ public class DataHub {
 
         cloudSyncService.upload(
                 uploadRecord,
-                new CloudSyncService.BackupCallback() {
+                new CloudSyncService.SyncCallback() {
                     @Override
                     public void onSuccess() {
                         boolean marked = localStore.markSyncStatusIfRevision(
@@ -569,7 +569,7 @@ public class DataHub {
     /**
      * Returns the number of extra records sharing a non-empty barcode across
      * product and barcode_item records. This is an audit only: no record is
-     * deleted or modified. Call after cloud restore/reconnect.
+     * deleted or modified. Call after cloud sync/reconnect.
      */
     public int getDuplicateBarcodeCount(String storeId) {
         java.util.Map<String, Integer> productCounts = new java.util.HashMap<>();
@@ -726,7 +726,7 @@ public class DataHub {
 
     public void reserveBarcode(String storeId, String barcode, OperationCallback callback) {
         String deviceId = StoreIdentity.getOrCreateDeviceId(appContext);
-        cloudSyncService.reserveBarcode(storeId, barcode, deviceId, new CloudSyncService.BackupCallback() {
+        cloudSyncService.reserveBarcode(storeId, barcode, deviceId, new CloudSyncService.SyncCallback() {
             @Override public void onSuccess() {
                 if (callback != null) callback.onComplete(1, 0, "จองบาร์โค้ดสำเร็จ");
             }
