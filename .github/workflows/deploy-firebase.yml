@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: maeyai-on-pos-firebase-production
+  group: ma-yai-on-pos-firebase-production
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
     if: ${{ inputs.confirm_production == true }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout selected ref
         uses: actions/checkout@v4
 
       - name: Set up Node.js
@@ -49,6 +49,13 @@ jobs:
 
       - name: Install Cloud Functions dependencies
         run: npm install --prefix functions --no-audit --no-fund
+
+      - name: Preflight owner UID and store binding (read-only)
+        env:
+          STORE_ID: ${{ inputs.store_id }}
+          OWNER_UID: ${{ inputs.owner_uid }}
+          CHECK_ONLY: "true"
+        run: node functions/scripts/provision-owner.js
 
       - name: Deploy Firestore rules and Cloud Functions
         run: npx --yes firebase-tools@15.0.0 deploy --only firestore:rules,functions --project android-pos-593e9 --non-interactive
