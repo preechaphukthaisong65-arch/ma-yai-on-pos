@@ -60,73 +60,16 @@ public final class RetentionManager {
 
     private boolean run(Context context, String storeId) {
         DataHub hub = DataHub.getInstance(context);
-        long now = System.currentTimeMillis();
-        long billCutoff = now - PAID_BILL_RETENTION_MS;
-        long salesCutoff = calendarCutoff(now, Calendar.YEAR, -1);
-        long editCutoff = calendarCutoff(now, Calendar.MONTH, -6);
-
-        // Do not delete a paid bill until a complete sale snapshot exists locally
-        // and has been backed up successfully.
-        if (!ensureSaleHistory(hub, storeId)) return false;
-
-        List<DeleteCandidate> candidates = new ArrayList<>();
-        // Keep this ordering: delete eligible paid bills before their snapshots in
-        // sale_history. Sequential execution below prevents deleting a snapshot
-        // before the bill's final eligibility check completes.
-        for (JSONObject bill : hub.getRecordsByType(storeId, "sale_bill")) {
-            JSONObject p = bill.optJSONObject("payload");
-            if (p == null || !"จ่ายแล้ว".equals(p.optString("paymentStatus"))
-                    || p.optDouble("remainingBalance", 0d) > 0.009d) continue;
-            long paidAt = p.optLong("paidAt", 0L);
-            if (paidAt <= 0L && "cash".equals(p.optString("paymentType"))) {
-                paidAt = p.optLong("createdAt", 0L);
-            }
-            String recordId = bill.optString("recordId", "").trim();
-            if (paidAt > 0L && paidAt <= billCutoff && !recordId.isEmpty()) {
-                candidates.add(new DeleteCandidate(recordId, "sale_bill", billCutoff));
-            }
-        }
-
-        for (JSONObject history : hub.getRecordsByType(storeId, "sale_history")) {
-            JSONObject p = history.optJSONObject("payload");
-            if (p == null) continue;
-            long createdAt = p.optLong("createdAt", 0L);
-            String recordId = history.optString("recordId", "").trim();
-            if (createdAt > 0L && createdAt <= salesCutoff && !recordId.isEmpty()) {
-                candidates.add(new DeleteCandidate(recordId, "sale_history", salesCutoff));
-            }
-        }
-
-        // price_history is the explicit price-edit history. Keep stock_history as a stock ledger.
-        for (JSONObject history : hub.getRecordsByType(storeId, "price_history")) {
-            JSONObject p = history.optJSONObject("payload");
-            if (p == null) continue;
-            long changedAt = p.optLong("changedAt", 0L);
-            String recordId = history.optString("recordId", "").trim();
-            if (changedAt > 0L && changedAt <= editCutoff && !recordId.isEmpty()) {
-                candidates.add(new DeleteCandidate(recordId, "price_history", editCutoff));
-            }
-        }
-
-        if (candidates.isEmpty()) return true;
-
-        CountDownLatch finished = new CountDownLatch(1);
-        AtomicBoolean allSucceeded = new AtomicBoolean(true);
-        deleteSequentially(hub, storeId, candidates, 0, allSucceeded, finished);
-        try {
-            return finished.await(DELETE_CALLBACK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
-                    && allSucceeded.get();
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
+        /*
+         * Keep the history snapshot repair, but do not automatically delete records.
+         * The handoff specifies a 30-day paid-bill retention period but leaves the
+         * action after that period unresolved (permanent deletion versus archival).
+         * Until that policy is explicitly settled, preserve bills and histories rather
+         * than risk irreversible loss of financial records.
+         */
+        return ensureSaleHistory(hub, storeId);
     }
 
-    /**
-     * Delete sequentially rather than launching all Cloud deletions at once.
-     * This ensures sale_bill deletion is checked and completed before its
-     * potentially-expiring sale_history snapshot can be deleted.
-     */
     private void deleteSequentially(DataHub hub, String storeId, List<DeleteCandidate> candidates,
             int index, AtomicBoolean allSucceeded, CountDownLatch finished) {
         if (index >= candidates.size()) {
