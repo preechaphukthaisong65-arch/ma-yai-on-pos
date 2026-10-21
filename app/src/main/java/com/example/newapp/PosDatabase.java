@@ -84,6 +84,10 @@ public final class PosDatabase extends SQLiteOpenHelper {
                 db.setTransactionSuccessful();
             } finally { db.endTransaction(); }
         }
+        if (oldVersion < 3) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_bills_paid_at ON bills(paid_at)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_bills_archive_until ON bills(archive_until)");
+        }
     }
 
     public static long now() { return System.currentTimeMillis(); }
