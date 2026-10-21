@@ -1,6 +1,5 @@
 plugins {
     id 'com.android.application'
-    id 'com.google.gms.google-services'
 }
 
 android {
@@ -11,7 +10,6 @@ android {
         applicationId 'com.example.newapp'
         minSdk 24
         targetSdk 28
-
         versionCode 1
         versionName '1.0'
     }
@@ -20,26 +18,4 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
-}
-
-// ป้องกัน Kotlin JDK8 รุ่นเก่ามีคลาสซ้ำกับ Kotlin รุ่นใหม่
-configurations.configureEach {
-    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
-}
-
-dependencies {
-    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
-    implementation 'androidx.core:core:1.15.0'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'androidx.work:work-runtime:2.10.0'
-    // WorkManager's ListenableWorker API references Guava ListenableFuture.
-    implementation 'com.google.guava:guava:33.4.8-android'
-
-    // Firebase SDK
-    implementation platform('com.google.firebase:firebase-bom:35.0.2')
-    implementation 'com.google.firebase:firebase-auth'
-    implementation 'com.google.firebase:firebase-firestore'
-    implementation 'com.google.firebase:firebase-functions'
-    implementation 'com.google.firebase:firebase-appcheck-playintegrity'
-    debugImplementation 'com.google.firebase:firebase-appcheck-debug'
 }
