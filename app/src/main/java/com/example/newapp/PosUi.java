@@ -46,7 +46,7 @@ final class PosUi {
         scan.initiateScan();
     }
     static void speak(Activity a,String message) {
-        TextToSpeech tts=new TextToSpeech(a,status->{if(status==TextToSpeech.SUCCESS){ttsLangSafe(a,tts); tts.speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-tts");}});
+        final TextToSpeech[] holder = new TextToSpeech[1];\n        holder[0]=new TextToSpeech(a,status->{if(status==TextToSpeech.SUCCESS){ttsLangSafe(a,holder[0]); holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-tts");}});
     }
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
         Locale th=new Locale("th","TH"); if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE) tts.setLanguage(th);
