@@ -17,15 +17,21 @@ public class StockScreen extends Activity {
     private void home(){
         root=PosUi.page(this,"คลังสินค้า");
         PosUi.button(this,root,"สินค้าทั้งหมด",v->showAll());
-        PosUi.button(this,root,"นับสต๊อกสินค้า",v->{mode="count";scanAgain();});
+        PosUi.button(this,root,"นับสต๊อกสินค้า",v->countMenu());
         PosUi.button(this,root,"ตั้งค่าลิมิตสต๊อก",v->{mode="limit";scanAgain();});
         PosUi.button(this,root,"เพิ่มสินค้าเข้าสต๊อก",v->{mode="add";scanAgain();});
+        PosUi.back(this,root);
+    }
+    private void countMenu(){
+        root=PosUi.page(this,"นับสต๊อกสินค้า");
+        PosUi.button(this,root,"เริ่มนับสต๊อก",v->{mode="count";scanAgain();});
+        PosUi.button(this,root,"ค้นหาประวัตินับสต๊อก",v->{mode="countHistory";scanAgain();});
         PosUi.back(this,root);
     }
     private void showAll(){
         root=PosUi.page(this,"สินค้าทั้งหมด");
         Cursor c=helper.getReadableDatabase().query("products",new String[]{"name","stock","unit"},"active=1",null,null,null,"stock ASC,name COLLATE NOCASE ASC");
-        while(c.moveToNext()) PosUi.line(this,root,c.getString(0)+" — "+c.getInt(1)+" "+c.getString(2));
+        while(c.moveToNext()) PosUi.line(this,root,c.getString(0)+" — "+c.getInt(1));
         c.close(); PosUi.button(this,root,"สแกนเพื่อดูรายละเอียด",v->{mode="detail";scanAgain();}); PosUi.back(this,root);
     }
     private void scanAgain(){PosUi.scan(this);}
@@ -37,7 +43,7 @@ public class StockScreen extends Activity {
     private void handleScan(String barcode){
         SQLiteDatabase db=helper.getReadableDatabase();
         Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
-        if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
+        if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else if("countHistory".equals(mode)){showStockHistory(barcode);return;}else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
         long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));String unit=c.getString(c.getColumnIndexOrThrow("unit"));
         int stock=c.getInt(c.getColumnIndexOrThrow("stock"));int limit=c.getInt(c.getColumnIndexOrThrow("stock_limit"));long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
         c.close();
@@ -55,6 +61,13 @@ public class StockScreen extends Activity {
             PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,stock+q,"RECEIVE");home();}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
         }
         PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
+    }
+    private void showStockHistory(String barcode){
+        root=PosUi.page(this,"ประวัติสต๊อก");
+        Cursor c=helper.getReadableDatabase().query("stock_history",new String[]{"product_name","change_type","before_qty","after_qty","difference","created_at","reference"},"barcode=?",new String[]{barcode},null,null,"created_at DESC");
+        if(!c.moveToFirst())PosUi.line(this,root,"ไม่พบประวัติของบาร์โค้ดนี้");
+        else do{String ref=c.getString(6)==null?"":" • "+c.getString(6);PosUi.line(this,root,c.getString(0)+" • "+c.getString(1)+" • "+c.getInt(2)+" → "+c.getInt(3)+" ("+(c.getInt(4)>0?"+":"")+c.getInt(4)+")"+ref+" • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(5))));}while(c.moveToNext());
+        c.close();PosUi.button(this,root,"สแกนบาร์โค้ดอื่น",v->scanAgain());PosUi.back(this,root);
     }
     private void saveStock(long id,String barcode,String name,int before,int after,String type){
         SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
