@@ -17,19 +17,18 @@ function validDocumentId(value) {
 async function main() {
   const storeId = required("STORE_ID");
   const ownerUid = required("OWNER_UID");
+  const checkOnly = process.env.CHECK_ONLY === "true";
   if (!validDocumentId(storeId) || !validDocumentId(ownerUid)) {
     throw new Error("STORE_ID or OWNER_UID is not a valid Firestore document identifier.");
   }
 
   const app = initializeApp({ credential: applicationDefault() });
-  const auth = getAuth(app);
-  const user = await auth.getUser(ownerUid);
+  const user = await getAuth(app).getUser(ownerUid);
   if (user.disabled) throw new Error("Owner account is disabled.");
   if (user.emailVerified !== true) throw new Error("Owner account email must be verified before binding.");
 
-  const db = getFirestore(app);
-  const ref = db.collection("storeOwners").doc(storeId);
-  await db.runTransaction(async tx => {
+  const ref = getFirestore(app).collection("storeOwners").doc(storeId);
+  await getFirestore(app).runTransaction(async tx => {
     const snap = await tx.get(ref);
     if (snap.exists) {
       if (snap.get("ownerUid") !== ownerUid) {
@@ -37,16 +36,20 @@ async function main() {
       }
       return;
     }
-    tx.create(ref, {
-      storeId,
-      ownerUid,
-      ownerEmail: user.email || null,
-      createdAt: FieldValue.serverTimestamp(),
-      provisionedBy: "github-actions"
-    });
+    if (!checkOnly) {
+      tx.create(ref, {
+        storeId,
+        ownerUid,
+        ownerEmail: user.email || null,
+        createdAt: FieldValue.serverTimestamp(),
+        provisionedBy: "github-actions"
+      });
+    }
   });
 
-  console.log(`Owner binding verified for store ID "${storeId}".`);
+  console.log(checkOnly
+    ? "Owner account and store binding preflight passed; no data was changed."
+    : `Owner binding verified for store ID "${storeId}".`);
 }
 
 main().catch(error => {
