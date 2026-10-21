@@ -100,13 +100,18 @@ public class BarcodeScreen extends Activity {
                 } while (barcodeExists(products, code) || barcodeExists(barcodeItems, code));
 
                 final String reservedCode = code;
+                // Keep the UI locked for the entire asynchronous reservation + local-save
+                // operation. Releasing the guard in finally here would permit a second tap
+                // while the Firestore transaction is still in flight.
                 hub.reserveBarcode(storeId, reservedCode, (succeeded, failed, message) -> runOnUiThread(() -> {
                     if (failed > 0) {
+                        saving = false;
                         Toast.makeText(BarcodeScreen.this, message, Toast.LENGTH_LONG).show();
                         return;
                     }
                     StockSalesRepository repository = new StockSalesRepository(BarcodeScreen.this);
                     boolean saved = repository.createProduct(name, reservedCode, price, 0d, "ชิ้น", 0d, 0d);
+                    saving = false;
                     if (!saved) {
                         Toast.makeText(BarcodeScreen.this,
                                 "จองเลขบาร์โค้ดแล้ว แต่บันทึกสินค้าไม่สำเร็จ เลขนี้จะไม่ถูกนำกลับมาใช้ซ้ำ",
@@ -120,9 +125,8 @@ public class BarcodeScreen extends Activity {
                 }));
                 return;
             } catch (Exception error) {
-                Toast.makeText(this, "สร้างบาร์โค้ดไม่สำเร็จ", Toast.LENGTH_LONG).show();
-            } finally {
                 saving = false;
+                Toast.makeText(this, "สร้างบาร์โค้ดไม่สำเร็จ", Toast.LENGTH_LONG).show();
             }
         }
     }
