@@ -286,13 +286,10 @@ public class MainActivity extends Activity {
             summary.append("สำรองข้อมูลค้าง ").append(pendingBackups).append(" รายการ — แตะข้อความนี้เพื่อลองซิงก์อีกครั้ง");
             managementNotice.setTextColor(Color.rgb(170, 80, 0));
             managementNotice.setOnClickListener(v -> {
-                managementNotice.setText("กำลังซิงก์ข้อมูลที่ค้าง...");
-                dataHub.backupPendingRecords(storeId, (succeeded, failed, message) -> runOnUiThread(() -> {
-                    android.widget.Toast.makeText(MainActivity.this,
-                            message + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + failed + ")",
-                            android.widget.Toast.LENGTH_LONG).show();
-                    refreshManagementNotice();
-                }));
+                managementNotice.setText("กำลังตรวจสอบข้อมูล Cloud ก่อนซิงก์...");
+                // Manual retry must use the same restore/conflict checks as reconnect.
+                // Never upload pending local records directly around reconciliation.
+                reconcileCloudAfterReconnect();
             });
         } else {
             managementNotice.setTextColor(Color.rgb(45, 90, 55));
