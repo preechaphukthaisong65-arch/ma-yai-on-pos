@@ -176,9 +176,14 @@ public class DataHub {
                 record.put("dataType", dataType);
                 record.put("schemaVersion", Math.max(1, input.optInt("schemaVersion", 1)));
                 record.put("updatedAt", Math.max(1L, input.optLong("updatedAt", System.currentTimeMillis())));
-                // Keep the server's revision authoritative. Offline local writes may
-                // already have advanced the local revision to this same value.
-                record.put("revision", Math.max(1L, input.optLong("revision", 1L)));
+                // Ordinary local mutations advance the local revision. This is
+                // required for sequential offline sales of the same SKU: each
+                // queued sale carries the revision observed before that sale.
+                // Server-committed snapshots use the dedicated atomic method and
+                // preserve the authoritative server revision separately.
+                long nextRevision = previous == null ? 1L
+                        : Math.max(1L, previous.optLong("revision", 0L) + 1L);
+                record.put("revision", Math.max(input.optLong("revision", 1L), nextRevision));
                 // Internal compare-and-set metadata is consumed by LocalStore and
                 // never persisted in the user payload or SQLite columns.
                 if (input.has("expectedRevision")) {
