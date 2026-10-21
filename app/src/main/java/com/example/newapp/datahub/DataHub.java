@@ -268,6 +268,54 @@ public class DataHub {
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
 
     /**
+     * Apply records returned by a successful authoritative Cloud Function.
+     * Unlike ordinary local edits, these snapshots are already committed in
+     * Firestore, so persist them locally as synced without queuing another upload.
+     */
+    public synchronized boolean saveServerCommittedRecordsAtomically(
+            String storeId, List<JSONObject> records) {
+        if (isBlank(storeId) || records == null || records.isEmpty()) return false;
+        String checkedStore = storeId.trim();
+        try {
+            java.util.List<JSONObject> prepared = new java.util.ArrayList<>();
+            java.util.Set<String> keys = new java.util.HashSet<>();
+            for (JSONObject input : records) {
+                if (input == null) return false;
+                String recordId = input.optString("recordId", "").trim();
+                String dataType = input.optString("dataType", "").trim();
+                JSONObject payload = input.optJSONObject("payload");
+                if (recordId.isEmpty() || dataType.isEmpty() || payload == null
+                        || !keys.add(recordId)) return false;
+                String recordStore = input.optString("storeId", checkedStore).trim();
+                if (!checkedStore.equals(recordStore)) return false;
+                JSONObject previous = localStore.getRecord(checkedStore, recordId);
+                JSONObject record = new JSONObject();
+                record.put("storeId", checkedStore);
+                record.put("recordId", recordId);
+                record.put("dataType", dataType);
+                record.put("schemaVersion", Math.max(1, input.optInt("schemaVersion", 1)));
+                record.put("updatedAt", Math.max(1L, input.optLong("updatedAt", System.currentTimeMillis())));
+                record.put("revision", Math.max(input.optLong("revision", 1L),
+                        previous == null ? 1L : previous.optLong("revision", 0L) + 1L));
+                if (input.has("expectedRevision")) {
+                    record.put("expectedRevision", input.optLong("expectedRevision", -1L));
+                }
+                record.put("payload", payload);
+                prepared.add(record);
+            }
+            boolean saved = localStore.saveServerCommittedRecordsAtomically(prepared);
+            if (saved) {
+                StoreIdentity.save(appContext, checkedStore);
+                refreshStatus(checkedStore);
+            }
+            return saved;
+        } catch (Exception error) {
+            dataHubStatus.setStatus(SYNC_FAILED, "บันทึกข้อมูลที่ยืนยันจากเซิร์ฟเวอร์ไม่สำเร็จ");
+            return false;
+        }
+    }
+
+    /**
      * จำนวนรายการในเครื่องที่ยังไม่ได้สำรองสำเร็จ
      */
     public int getPendingBackupCount() {
