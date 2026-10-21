@@ -26,8 +26,7 @@ public class SellScreen extends Activity {
         if(!c.moveToFirst()){c.close();new AlertDialog.Builder(this).setMessage("ไม่พบสินค้านี้ในคลังสินค้า").setPositiveButton("ตกลง",(d,w)->scan()).setNegativeButton("จบบิล",(d,w)->showCart()).show();return;}
         long id=c.getLong(0);String name=c.getString(1),unit=c.getString(2);long price=c.getLong(3);int stock=c.getInt(4);c.close();
         Item old=cart.get(id);if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
-        PosUi.speak(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ");
-        new AlertDialog.Builder(this).setMessage("สแกนแล้ว: "+name+"\nต้องการสแกนสินค้าต่อหรือจบบิล?").setPositiveButton("สแกนต่อ",(d,w)->scan()).setNegativeButton("จบบิล",(d,w)->showCart()).show();
+        PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",()->new AlertDialog.Builder(this).setMessage("สแกนแล้ว: "+name+"\\nต้องการสแกนสินค้าต่อหรือจบบิล?").setPositiveButton("สแกนต่อ",(d,w)->scan()).setNegativeButton("จบบิล",(d,w)->showCart()).show());
     }
     private long subtotal(){long s=0;for(Item i:cart.values())s+=i.price*i.qty;return s;}
     private void showCart(){
