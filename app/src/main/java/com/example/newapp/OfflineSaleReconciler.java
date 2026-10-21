@@ -17,7 +17,7 @@ import java.util.Map;
 
 /**
  * Replays offline sale bills as idempotent server transactions in creation order.
- * Generic record-by-record backup is deliberately paused while these bills exist.
+ * Generic record-by-record sync is deliberately paused while these bills exist.
  */
 public final class OfflineSaleReconciler {
     public interface Callback {
@@ -124,7 +124,7 @@ public final class OfflineSaleReconciler {
                 customer.put("dataType", "credit_customer");
                 customer.put("payload", payload);
             } catch (Exception error) {
-                callback.onComplete(false, "กู้คืนข้อมูลลูกหนี้จากบิลออฟไลน์ไม่สำเร็จ");
+                callback.onComplete(false, "สร้างข้อมูลลูกหนี้จากบิลออฟไลน์ไม่สำเร็จ");
                 return;
             }
         }
