@@ -24,7 +24,7 @@ public class ReportScreen extends Activity {
         PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
         addChart("ยอดขายรายวัน • 7 วันล่าสุด","day");
         addChart("ยอดขายรายสัปดาห์ • 4 สัปดาห์ล่าสุด","week");
-        addChart("ยอดขายรายเดือน • 12 เดือนล่าสุด","month");
+        addChart("ยอดขายรายปี • 12 เดือนล่าสุด","month");
         PosUi.back(this,root);
     }
     private void addChart(String title,String unit){
@@ -45,9 +45,9 @@ public class ReportScreen extends Activity {
     }
     private void returnedCancelled(){
         root=PosUi.page(this,"รายการบิลคืนสินค้า / ยกเลิก");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","status","subtotal_satang","fee_satang","total_satang","archived_at"},"status IN ('RETURNED','CANCELLED')",null,null,null,"archived_at DESC");
+        Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"bill_code","event_type","subtotal_satang","fee_satang","total_satang","created_at"},"event_type IN ('RETURN','CANCEL')",null,null,null,"created_at DESC");
         if(!c.moveToFirst())PosUi.line(this,root,"ยังไม่มีบิลคืนสินค้าหรือยกเลิก");
-        else do{String status=c.getString(1);PosUi.line(this,root,c.getString(0)+" • "+(status.equals("RETURNED")?"คืนสินค้า":"ยกเลิก")+" • ยอดสินค้า "+PosDatabase.money(c.getLong(2))+" บาท • ค่าบริการ "+PosDatabase.money(c.getLong(3))+" บาท • "+new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(5))));}while(c.moveToNext());
+        else do{String event=c.getString(1);PosUi.line(this,root,c.getString(0)+" • "+(event.equals("RETURN")?"คืนสินค้า":"ยกเลิก")+" • ยอดสินค้า "+PosDatabase.money(Math.abs(c.getLong(2)))+" บาท • ค่าบริการ "+PosDatabase.money(Math.abs(c.getLong(3)))+" บาท • "+new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(5))));}while(c.moveToNext());
         c.close();PosUi.back(this,root);
     }
     private long startOfDay(){Calendar c=Calendar.getInstance();c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
