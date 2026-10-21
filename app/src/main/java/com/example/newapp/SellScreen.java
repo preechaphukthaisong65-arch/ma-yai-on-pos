@@ -3,6 +3,10 @@ package com.example.newapp;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -23,6 +27,7 @@ import androidx.core.content.ContextCompat;
 import com.journeyapps.barcodescanner.BarcodeCallback;
 import com.journeyapps.barcodescanner.BarcodeResult;
 import com.journeyapps.barcodescanner.DecoratedBarcodeView;
+import com.example.newapp.datahub.ServerSaleService;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -42,6 +47,7 @@ public class SellScreen extends Activity {
     private long lastBarcodeAt = 0;
     private final LinkedHashMap<String, CartLine> cart = new LinkedHashMap<>();
     private String currentBillId;
+    private String pendingBillId;
     private TextView changeText;
     private EditText cashReceived;
     private static final class CartLine {
@@ -158,7 +164,8 @@ public class SellScreen extends Activity {
         if(type.equals("cash")&&received<total){Toast.makeText(this,"จำนวนเงินที่รับมาต้องไม่น้อยกว่ายอดชำระ",Toast.LENGTH_LONG).show();return;}
         if(cart.isEmpty()){Toast.makeText(this,"ไม่มีสินค้าในรายการ",Toast.LENGTH_SHORT).show();return;}
         confirmed=true;
-        String billId=repo.newId("sale_bill");
+        String billId = pendingBillId == null ? repo.newId("sale_bill") : pendingBillId;
+        pendingBillId = billId;
         try{
             double sub=subtotal();double fee=type.equals("credit")?sub*.05:0;
             JSONObject bill=new JSONObject();bill.put("billId",billId);bill.put("createdAt",System.currentTimeMillis());
@@ -196,17 +203,133 @@ public class SellScreen extends Activity {
                 receipt.put("customerLastName",bill.optString("customerLastName"));
                 receipt.put("customerName",bill.optString("customerName"));
             }
-            if(repo.confirmSale(billId,bill,products,quantities,receipt)){
-                cart.clear();currentBillId=billId;
-                LinearLayout root=POSUi.page(this,"บันทึกการขายแล้ว");
-                root.addView(POSUi.text(this,"สถานะ: "+bill.optString("paymentStatus"),18));
-                root.addView(POSUi.text(this,"ยอดรวม: "+money(total)+" บาท",22));
-                root.addView(POSUi.text(this,"บันทึกใบเสร็จแล้ว — พร้อมเปิดหน้าพิมพ์หรือพิมพ์ซ้ำ",15));
-                POSUi.button(this,root,"เปิดใบเสร็จ / พิมพ์",()->{Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);});
-                POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
-            }else{confirmed=false;Toast.makeText(this,"บันทึกการขายไม่สำเร็จ กรุณาตรวจสอบก่อนลองใหม่",Toast.LENGTH_LONG).show();}
+            if (hasInternetConnection()) {
+                List<JSONObject> serverItems = new ArrayList<>();
+                for (int i = 0; i < products.size(); i++) {
+                    JSONObject item = new JSONObject();
+                    item.put("productRecordId", products.get(i).optString("recordId"));
+                    item.put("quantity", quantities.get(i));
+                    item.put("localRevision", products.get(i).optLong("revision", 0L));
+                    serverItems.add(item);
+                }
+                new ServerSaleService(getApplicationContext()).commit(
+                        repo.getStoreId(), billId, type, received,
+                        bill.optString("customerRecordId", ""), customer, serverItems,
+                        new ServerSaleService.Callback() {
+                            @Override public void onSuccess(List<JSONObject> records, boolean alreadyCommitted) {
+                                runOnUiThread(() -> {
+                                    if (records == null || records.isEmpty()) {
+                                        confirmed = true;
+                                        cart.clear();
+                                        currentBillId = billId;
+                                        showSaleNeedsReconciliation(billId,
+                                                "เซิร์ฟเวอร์แจ้งว่าบิลนี้ถูกบันทึกแล้ว แต่ยังยืนยันข้อมูลในเครื่องไม่ได้ "
+                                                + "ห้ามกดยืนยันขายซ้ำ ให้ตรวจใบเสร็จและข้อมูลร้านก่อน");
+                                        return;
+                                    }
+                                    JSONObject authoritativeBill = null;
+                                    for (JSONObject record : records) {
+                                        if ("sale_bill".equals(record.optString("dataType"))) {
+                                            authoritativeBill = record.optJSONObject("payload");
+                                            break;
+                                        }
+                                    }
+                                    if (authoritativeBill == null) {
+                                        confirmed = true;
+                                        cart.clear();
+                                        currentBillId = billId;
+                                        showSaleNeedsReconciliation(billId,
+                                                "เซิร์ฟเวอร์บันทึกคำขอแล้ว แต่ไม่ส่งรายละเอียดบิลกลับมา ห้ามขายซ้ำ");
+                                        return;
+                                    }
+                                    if (!repo.applyServerCommittedSaleRecords(records)) {
+                                        confirmed = true;
+                                        cart.clear();
+                                        currentBillId = billId;
+                                        showSaleNeedsReconciliation(billId,
+                                                "เซิร์ฟเวอร์บันทึกการขายและตัดสต๊อกแล้ว แต่ข้อมูลในเครื่องมี revision ขัดแย้ง "
+                                                + "จึงไม่เขียนทับข้อมูลเดิม ห้ามขายซ้ำบิลนี้");
+                                        return;
+                                    }
+                                    cart.clear();
+                                    currentBillId = billId;
+                                    pendingBillId = null;
+                                    showSaleSaved(billId, authoritativeBill.optString("paymentStatus"),
+                                            authoritativeBill.optDouble("total", total));
+                                });
+                            }
+                            @Override public void onFailure(String message) {
+                                runOnUiThread(() -> {
+                                    confirmed = false;
+                                    Toast.makeText(SellScreen.this,
+                                            "เซิร์ฟเวอร์ยังไม่ยืนยันการขาย: " + message
+                                            + " กรุณาตรวจสอบสถานะก่อนลองใหม่",
+                                            Toast.LENGTH_LONG).show();
+                                });
+                            }
+                        });
+                return;
+            }
+            // Offline sales remain in SQLite and pending sync; reconnect reconciliation
+            // must still detect conflicts rather than blindly overwrite the server.
+            if (repo.confirmSale(billId,bill,products,quantities,receipt)) {
+                cart.clear(); currentBillId=billId; pendingBillId=null;
+                showOfflineSaleSaved(billId, bill.optString("paymentStatus"), total);
+            } else {
+                confirmed=false;
+                Toast.makeText(this,"บันทึกการขายไม่สำเร็จ กรุณาตรวจสอบก่อนลองใหม่",Toast.LENGTH_LONG).show();
+            }
         }catch(Exception e){confirmed=false;Toast.makeText(this,"เกิดข้อผิดพลาดในการบันทึกการขาย",Toast.LENGTH_LONG).show();}
     }
+    private boolean hasInternetConnection() {
+        try {
+            ConnectivityManager manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (manager == null) return false;
+            Network active = manager.getActiveNetwork();
+            if (active == null) return false;
+            NetworkCapabilities caps = manager.getNetworkCapabilities(active);
+            return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        } catch (RuntimeException error) { return false; }
+    }
+
+    private void showSaleSaved(String billId, String paymentStatus, double total) {
+        LinearLayout root=POSUi.page(this,"บันทึกการขายแล้ว");
+        root.addView(POSUi.text(this,"สถานะ: "+paymentStatus,18));
+        root.addView(POSUi.text(this,"ยอดรวม: "+money(total)+" บาท",22));
+        root.addView(POSUi.text(this,"บันทึกใบเสร็จแล้ว — พร้อมเปิดหน้าพิมพ์หรือพิมพ์ซ้ำ",15));
+        POSUi.button(this,root,"เปิดใบเสร็จ / พิมพ์",()->{Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);});
+        POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
+        setContentView(root);
+    }
+
+    private void showOfflineSaleSaved(String billId, String paymentStatus, double total) {
+        LinearLayout root=POSUi.page(this,"บันทึกการขายในเครื่องแล้ว");
+        root.addView(POSUi.text(this,"สถานะการชำระ: "+paymentStatus,18));
+        root.addView(POSUi.text(this,"ยอดรวมในเครื่อง: "+money(total)+" บาท",22));
+        root.addView(POSUi.text(this,
+                "ยังไม่ได้ยืนยันกับ Cloud — รายการนี้รอซิงก์เมื่ออินเทอร์เน็ตกลับมา "
+                + "หากข้อมูลสต๊อกหรือราคาเปลี่ยนจากอีกเครื่อง ระบบอาจต้องตรวจสอบก่อนรวมข้อมูล",
+                15));
+        root.addView(POSUi.text(this,"รหัสบิล: "+billId,14));
+        POSUi.button(this,root,"เปิดใบเสร็จ / พิมพ์",()->{
+            Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);
+        });
+        POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
+        setContentView(root);
+    }
+
+    private void showSaleNeedsReconciliation(String billId, String message) {
+        LinearLayout root=POSUi.page(this,"ต้องตรวจสอบข้อมูลการขาย");
+        root.addView(POSUi.text(this,message,17));
+        root.addView(POSUi.text(this,"รหัสบิล: "+billId,14));
+        POSUi.button(this,root,"เปิดใบเสร็จ / ตรวจสอบบิล",()->{
+            Intent i=new Intent(this,ReceiptReprintScreen.class);i.putExtra("billId",billId);startActivity(i);
+        });
+        POSUi.button(this,root,"กลับหน้าหลัก",this::finish);
+        setContentView(root);
+    }
+
     private String money(double n){return String.format(Locale.US,"%.2f",n);}
     private String format(double n){return n==(long)n?Long.toString((long)n):Double.toString(n);}
 }

@@ -1,0 +1,35 @@
+name: Firebase Functions Tests
+
+on:
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "functions/**"
+      - "firebase.json"
+      - ".github/workflows/functions-tests.yml"
+  push:
+    branches:
+      - main
+      - fix/single-active-device-lock
+      - feat/server-atomic-sales
+    paths:
+      - "functions/**"
+      - "firebase.json"
+      - ".github/workflows/functions-tests.yml"
+
+jobs:
+  test-functions:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package.json
+      - run: npm install --no-audit --no-fund
+      - run: node --check index.js
+      - run: npm test
