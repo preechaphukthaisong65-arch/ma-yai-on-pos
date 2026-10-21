@@ -24,8 +24,12 @@ final class DebtReminderNotifier {
         long id,total,oldest;String name,message;
         Debt(long id,String name,long total,long oldest){this.id=id;this.name=name;this.total=total;this.oldest=oldest;
             String date=new SimpleDateFormat("dd/MM/yy",Locale.getDefault()).format(new java.util.Date(oldest));
-            this.message=name+" ค้างชำระ "+PosDatabase.money(total)+" บาท ตั้งแต่วันที่ "+date;
+            this.message=name+" ค้างชำระ "+amount(total)+" บาท ตั้งแต่วันที่ "+date;
         }
+    }
+    private static String amount(long satang){
+        if(satang%100L==0L)return String.format(Locale.US,"%,d",satang/100L);
+        return String.format(Locale.US,"%,.2f",satang/100.0d);
     }
     private static ArrayList<Debt> overdue(Context context){
         Calendar cutoff=Calendar.getInstance();cutoff.add(Calendar.MONTH,-1);
