@@ -23,6 +23,8 @@ public final class NotificationScreen extends Activity {
 
     private void render() {
         LinearLayout root = POSUi.page(this, "การแจ้งเตือน");
+        POSUi.button(this, root, "สถานะซิงก์ข้อมูล", () ->
+                startActivity(new android.content.Intent(this, CloudSyncStatusScreen.class)));
         POSUi.button(this, root, "กลับ", this::finish);
         String storeId = StoreIdentity.get(this);
         if (storeId.isEmpty()) {
