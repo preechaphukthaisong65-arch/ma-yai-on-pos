@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Button;
+import android.widget.AutoCompleteTextView;
+import android.widget.ArrayAdapter;
 import com.journeyapps.barcodescanner.DecoratedBarcodeView;
 import com.journeyapps.barcodescanner.BarcodeCallback;
 import com.journeyapps.barcodescanner.BarcodeResult;
@@ -104,12 +106,19 @@ public class SellScreen extends Activity {
         PosUi.back(this,root);
     }
     private void creditSale(){
-        root=PosUi.page(this,"ขายเชื่อ");EditText customer=PosUi.input(this,root,"ชื่อลูกค้า-ชื่อและนามสกุล");
+        root=PosUi.page(this,"ขายเชื่อ");
+        PosUi.line(this,root,"เลือกลูกค้าเดิมจากคำแนะนำ หรือกรอกชื่อเต็มเพื่อสร้างลูกค้าใหม่");
+        AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);
+        java.util.ArrayList<String> customerNames=new java.util.ArrayList<>();
+        Cursor names=helper.getReadableDatabase().query("customers",new String[]{"full_name"},null,null,null,null,"full_name COLLATE NOCASE ASC");
+        while(names.moveToNext())customerNames.add(names.getString(0));names.close();
+        customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
+        root.addView(customer,new LinearLayout.LayoutParams(-1,-2));
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
         PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
         PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
         PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
-        PosUi.speakThen(this,"ขายเชื่อ ค่าบริการ 5 เปอร์เซ็นต์ "+PosDatabase.money(fee)+" บาท ยอดหนี้รวม "+PosDatabase.money(total)+" บาท",()->PosUi.button(this,root,"ยืนยันขายเชื่อ",v->{String n=PosUi.str(customer);if(n.isEmpty()){customer.setError("กรอกชื่อเต็มลูกค้า");return;}commitSale(true,n,0);}));
+        PosUi.speakThen(this,"ขายเชื่อ ค่าบริการ 5 เปอร์เซ็นต์ "+PosDatabase.money(fee)+" บาท ยอดหนี้รวม "+PosDatabase.money(total)+" บาท",()->PosUi.button(this,root,"ยืนยันขายเชื่อ",v->{String n=customer.getText().toString().trim();if(n.isEmpty()){customer.setError("กรอกชื่อเต็มลูกค้า");return;}commitSale(true,n,0);}));
         PosUi.back(this,root);
     }
     private void commitSale(boolean credit,String customerName,long cash){
