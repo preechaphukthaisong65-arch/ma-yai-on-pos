@@ -30,7 +30,7 @@ public class BarcodeScreen extends Activity {
                 ContentValues reg=new ContentValues();reg.put("barcode",code);reg.put("name",n);reg.put("price_satang",p);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,reg);
                 ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));db.update("app_meta",meta,"key='barcode_sequence'",null);db.setTransactionSuccessful();
             }finally{db.endTransaction();}
-            new AlertDialog.Builder(this).setTitle("สร้างบาร์โค้ดสำเร็จ").setMessage("สินค้า: "+n+"\nบาร์โค้ด: "+code+"\nราคา: "+PosDatabase.money(p)+" บาท").setPositiveButton("ตกลง",(d,w)->home()).show();
+            final String generatedCode=code;new AlertDialog.Builder(this).setTitle("สร้างบาร์โค้ดสำเร็จ").setMessage("สินค้า: "+n+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+PosDatabase.money(p)+" บาท").setPositiveButton("ตกลง",(d,w)->home()).show();
         }catch(Exception e){new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
         PosUi.back(this,root);
     }
