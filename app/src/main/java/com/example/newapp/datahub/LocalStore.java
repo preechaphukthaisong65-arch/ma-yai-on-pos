@@ -336,7 +336,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     /**
      * Persist snapshots returned by a successful server transaction and mark them
      * synced in the SAME SQLite transaction. They already exist in Firestore;
-     * sending them through the generic backup worker could create a second,
+     * sending them through the generic sync worker could create a second,
      * stale write after the server has committed the sale.
      */
     public synchronized boolean saveServerCommittedRecordsAtomically(List<JSONObject> records) {
@@ -414,7 +414,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * เปลี่ยนสถานะหลังการสำรองข้อมูล
+     * เปลี่ยนสถานะหลังการซิงก์ข้อมูล
      */
     public synchronized boolean markSyncStatus(
             String storeId,
@@ -481,8 +481,7 @@ public final class LocalStore extends SQLiteOpenHelper {
     }
 
     /**
-     * กู้คืนเฉพาะรายการที่ยังไม่มีในเครื่อง
-     * ไม่เขียนทับรายการที่มีอยู่แล้ว
+     * อ่านข้อมูลรายการจากฐานข้อมูลในเครื่อง
      */
     private JSONObject readRecord(
             Cursor cursor
