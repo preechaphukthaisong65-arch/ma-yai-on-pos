@@ -74,14 +74,20 @@ public class StockScreen extends Activity {
         c.close();PosUi.button(this,root,"สแกนบาร์โค้ดอื่น",v->scanAgain());PosUi.back(this,root);
     }
     private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
-        SQLiteDatabase db=helper.getWritableDatabase();boolean saved=false;db.beginTransaction();try{
+        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
+        try{
+            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
             ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
             int n=db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
             if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
             h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
             db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();saved=true;
-        }catch(Exception e){new AlertDialog.Builder(this).setMessage(e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
+        }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();saved=false;}
+        finally{
+            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
+        }
+        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกสต๊อกไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
         return saved;
     }
     private void newProduct(String barcode){
