@@ -28,31 +28,8 @@ public final class DebtReminderWorker extends Worker {
     }
 
     @Override public Result doWork() {
-        try {
-            Context context = getApplicationContext();
-            String storeId = StoreIdentity.get(context);
-            if (storeId == null || storeId.trim().isEmpty()) {
-                DebtReminderScheduler.scheduleNext(context);
-                return Result.success();
-            }
-            long cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30);
-            Map<String, Double> debts = new LinkedHashMap<>();
-            for (JSONObject bill : DataHub.getInstance(context).getRecordsByType(storeId, "sale_bill")) {
-                JSONObject p = bill.optJSONObject("payload");
-                if (p == null || !"credit".equals(p.optString("paymentType"))
-                        || !"ค้างชำระ".equals(p.optString("paymentStatus"))) continue;
-                long createdAt = p.optLong("createdAt", 0L);
-                if (createdAt <= 0L || createdAt > cutoff) continue;
-                String name = p.optString("customerName", "ไม่ระบุชื่อลูกค้า").trim();
-                double balance = Math.max(0d, p.optDouble("remainingBalance", p.optDouble("total", 0d)));
-                debts.put(name, debts.getOrDefault(name, 0d) + balance);
-            }
-            if (!debts.isEmpty()) postNotification(context, debts);
-        } catch (Exception ignored) {
-            // A transient notification failure must not delete or alter sales data.
-        } finally {
-            DebtReminderScheduler.scheduleNext(getApplicationContext());
-        }
+        // Reminder timing, wording, and individual-versus-aggregate content require
+        // owner confirmation. Do not send the previous unapproved notification.
         return Result.success();
     }
 
