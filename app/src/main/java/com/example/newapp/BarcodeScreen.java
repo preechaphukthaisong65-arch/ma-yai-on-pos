@@ -17,7 +17,6 @@ public class BarcodeScreen extends Activity {
     private void home(){root=PosUi.page(this,"สร้างบาร์โค้ด");
         PosUi.button(this,root,"สร้างบาร์โค้ดใหม่",v->create());
         PosUi.button(this,root,"คลังบาร์โค้ด",v->registry());
-        PosUi.button(this,root,"ค้นหาด้วยการสแกน",v->PosUi.scan(this));
         PosUi.back(this,root);
     }
     private void create(){
@@ -44,7 +43,7 @@ public class BarcodeScreen extends Activity {
         PosUi.back(this,root);
     }
     private void registry(){
-        root=PosUi.page(this,"คลังบาร์โค้ด");EditText query=PosUi.input(this,root,"ค้นหาจากชื่อหรือบาร์โค้ด");PosUi.button(this,root,"ค้นหา",v->search(query.getText().toString().trim()));PosUi.button(this,root,"แสดงทั้งหมด",v->search(""));
+        root=PosUi.page(this,"คลังบาร์โค้ด");EditText query=PosUi.input(this,root,"ค้นหาจากชื่อหรือบาร์โค้ด");PosUi.button(this,root,"ค้นหา",v->search(query.getText().toString().trim()));PosUi.button(this,root,"สแกนบาร์โค้ดเพื่อค้นหา",v->PosUi.scan(this));PosUi.button(this,root,"แสดงทั้งหมด",v->search(""));
         PosUi.back(this,root);
     }
     private void search(String q){
