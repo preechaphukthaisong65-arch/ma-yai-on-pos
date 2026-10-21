@@ -28,10 +28,11 @@ public final class CloudSyncStatusScreen extends Activity {
         DataHubStatus status = hub.getStatus();
         root.addView(POSUi.text(this, "รหัสร้าน: "
                 + (storeId.isEmpty() ? "ยังไม่ได้ยืนยันสิทธิ์ร้าน" : storeId), 15));
-        root.addView(POSUi.text(this, "สถานะล่าสุดในแอป: " + status.getStatus(), 16));
-        root.addView(POSUi.text(this, "รายละเอียด: " + status.getMessage(), 15));
-        root.addView(POSUi.text(this, "รายการที่ยังรอซิงก์: "
-                + hub.getPendingSyncCount(storeId) + " รายการ", 16));
+        int pending = hub.getPendingSyncCount(storeId);
+        root.addView(POSUi.text(this, "สถานะคิวในเครื่อง: "
+                + (pending == 0 ? "ไม่มีรายการรอซิงก์" : status.getStatus()), 16));
+        root.addView(POSUi.text(this, "รายละเอียดล่าสุด: " + status.getMessage(), 15));
+        root.addView(POSUi.text(this, "รายการที่ยังรอซิงก์: " + pending + " รายการ", 16));
         POSUi.button(this, root, "ลองซิงก์ข้อมูลที่รออยู่", this::syncNow);
         POSUi.button(this, root, "กลับ", this::finish);
     }
