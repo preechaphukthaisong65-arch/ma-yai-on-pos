@@ -143,3 +143,83 @@ test("unreviewed collections remain denied", async () => {
 test("store owner can delete a matching backup record for guarded retention cleanup", async () => {
   await assertSucceeds(deleteDoc(doc(ownerDb(), "dataHubBackups", STORE_ID, "records", RECORD_ID)));
 });
+
+
+test("after device B takes over, queued offline writes from device A are rejected", async () => {
+  const db = ownerDb();
+  await assertSucceeds(updateDoc(doc(db, "storeDeviceSessions", STORE_ID), {
+    activeDeviceId: "device-b",
+  }));
+  await assertFails(setDoc(
+    doc(db, "dataHubBackups", STORE_ID, "records", "queued-from-offline-a"),
+    validRecord(1, { recordId: "queued-from-offline-a", deviceId: "device-a" })
+  ));
+});
+
+test("after device takeover, the old device cannot mutate an existing backup", async () => {
+  const db = ownerDb();
+  await assertSucceeds(updateDoc(doc(db, "storeDeviceSessions", STORE_ID), {
+    activeDeviceId: "device-b",
+  }));
+  await assertFails(updateDoc(
+    doc(db, "dataHubBackups", STORE_ID, "records", RECORD_ID),
+    { revision: 2, updatedAt: 1002, deviceId: "device-a" }
+  ));
+});
+
+test("device session cannot be deleted to bypass single-device enforcement", async () => {
+  await assertFails(deleteDoc(doc(ownerDb(), "storeDeviceSessions", STORE_ID)));
+});
+
+test("invalid revisions and malformed backup payloads are rejected", async () => {
+  const db = ownerDb();
+  await assertFails(setDoc(
+    doc(db, "dataHubBackups", STORE_ID, "records", "negative-revision"),
+    validRecord(1, { recordId: "negative-revision", revision: -1 })
+  ));
+  await assertFails(setDoc(
+    doc(db, "dataHubBackups", STORE_ID, "records", "non-map-payload"),
+    validRecord(1, { recordId: "non-map-payload", payload: "not-an-object" })
+  ));
+  await assertFails(setDoc(
+    doc(db, "dataHubBackups", STORE_ID, "records", "wrong-store"),
+    validRecord(1, { recordId: "wrong-store", storeId: "another-store" })
+  ));
+});
+
+test("barcode reservations cannot be edited or deleted after creation", async () => {
+  const db = ownerDb();
+  const reservation = doc(db, "storeBarcodeReservations", STORE_ID, "barcodes", "000000000555");
+  await assertSucceeds(setDoc(reservation, {
+    storeId: STORE_ID,
+    barcode: "000000000555",
+    ownerUid,
+    deviceId: activeDeviceId,
+    createdAt: 1000,
+  }));
+  await assertFails(updateDoc(reservation, { createdAt: 2000 }));
+  await assertFails(deleteDoc(reservation));
+});
+
+test("a stale device cannot delete another device's backup during cleanup", async () => {
+  const db = ownerDb();
+  await assertSucceeds(updateDoc(doc(db, "storeDeviceSessions", STORE_ID), {
+    activeDeviceId: "device-b",
+  }));
+  await assertFails(deleteDoc(doc(db, "dataHubBackups", STORE_ID, "records", RECORD_ID)));
+});
+
+test("reservation and backup writes fail when the active-device session is missing", async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await deleteDoc(doc(context.firestore(), "storeDeviceSessions", STORE_ID));
+  });
+  const db = ownerDb();
+  await assertFails(setDoc(
+    doc(db, "dataHubBackups", STORE_ID, "records", "no-session"),
+    validRecord(1, { recordId: "no-session" })
+  ));
+  await assertFails(setDoc(
+    doc(db, "storeBarcodeReservations", STORE_ID, "barcodes", "000000000777"),
+    { storeId: STORE_ID, barcode: "000000000777", ownerUid, deviceId: activeDeviceId, createdAt: 1000 }
+  ));
+});
