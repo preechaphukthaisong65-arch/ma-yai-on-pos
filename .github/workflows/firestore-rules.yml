@@ -6,11 +6,14 @@ on:
       - feat/owner-email-auth
       - fix/single-active-device-lock
       - feat/server-atomic-sales
+      - fix/server-committed-local-sync
   pull_request:
     branches:
       - feature/complete-missing-menus
       - feat/owner-email-auth
       - fix/single-active-device-lock
+      - feat/server-atomic-sales
+      - fix/server-committed-local-sync
 
 permissions:
   contents: read
