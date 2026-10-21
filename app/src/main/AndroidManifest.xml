@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:allowBackup="false"
         android:icon="@mipmap/app_icon"
@@ -24,5 +25,11 @@
         <activity android:name=".ManageStoreScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".BarcodeScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".ReportScreen" android:screenOrientation="portrait" android:exported="false" />
+        <receiver android:name=".DebtReminderReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
