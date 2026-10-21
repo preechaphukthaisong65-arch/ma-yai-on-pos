@@ -245,7 +245,7 @@ public class CloudBackupService {
                 dueCents += cents;
                 cloudBills.add(cloud);
             }
-            if (receivedCents > dueCents) throw new IllegalStateException("เงินรับเกินยอดหนี้ล่าสุด");
+            if (receivedCents != dueCents) throw new IllegalStateException("ยอดรับชำระต้องเท่ากับยอดรวมเต็มจำนวนของบิลที่เลือก");
 
             List<JSONObject> committed = new ArrayList<>();
             List<Map<String, Object>> changedBillMaps = new ArrayList<>();
@@ -305,7 +305,7 @@ public class CloudBackupService {
             payment.put("paymentMethod", "cash");
             payment.put("billIds", billIds);
             payment.put("allocations", allocations);
-            payment.put("isPartialPayment", receivedCents < dueCents);
+            payment.put("isPartialPayment", false);
             JSONObject receipt = new JSONObject();
             receipt.put("receiptId", "receipt:" + paymentId);
             receipt.put("paymentId", paymentId);
@@ -314,7 +314,7 @@ public class CloudBackupService {
             receipt.put("total", receivedCents / 100d);
             receipt.put("billIds", billIds);
             receipt.put("allocations", allocations);
-            receipt.put("paymentStatus", receivedCents < dueCents ? "ชำระบางส่วน" : "รับชำระแล้ว");
+            receipt.put("paymentStatus", "รับชำระแล้ว");
             receipt.put("printStatus", "pending");
             JSONObject history = new JSONObject();
             history.put("paymentId", paymentId);
