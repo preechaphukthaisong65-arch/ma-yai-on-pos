@@ -224,7 +224,16 @@ public class MainActivity extends Activity {
         }
         reconciliationRunning = true;
         DataHub hub = DataHub.getInstance(getApplicationContext());
-        hub.restoreMissingRecords(storeId, (restored, skipped, failed, message) -> runOnUiThread(() -> {
+        new OfflineSaleReconciler(getApplicationContext()).reconcile(storeId, (offlineOk, offlineMessage) -> runOnUiThread(() -> {
+            if (!offlineOk) {
+                reconciliationRunning = false;
+                android.widget.Toast.makeText(MainActivity.this,
+                        offlineMessage + " ข้อมูลในเครื่องยังคงเก็บไว้ และจะลองใหม่เมื่อพร้อม",
+                        android.widget.Toast.LENGTH_LONG).show();
+                refreshManagementNotice();
+                return;
+            }
+            hub.restoreMissingRecords(storeId, (restored, skipped, failed, message) -> runOnUiThread(() -> {
             int duplicateBarcodes = hub.getDuplicateBarcodeCount(storeId);
             if (failed > 0 || duplicateBarcodes > 0) {
                 // Keep this attempt serialized through its terminal callback, then permit retry.
@@ -247,6 +256,7 @@ public class MainActivity extends Activity {
                 }
                 refreshManagementNotice();
             }));
+        }));
         }));
     }
 
