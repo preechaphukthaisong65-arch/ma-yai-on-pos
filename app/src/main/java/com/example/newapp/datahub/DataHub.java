@@ -304,8 +304,8 @@ public class DataHub {
                 record.put("dataType", dataType);
                 record.put("schemaVersion", Math.max(1, input.optInt("schemaVersion", 1)));
                 record.put("updatedAt", Math.max(1L, input.optLong("updatedAt", System.currentTimeMillis())));
-                record.put("revision", Math.max(input.optLong("revision", 1L),
-                        previous == null ? 1L : previous.optLong("revision", 0L) + 1L));
+                // The server revision is authoritative; do not increment it again locally.
+                record.put("revision", Math.max(1L, input.optLong("revision", 1L)));
                 if (input.has("expectedRevision")) {
                     record.put("expectedRevision", input.optLong("expectedRevision", -1L));
                 }
