@@ -60,10 +60,10 @@ public class BarcodeScreen extends Activity {
         resultContainer = new LinearLayout(this);
         resultContainer.setOrientation(LinearLayout.VERTICAL);
         root.addView(resultContainer);
-        status = POSUi.text(this, "สถานะเครื่องพิมพ์: ใช้บริการพิมพ์ของ Android (ยังไม่ทราบรุ่นเครื่องพิมพ์)", 13);
+        status = POSUi.text(this, "ระบบพิมพ์บาร์โค้ดยังไม่เปิดใช้งาน จะพัฒนาในระยะถัดไป", 13);
         root.addView(status);
-        POSUi.button(this, root, "ค้นหาเครื่องพิมพ์", this::openPrintSettings);
-        POSUi.button(this, root, "เชื่อมต่อเครื่องพิมพ์", this::openPrintSettings);
+        POSUi.button(this, root, "ค้นหาเครื่องพิมพ์", this::printerDeferred);
+        POSUi.button(this, root, "เชื่อมต่อเครื่องพิมพ์", this::printerDeferred);
         POSUi.button(this, root, "คลังบาร์โค้ด", () -> startActivity(new Intent(this, BarcodeLibraryScreen.class)));
         POSUi.button(this, root, "กลับหน้าหลัก", this::finish);
     }
@@ -183,43 +183,11 @@ public class BarcodeScreen extends Activity {
             resultContainer.addView(preview, new LinearLayout.LayoutParams(-1, POSUi.dp(this, 100)));
         } catch (Exception ignored) { }
         resultContainer.addView(POSUi.text(this, lastName + " — " + String.format(Locale.US, "%.2f", lastPrice) + " บาท", 16));
-        POSUi.button(this, resultContainer, "พิมพ์บาร์โค้ด", this::askPrintQuantity);
+        POSUi.button(this, resultContainer, "พิมพ์บาร์โค้ด", this::printerDeferred);
     }
 
-    private void askPrintQuantity() {
-        EditText quantityInput = new EditText(this);
-        quantityInput.setHint("จำนวนฉลากที่ต้องการพิมพ์");
-        quantityInput.setInputType(2);
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("พิมพ์บาร์โค้ดเดิม")
-                .setMessage("จำนวนฉลากไม่ทำให้เกิดเลขบาร์โค้ดใหม่")
-                .setView(quantityInput)
-                .setNegativeButton("ยกเลิก", null)
-                .setPositiveButton("พิมพ์", (dialog, which) -> {
-                    int quantity;
-                    try { quantity = Integer.parseInt(quantityInput.getText().toString().trim()); }
-                    catch (Exception error) { quantity = 0; }
-                    if (quantity < 1 || quantity > 500) {
-                        Toast.makeText(this, "ระบุจำนวน 1–500 ฉลาก", Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-                    printManager.print("บาร์โค้ด-" + lastBarcode,
-                            new BarcodePrintAdapter(this, "บาร์โค้ด-" + lastBarcode, lastBarcode,
-                                    lastName, lastPrice, quantity),
-                            new android.print.PrintAttributes.Builder()
-                                    .setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4)
-                                    .setResolution(new android.print.PrintAttributes.Resolution("barcode", "Barcode", 300, 300))
-                                    .setMinMargins(android.print.PrintAttributes.Margins.NO_MARGINS)
-                                    .build());
-                }).show();
+    private void printerDeferred() {
+        Toast.makeText(this, "ระบบพิมพ์บาร์โค้ดจะพัฒนาในระยะถัดไป", Toast.LENGTH_LONG).show();
     }
 
-    private void openPrintSettings() {
-        try {
-            startActivity(new Intent(Settings.ACTION_PRINT_SETTINGS));
-        } catch (Exception error) {
-            Toast.makeText(this, "อุปกรณ์นี้ไม่มีหน้าตั้งค่าบริการพิมพ์ของ Android", Toast.LENGTH_LONG).show();
-        }
-    }
 }
