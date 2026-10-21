@@ -66,6 +66,17 @@ public class HistoryScreen extends Activity {
         return total;
     }
     private void payAll(long customerId,ArrayList<Long> ids,long total){
+        StringBuilder spoken=new StringBuilder();
+        SQLiteDatabase readDb=helper.getReadableDatabase();
+        for(long id:ids){
+            Cursor bill=readDb.query("bills",new String[]{"bill_code","subtotal_satang","fee_satang","total_satang"},"id=?",new String[]{String.valueOf(id)},null,null,null);
+            if(bill.moveToFirst()){spoken.append("บิล ").append(bill.getString(0)).append(" ");spoken.append("ยอดสินค้า ").append(PosDatabase.money(bill.getLong(1))).append(" บาท ");if(bill.getLong(2)>0)spoken.append("ค่าบริการ ").append(PosDatabase.money(bill.getLong(2))).append(" บาท ");spoken.append("ยอดตามบิล ").append(PosDatabase.money(bill.getLong(3))).append(" บาท ");}bill.close();
+            Cursor items=readDb.query("bill_items",new String[]{"product_name","quantity","unit","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
+            while(items.moveToNext())spoken.append(items.getString(0)).append(" ").append(items.getInt(1)).append(" ").append(items.getString(2)).append(" ราคา ").append(PosDatabase.money(items.getLong(3))).append(" บาท ");
+            items.close();
+        }
+        spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
+        PosUi.speakThen(this,spoken.toString(),()->{
         new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้").setMessage("รับเงินสด "+PosDatabase.money(total)+" บาท เพื่อชำระบิลทั้งหมดหรือไม่?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->{
             SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{long now=PosDatabase.now();
                 for(long id:ids){Cursor c=db.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","status"},"id=? AND customer_id=?",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
@@ -79,6 +90,7 @@ public class HistoryScreen extends Activity {
                 }db.setTransactionSuccessful();new AlertDialog.Builder(this).setMessage("บันทึกรับชำระหนี้เรียบร้อย").setPositiveButton("ตกลง",(x,y)->home()).show();
             }catch(Exception e){new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
         }).show();
+        });
     }
     private long getBillTime(SQLiteDatabase db,long id){Cursor c=db.query("bills",new String[]{"created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);long t=c.moveToFirst()?c.getLong(0):0;c.close();return t;}
 }
