@@ -129,6 +129,10 @@ public class MainActivity extends Activity {
         managementNotice = new TextView(this);
         managementNotice.setTextColor(Color.rgb(45, 90, 55));
         managementNotice.setTextSize(13);
+        managementNotice.setSingleLine(true);
+        managementNotice.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        managementNotice.setMarqueeRepeatLimit(-1);
+        managementNotice.setSelected(true);
         managementNotice.setPadding(dp(8), dp(6), dp(8), dp(6));
         managementNotice.setVisibility(View.GONE);
         page.addView(managementNotice);
