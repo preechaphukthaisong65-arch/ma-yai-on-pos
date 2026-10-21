@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:name=".MaYaiOnApplication"
         android:allowBackup="false"
         android:icon="@mipmap/app_icon"
         android:label="@string/app_name"
@@ -17,7 +9,7 @@
         android:theme="@style/Theme.MaYaiOnPOS">
 
         <activity
-            android:name=".StartupActivity"
+            android:name=".MainActivity"
             android:screenOrientation="portrait"
             android:exported="true">
             <intent-filter>
@@ -25,125 +17,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true" />
-
-        <activity
-            android:name=".SellScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".StockScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".CreateStockProductScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".StocktakeScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".StockProductListScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".ReceiveStockScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".StockLimitScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".StockAlertScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".ManageStoreScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".ManageScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".EditProductPriceScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".PriceHistoryScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".BarcodeScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".BarcodeLibraryScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".ReportScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".HistoryScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".CreditAccountScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".CreditPaymentHistoryScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".OverdueDebtScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".NotificationScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".CloudSyncStatusScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".PrinterScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".ReceiptReprintScreen"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
+        <activity android:name=".SellScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".StockScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".HistoryScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".ManageStoreScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".BarcodeScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".ReportScreen" android:screenOrientation="portrait" android:exported="false" />
     </application>
 </manifest>

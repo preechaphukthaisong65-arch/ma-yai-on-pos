@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - work/complete-pos-no-backup
+      - work/clean-home-six-blank-screens
       - feature/complete-missing-menus
       - feat/owner-email-auth
       - fix/single-active-device-lock
