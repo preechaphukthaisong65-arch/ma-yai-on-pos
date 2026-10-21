@@ -83,7 +83,7 @@ public class ManageStoreScreen extends Activity {
                 ContentValues li=new ContentValues();li.put("bill_id",id);li.put("bill_code",code);li.put("event_type",returning?"RETURN":"CANCEL");li.put("barcode",barcode);li.put("product_name",name);li.put("quantity",-qty);li.put("unit_price_satang",unitPrice);li.put("line_total_satang",-lineTotal);li.put("created_at",PosDatabase.now());db.insertOrThrow("sales_ledger_items",null,li);
             }items.close();
             ContentValues b=new ContentValues();b.put("status",returning?"RETURNED":"CANCELLED");b.put("archived_at",PosDatabase.now());b.put("archive_until",PosDatabase.now()+30L*86400000L);if(db.update("bills",b,"id=? AND bill_code=? AND status=?",new String[]{String.valueOf(id),code,status})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว ไม่สามารถดำเนินการซ้ำได้");
-            long ledgerFee=returning&&"PAID".equals(status)?0:-fee;
+            long ledgerFee="CREDIT".equals(type)?(returning&&"PAID".equals(status)?0:-fee):0;
             long ledgerSubtotal=-sub;long ledgerTotal=ledgerSubtotal+ledgerFee;
             ContentValues l=new ContentValues();l.put("bill_id",id);l.put("bill_code",code);l.put("sale_type",type);l.put("event_type",returning?"RETURN":"CANCEL");l.put("subtotal_satang",ledgerSubtotal);l.put("fee_satang",ledgerFee);l.put("total_satang",ledgerTotal);l.put("created_at",PosDatabase.now());db.insertOrThrow("sales_ledger",null,l);
             db.setTransactionSuccessful();new AlertDialog.Builder(this).setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();
