@@ -49,16 +49,16 @@ public class BarcodeLibraryScreen extends Activity {
     }
 
     private void loadItems() {
-        // Include generated items stored as product records and legacy barcode_item records.
-        // Prefer product records when a barcode appears in both types, because sales use products.
+        // Barcode-library records are canonical. Product records are read only as a
+        // compatibility fallback for factory barcodes created before the library existed.
         java.util.LinkedHashMap<String, JSONObject> byBarcode = new java.util.LinkedHashMap<>();
-        for (JSONObject record : hub.getRecordsByType(storeId, "barcode_item")) {
+        for (JSONObject record : hub.getRecordsByType(storeId, "product")) {
             JSONObject p = record.optJSONObject("payload");
             if (p == null) continue;
             String code = p.optString("barcode", "").trim();
             if (!code.isEmpty()) byBarcode.put(code, record);
         }
-        for (JSONObject record : hub.getRecordsByType(storeId, "product")) {
+        for (JSONObject record : hub.getRecordsByType(storeId, "barcode_item")) {
             JSONObject p = record.optJSONObject("payload");
             if (p == null) continue;
             String code = p.optString("barcode", "").trim();
@@ -73,39 +73,39 @@ public class BarcodeLibraryScreen extends Activity {
     private void search() {
         if (results == null) return;
         results.removeAllViews();
-        String q = POSUi.value(query).toLowerCase(Locale.ROOT);
+        String rawQuery = POSUi.value(query).trim();
+        String q = rawQuery.toLowerCase(Locale.ROOT);
+        boolean exactBarcodeQuery = false;
+        for (JSONObject record : items) {
+            JSONObject p = record.optJSONObject("payload");
+            if (p != null && rawQuery.equals(p.optString("barcode", "").trim())) {
+                exactBarcodeQuery = true;
+                break;
+            }
+        }
         int count = 0;
         for (JSONObject record : items) {
             JSONObject p = record.optJSONObject("payload");
             if (p == null) continue;
             String name = p.optString("name", "");
-            String code = p.optString("barcode", "");
-            if (!q.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(q) && !code.contains(q)) continue;
+            String code = p.optString("barcode", "").trim();
+            if (!q.isEmpty()) {
+                if (exactBarcodeQuery) {
+                    if (!rawQuery.equals(code)) continue;
+                } else if (!name.toLowerCase(Locale.ROOT).contains(q)) {
+                    continue;
+                }
+            }
             count++;
             results.addView(POSUi.text(this, name + "\nบาร์โค้ด: " + code + "\nราคา: "
                     + String.format(Locale.US, "%.2f", p.optDouble("price", 0d)) + " บาท", 16));
-            POSUi.button(this, results, "พิมพ์บาร์โค้ดเดิม", () -> printExisting(name, code, p.optDouble("price", 0d)));
+            POSUi.button(this, results, "พิมพ์บาร์โค้ดเดิม", this::printerDeferred);
         }
         if (count == 0) results.addView(POSUi.text(this, "ไม่พบรายการที่ตรงกับคำค้นหา", 15));
     }
 
-    private void printExisting(String name, String code, double price) {
-        EditText quantityInput = new EditText(this);
-        quantityInput.setHint("จำนวนฉลาก 1–500");
-        quantityInput.setInputType(2);
-        new android.app.AlertDialog.Builder(this).setTitle("พิมพ์ซ้ำ")
-                .setView(quantityInput).setNegativeButton("ยกเลิก", null)
-                .setPositiveButton("พิมพ์", (d,w) -> {
-                    int qty;
-                    try { qty = Integer.parseInt(quantityInput.getText().toString().trim()); } catch (Exception e) { qty = 0; }
-                    if (qty < 1 || qty > 500) { Toast.makeText(this, "ระบุจำนวน 1–500 ฉลาก", Toast.LENGTH_LONG).show(); return; }
-                    android.print.PrintManager manager = (android.print.PrintManager)getSystemService(PRINT_SERVICE);
-                    manager.print("บาร์โค้ด-" + code, new BarcodePrintAdapter(this, "บาร์โค้ด-" + code, code, name, price, qty),
-                            new android.print.PrintAttributes.Builder()
-                                    .setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4)
-                                    .setResolution(new android.print.PrintAttributes.Resolution("barcode", "Barcode", 300, 300))
-                                    .setMinMargins(android.print.PrintAttributes.Margins.NO_MARGINS).build());
-                }).show();
+    private void printerDeferred() {
+        Toast.makeText(this, "ระบบพิมพ์บาร์โค้ดจะพัฒนาในระยะถัดไป", Toast.LENGTH_LONG).show();
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {

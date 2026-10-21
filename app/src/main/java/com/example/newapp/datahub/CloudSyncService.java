@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
 
 import org.json.JSONArray;
@@ -17,22 +18,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class CloudBackupService {
+public class CloudSyncService {
 
-    private static final String COLLECTION_BACKUPS = "dataHubBackups";
+    private static final String COLLECTION_STORE_DATA = "dataHubBackups";
     private static final String COLLECTION_RECORDS = "records";
 
     private final FirebaseFirestore firestore;
     private final FirebaseAuth auth;
 
-    public interface BackupCallback {
+    public interface SyncCallback {
         void onSuccess();
-
-        void onFailure(String message);
-    }
-
-    public interface RecordsCallback {
-        void onSuccess(List<JSONObject> records);
 
         void onFailure(String message);
     }
@@ -42,7 +37,7 @@ public class CloudBackupService {
         void onFailure(String message);
     }
 
-    public CloudBackupService() {
+    public CloudSyncService() {
         firestore = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
     }
@@ -50,15 +45,15 @@ public class CloudBackupService {
     /**
      * Upload one record to Firestore.
      */
-    public void upload(JSONObject record, BackupCallback callback) {
+    public void upload(JSONObject record, SyncCallback callback) {
         if (record == null) {
-            failBackup(callback, "ไม่มีข้อมูลสำหรับสำรอง");
+            failSync(callback, "ไม่มีข้อมูลสำหรับซิงก์");
             return;
         }
 
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
-            failBackup(callback, "กรุณาเข้าสู่ระบบก่อนสำรองข้อมูล");
+            failSync(callback, "กรุณาเข้าสู่ระบบก่อนซิงก์ข้อมูล");
             return;
         }
 
@@ -66,13 +61,13 @@ public class CloudBackupService {
         String recordId = record.optString("recordId", "").trim();
 
         if (storeId.isEmpty() || recordId.isEmpty()) {
-            failBackup(callback, "ข้อมูลร้านค้าหรือรหัสรายการไม่ถูกต้อง");
+            failSync(callback, "ข้อมูลร้านค้าหรือรหัสรายการไม่ถูกต้อง");
             return;
         }
 
         JSONObject payload = getPayload(record);
         if (payload == null) {
-            failBackup(callback, "รูปแบบข้อมูลรายการไม่ถูกต้อง");
+            failSync(callback, "รูปแบบข้อมูลรายการไม่ถูกต้อง");
             return;
         }
 
@@ -104,7 +99,7 @@ public class CloudBackupService {
             cloudRecord.put("deviceId", record.optString("deviceId", ""));
 
             com.google.firebase.firestore.DocumentReference document =
-                    firestore.collection(COLLECTION_BACKUPS)
+                    firestore.collection(COLLECTION_STORE_DATA)
                             .document(storeId)
                             .collection(COLLECTION_RECORDS)
                             .document(recordId);
@@ -141,16 +136,16 @@ public class CloudBackupService {
                     callback.onSuccess();
                 }
             }).addOnFailureListener(error -> {
-                failBackup(
+                failSync(
                         callback,
-                        "สำรองข้อมูลไม่สำเร็จ: " + safeMessage(error)
+                        "ซิงก์ข้อมูลไม่สำเร็จ: " + safeMessage(error)
                 );
             });
 
         } catch (Exception error) {
-            failBackup(
+            failSync(
                     callback,
-                    "เตรียมข้อมูลสำรองไม่สำเร็จ: "
+                    "เตรียมข้อมูลเพื่อซิงก์ไม่สำเร็จ: "
                             + safeMessage(error)
             );
         }
@@ -201,7 +196,7 @@ public class CloudBackupService {
                 callback.onFailure("มีการเลือกบิลซ้ำ กรุณายกเลิกบิลที่ซ้ำแล้วลองใหม่");
                 return;
             }
-            billRefs.add(firestore.collection(COLLECTION_BACKUPS).document(store)
+            billRefs.add(firestore.collection(COLLECTION_STORE_DATA).document(store)
                     .collection(COLLECTION_RECORDS).document(id));
         }
 
@@ -222,7 +217,7 @@ public class CloudBackupService {
                         || !store.equals(cloud.getString("storeId"))
                         || !local.optString("recordId").equals(cloud.getString("recordId"))
                         || !"sale_bill".equals(cloud.getString("dataType"))) {
-                    throw new IllegalStateException("บิลไม่มีข้อมูลสำรองบนเซิร์ฟเวอร์ กรุณาซิงก์และตรวจสอบก่อนรับชำระ");
+                    throw new IllegalStateException("ไม่พบบิลบนเซิร์ฟเวอร์ กรุณาซิงก์และตรวจสอบก่อนรับชำระ");
                 }
                 Long cloudRevision = cloud.getLong("revision");
                 if (cloudRevision == null || cloudRevision.longValue() != local.optLong("revision", -1L)) {
@@ -245,7 +240,7 @@ public class CloudBackupService {
                 dueCents += cents;
                 cloudBills.add(cloud);
             }
-            if (receivedCents > dueCents) throw new IllegalStateException("เงินรับเกินยอดหนี้ล่าสุด");
+            if (receivedCents != dueCents) throw new IllegalStateException("ยอดรับชำระต้องเท่ากับยอดรวมเต็มจำนวนของบิลที่เลือก");
 
             List<JSONObject> committed = new ArrayList<>();
             List<Map<String, Object>> changedBillMaps = new ArrayList<>();
@@ -305,7 +300,7 @@ public class CloudBackupService {
             payment.put("paymentMethod", "cash");
             payment.put("billIds", billIds);
             payment.put("allocations", allocations);
-            payment.put("isPartialPayment", receivedCents < dueCents);
+            payment.put("isPartialPayment", false);
             JSONObject receipt = new JSONObject();
             receipt.put("receiptId", "receipt:" + paymentId);
             receipt.put("paymentId", paymentId);
@@ -314,7 +309,7 @@ public class CloudBackupService {
             receipt.put("total", receivedCents / 100d);
             receipt.put("billIds", billIds);
             receipt.put("allocations", allocations);
-            receipt.put("paymentStatus", receivedCents < dueCents ? "ชำระบางส่วน" : "รับชำระแล้ว");
+            receipt.put("paymentStatus", "รับชำระแล้ว");
             receipt.put("printStatus", "pending");
             JSONObject history = new JSONObject();
             history.put("paymentId", paymentId);
@@ -353,7 +348,7 @@ public class CloudBackupService {
 
             for (int i = 0; i < changedBillRefs.size(); i++) transaction.set(changedBillRefs.get(i), changedBillMaps.get(i));
             for (int i = 0; i < artifactMaps.size(); i++) {
-                transaction.set(firestore.collection(COLLECTION_BACKUPS).document(store)
+                transaction.set(firestore.collection(COLLECTION_STORE_DATA).document(store)
                         .collection(COLLECTION_RECORDS).document(ids[i]), artifactMaps.get(i));
             }
             return committed;
@@ -365,15 +360,15 @@ public class CloudBackupService {
     }
 
     /** Reserve a barcode atomically so two online installations cannot claim the same value. */
-    public void reserveBarcode(String storeId, String barcode, String deviceId, BackupCallback callback) {
+    public void reserveBarcode(String storeId, String barcode, String deviceId, SyncCallback callback) {
         String store = storeId == null ? "" : storeId.trim();
         String code = barcode == null ? "" : barcode.trim();
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || store.isEmpty() || code.isEmpty()) {
-            failBackup(callback, "ข้อมูลร้านค้าหรือบาร์โค้ดไม่ถูกต้อง");
+            failSync(callback, "ข้อมูลร้านค้าหรือบาร์โค้ดไม่ถูกต้อง");
             return;
         }
-        if (deviceId == null || deviceId.trim().isEmpty()) { failBackup(callback, "ไม่พบรหัสเครื่อง"); return; }
+        if (deviceId == null || deviceId.trim().isEmpty()) { failSync(callback, "ไม่พบรหัสเครื่อง"); return; }
         DocumentReference reservation = firestore.collection("storeBarcodeReservations")
                 .document(store).collection("barcodes").document(code);
         Map<String, Object> data = new HashMap<>();
@@ -382,102 +377,38 @@ public class CloudBackupService {
         data.put("ownerUid", user.getUid());
         data.put("deviceId", deviceId);
         data.put("createdAt", System.currentTimeMillis());
-        firestore.runTransaction(transaction -> {
-            DocumentSnapshot existing = transaction.get(reservation);
-            if (existing.exists()) throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
-            transaction.set(reservation, data);
-            return null;
-        }).addOnSuccessListener(unused -> { if (callback != null) callback.onSuccess(); })
-          .addOnFailureListener(error -> failBackup(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+        Query existingBarcodeQuery = firestore.collection(COLLECTION_STORE_DATA)
+                .document(store).collection(COLLECTION_RECORDS)
+                .whereEqualTo("payload.barcode", code);
+        // Android Firestore transactions read document references, not queries.
+        // Check existing factory/product/library records first, then atomically
+        // reserve the code so concurrent generated-code requests cannot collide.
+        existingBarcodeQuery.get()
+                .addOnSuccessListener(matchingRecords -> {
+                    for (DocumentSnapshot matching : matchingRecords.getDocuments()) {
+                        String type = matching.getString("dataType");
+                        if ("product".equals(type) || "barcode_item".equals(type)) {
+                            failSync(callback, "บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                            return;
+                        }
+                    }
+                    firestore.runTransaction(transaction -> {
+                        DocumentSnapshot existing = transaction.get(reservation);
+                        if (existing.exists()) {
+                            throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                        }
+                        transaction.set(reservation, data);
+                        return null;
+                    }).addOnSuccessListener(unused -> {
+                        if (callback != null) callback.onSuccess();
+                    }).addOnFailureListener(error ->
+                            failSync(callback, "จองบาร์โค้ดไม่สำเร็จ: " + safeMessage(error)));
+                })
+                .addOnFailureListener(error ->
+                        failSync(callback, "ตรวจสอบบาร์โค้ดเดิมไม่สำเร็จ: " + safeMessage(error)));
     }
 
     /**
-     * Download all backup records belonging to one store.
-     */
-    public void fetchStoreRecords(
-            String storeId,
-            RecordsCallback callback
-    ) {
-        String checkedStoreId =
-                storeId == null ? "" : storeId.trim();
-
-        if (checkedStoreId.isEmpty()) {
-            failRecords(callback, "ไม่พบรหัสร้านค้า");
-            return;
-        }
-
-        if (auth.getCurrentUser() == null) {
-            failRecords(
-                    callback,
-                    "กรุณาเข้าสู่ระบบก่อนกู้คืนข้อมูล"
-            );
-            return;
-        }
-
-        firestore.collection(COLLECTION_BACKUPS)
-                .document(checkedStoreId)
-                .collection(COLLECTION_RECORDS)
-                .get()
-                .addOnSuccessListener(snapshot -> {
-                    List<JSONObject> records = new ArrayList<>();
-
-                    try {
-                        for (DocumentSnapshot document
-                                : snapshot.getDocuments()) {
-                            Map<String, Object> data =
-                                    document.getData();
-
-                            if (data == null) {
-                                continue;
-                            }
-
-                            JSONObject record = new JSONObject(data);
-
-                            String documentRecordId = document.getId();
-                            String embeddedRecordId = record.optString("recordId", "").trim();
-                            if (!embeddedRecordId.isEmpty()
-                                    && !documentRecordId.equals(embeddedRecordId)) {
-                                throw new JSONException(
-                                        "Backup record ID does not match its Firestore document path"
-                                );
-                            }
-                            // Older records may omit identity fields; when absent,
-                            // use the trusted Firestore path rather than payload data.
-                            record.put("recordId", documentRecordId);
-
-                            String embeddedStoreId = record.optString("storeId", "").trim();
-                            if (!embeddedStoreId.isEmpty()
-                                    && !checkedStoreId.equals(embeddedStoreId)) {
-                                throw new JSONException(
-                                        "Backup store ID does not match the requested store path"
-                                );
-                            }
-                            record.put("storeId", checkedStoreId);
-
-                            records.add(record);
-                        }
-
-                        if (callback != null) {
-                            callback.onSuccess(records);
-                        }
-
-                    } catch (Exception error) {
-                        failRecords(
-                                callback,
-                                "อ่านข้อมูลสำรองไม่สำเร็จ: "
-                                        + safeMessage(error)
-                        );
-                    }
-                })
-                .addOnFailureListener(error -> {
-                    failRecords(
-                            callback,
-                            "ดาวน์โหลดข้อมูลสำรองไม่สำเร็จ: "
-                                    + safeMessage(error)
-                    );
-                });
-    }
-
     /** Delete a cloud record only if its identity, type and revision still match. */
     public void deleteRecord(String storeId, String recordId, String dataType,
             long expectedRevision, DeleteCallback callback) {
@@ -489,11 +420,11 @@ public class CloudBackupService {
             return;
         }
         if (auth.getCurrentUser() == null) {
-            failDelete(callback, "กรุณาเข้าสู่ระบบก่อนจัดการข้อมูลสำรอง");
+            failDelete(callback, "กรุณาเข้าสู่ระบบก่อนจัดการข้อมูลบน Cloud");
             return;
         }
         com.google.firebase.firestore.DocumentReference document = firestore
-                .collection(COLLECTION_BACKUPS).document(checkedStore)
+                .collection(COLLECTION_STORE_DATA).document(checkedStore)
                 .collection(COLLECTION_RECORDS).document(checkedId);
         firestore.runTransaction(transaction -> {
             DocumentSnapshot existing = transaction.get(document);
@@ -510,7 +441,7 @@ public class CloudBackupService {
         }).addOnSuccessListener(unused -> {
             if (callback != null) callback.onSuccess();
         }).addOnFailureListener(error -> failDelete(callback,
-                "ลบข้อมูลสำรองไม่สำเร็จ: " + safeMessage(error)));
+                "ลบข้อมูลบน Cloud ไม่สำเร็จ: " + safeMessage(error)));
     }
 
     private void failDelete(DeleteCallback callback, String message) {
@@ -606,17 +537,8 @@ public class CloudBackupService {
         return value;
     }
 
-    private void failBackup(
-            BackupCallback callback,
-            String message
-    ) {
-        if (callback != null) {
-            callback.onFailure(message);
-        }
-    }
-
-    private void failRecords(
-            RecordsCallback callback,
+    private void failSync(
+            SyncCallback callback,
             String message
     ) {
         if (callback != null) {

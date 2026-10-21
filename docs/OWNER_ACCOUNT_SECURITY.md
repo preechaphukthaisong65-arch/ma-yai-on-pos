@@ -4,7 +4,7 @@
 
 - One verified email/password Firebase Auth account owns one shop.
 - The same owner account can sign in on multiple Android devices.
-- Store data stays in the existing SQLite `data_hub.db` / `hub_records` locally and existing Firestore path `dataHubBackups/{storeId}/records/{recordId}` in the cloud.
+- Store data stays in the existing SQLite `data_hub.db` / `hub_records` locally and existing legacy Firestore storage path `dataHubBackups/{storeId}/records/{recordId}` used by cloud sync.
 - The Android app cannot create or change ownership records. This prevents a person who only knows a store code from claiming its data.
 - A new account is not automatically authorized for any shop. A trusted Firebase administrator must provision the owner mapping.
 
@@ -17,11 +17,11 @@
 5. Review `firestore.rules` with the actual data model and test it in the Firebase Emulator Suite or a non-production project first.
 6. Deploy the reviewed rules to the intended Firebase project using the Firebase CLI after authenticating with the correct project. This repository has no checked-in project alias; choose the project explicitly and do not guess its ID. The config file points Firestore rules to `firestore.rules`.
 7. In Firebase Console or a trusted Admin SDK process, create `storeOwners/{storeId}` for the existing store. Set the field `ownerUid` to the UID of the verified owner's Firebase Authentication account. Do not allow the Android client to create this document. Do not put service-account credentials in the APK or repository.
-8. Confirm the store ID exactly matches the existing backup path `dataHubBackups/{storeId}/records`. Do not rename or migrate existing records as part of account setup.
+8. Confirm the store ID exactly matches the existing cloud-record path `dataHubBackups/{storeId}/records`. Do not rename or migrate existing records as part of account setup.
 
 ## Rollout warning for existing installations
 
-The new app requires verified email/password sign-in before cloud restore. Existing anonymous sessions do not automatically become owner accounts. Existing local data is preserved, but cloud access will be denied until the real owner account is verified, the owner mapping is provisioned, and the restrictive rules are deployed. Do not remove existing local data to resolve a sign-in failure.
+The app requires verified email/password sign-in before cloud sync. Automatic cloud restore has been removed. Existing anonymous sessions do not automatically become owner accounts. Existing local data is preserved, but cloud access will be denied until the real owner account is verified, the owner mapping is provisioned, and the restrictive rules are deployed. Do not remove existing local data to resolve a sign-in failure.
 
 ## Required security tests before production
 
@@ -32,7 +32,7 @@ The new app requires verified email/password sign-in before cloud restore. Exist
 - Client attempts to create/update/delete `storeOwners` are denied.
 - A write whose `storeId`, `recordId`, or `uploadedBy` conflicts with its path/current UID is denied.
 - Test legacy records and deletion rules against a copy of real-shaped backup data before rollout.
-- Test login and restore on a second device; compare record counts and totals for products, sales, stock, debts, payments, and receipts.
+- Test login and cloud sync on the authorized device; automatic restore on a second or replacement device is not supported in the current scope.
 
 ## Important limitation
 

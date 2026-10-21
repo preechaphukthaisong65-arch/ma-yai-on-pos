@@ -12,10 +12,10 @@ import androidx.work.WorkManager;
 import java.util.concurrent.TimeUnit;
 
 /** Schedules durable retries; the SQLite records remain the source of truth. */
-public final class BackupRetryScheduler {
+public final class SyncRetryScheduler {
     private static final String KEY_STORE_ID = "store_id";
 
-    private BackupRetryScheduler() { }
+    private SyncRetryScheduler() { }
 
     public static void schedule(Context context, String storeId) {
         if (context == null || storeId == null || storeId.trim().isEmpty()) return;
@@ -31,7 +31,7 @@ public final class BackupRetryScheduler {
                 .putString(KEY_STORE_ID, checkedStoreId)
                 .build();
 
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(BackupRetryWorker.class)
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(SyncRetryWorker.class)
                 .setInputData(input)
                 .setConstraints(constraints)
                 .setInitialDelay(15, TimeUnit.SECONDS)
@@ -39,7 +39,7 @@ public final class BackupRetryScheduler {
 
         WorkManager.getInstance(context.getApplicationContext())
                 .enqueueUniqueWork(
-                        "datahub-backup-" + checkedStoreId,
+                        "datahub-sync-" + checkedStoreId,
                         ExistingWorkPolicy.APPEND_OR_REPLACE,
                         request
                 );

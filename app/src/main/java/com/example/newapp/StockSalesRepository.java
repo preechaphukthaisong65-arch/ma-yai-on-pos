@@ -123,8 +123,33 @@ public final class StockSalesRepository {
             h.put("transactionType", "รับสินค้าเริ่มต้น"); h.put("beforeQuantity", 0);
             h.put("afterQuantity", initialQuantity); h.put("delta", initialQuantity);
             h.put("changedAt", System.currentTimeMillis()); h.put("note", "สร้างสินค้าใหม่");
-            List<JSONObject> records = new ArrayList<>(); records.add(productRecord);
+            List<JSONObject> records = new ArrayList<>();
+            records.add(productRecord);
             records.add(record(newId("stock_history"), STOCK_HISTORY, h));
+
+            // Keep a separate barcode-library entry for factory barcodes entered
+            // through stock receiving. The barcode library stores identity/price
+            // only; stock quantities and stock history remain product/ledger data.
+            boolean libraryEntryExists = false;
+            for (JSONObject existingBarcode : hub.getRecordsByType(storeId, "barcode_item")) {
+                JSONObject existingPayload = existingBarcode.optJSONObject("payload");
+                if (existingPayload != null
+                        && barcode.trim().equals(existingPayload.optString("barcode", "").trim())) {
+                    libraryEntryExists = true;
+                    break;
+                }
+            }
+            if (!libraryEntryExists) {
+                JSONObject barcodePayload = new JSONObject();
+                barcodePayload.put("name", name.trim());
+                barcodePayload.put("barcode", barcode.trim());
+                barcodePayload.put("price", price);
+                barcodePayload.put("source", "factory");
+                barcodePayload.put("productRecordId", id);
+                barcodePayload.put("createdAt", System.currentTimeMillis());
+                records.add(record(newId("barcode_item"), "barcode_item", barcodePayload));
+            }
+
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, id, initialQuantity <= stockLimit, initialQuantity, stockLimit); }
             return saved;
@@ -323,8 +348,8 @@ public final class StockSalesRepository {
     }
 
     /**
-     * Record a cash payment against one or more credit bills. Partial payments are supported;
-     * each payment stores explicit per-bill allocations and unpaid bills remain outstanding.
+     * Record a cash payment against one or more credit bills.
+     * Every selected bill must be paid in full; partial bill payments are not supported.
      */
     public synchronized boolean payCreditBills(List<JSONObject> selectedBills, double received) {
         if (!isReady() || selectedBills == null || selectedBills.isEmpty()
@@ -356,7 +381,7 @@ public final class StockSalesRepository {
                 refreshed.add(current);
             }
             long receivedCents = Math.round(received * 100d);
-            if (receivedCents <= 0L || receivedCents > dueCents) return false;
+            if (receivedCents <= 0L || receivedCents != dueCents) return false;
 
             String paymentId = newId("credit_payment");
             long now = System.currentTimeMillis();
@@ -401,7 +426,7 @@ public final class StockSalesRepository {
             payment.put("paymentMethod", "cash");
             payment.put("billIds", ids);
             payment.put("allocations", allocations);
-            payment.put("isPartialPayment", receivedCents < dueCents);
+            payment.put("isPartialPayment", false);
             records.add(record(paymentId, "credit_payment", payment));
 
             JSONObject receipt = new JSONObject();
@@ -412,7 +437,7 @@ public final class StockSalesRepository {
             receipt.put("total", receivedCents / 100d);
             receipt.put("billIds", ids);
             receipt.put("allocations", allocations);
-            receipt.put("paymentStatus", receivedCents < dueCents ? "ชำระบางส่วน" : "รับชำระแล้ว");
+            receipt.put("paymentStatus", "รับชำระแล้ว");
             receipt.put("printStatus", "pending");
             records.add(record("receipt:" + paymentId, "receipt", receipt));
 

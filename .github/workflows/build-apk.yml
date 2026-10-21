@@ -5,11 +5,13 @@ on:
   push:
     branches:
       - main
+      - work/complete-pos-no-backup
       - feature/complete-missing-menus
       - feat/owner-email-auth
       - fix/single-active-device-lock
       - feat/server-atomic-sales
       - fix/server-committed-local-sync
+      - work/complete-pos-no-backup
   pull_request:
     branches:
       - main

@@ -129,6 +129,10 @@ public class MainActivity extends Activity {
         managementNotice = new TextView(this);
         managementNotice.setTextColor(Color.rgb(45, 90, 55));
         managementNotice.setTextSize(13);
+        managementNotice.setSingleLine(true);
+        managementNotice.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        managementNotice.setMarqueeRepeatLimit(-1);
+        managementNotice.setSelected(true);
         managementNotice.setPadding(dp(8), dp(6), dp(8), dp(6));
         managementNotice.setVisibility(View.GONE);
         page.addView(managementNotice);
@@ -217,14 +221,14 @@ public class MainActivity extends Activity {
         if (reconciliationRunning) return;
         String storeId = StoreIdentity.get(this);
         String ownerUid = StoreIdentity.getOwnerUid(this);
-        if (storeId.isEmpty() || ownerUid.isEmpty()
-                || com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser() == null
-                || !ownerUid.equals(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser().getUid())) {
-            return;
-        }
+        com.google.firebase.auth.FirebaseUser user =
+                com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        if (storeId.isEmpty() || ownerUid.isEmpty() || user == null
+                || !ownerUid.equals(user.getUid())) return;
+
         reconciliationRunning = true;
-        DataHub hub = DataHub.getInstance(getApplicationContext());
-        new OfflineSaleReconciler(getApplicationContext()).reconcile(storeId, (offlineOk, offlineMessage) -> runOnUiThread(() -> {
+        new OfflineSaleReconciler(getApplicationContext()).reconcile(storeId,
+                (offlineOk, offlineMessage) -> runOnUiThread(() -> {
             if (!offlineOk) {
                 reconciliationRunning = false;
                 android.widget.Toast.makeText(MainActivity.this,
@@ -233,30 +237,32 @@ public class MainActivity extends Activity {
                 refreshManagementNotice();
                 return;
             }
-            hub.restoreMissingRecords(storeId, (restored, skipped, failed, message) -> runOnUiThread(() -> {
+
+            DataHub hub = DataHub.getInstance(getApplicationContext());
             int duplicateBarcodes = hub.getDuplicateBarcodeCount(storeId);
-            if (failed > 0 || duplicateBarcodes > 0) {
-                // Keep this attempt serialized through its terminal callback, then permit retry.
+            if (duplicateBarcodes > 0) {
                 reconciliationRunning = false;
-                String warning = failed > 0
-                        ? "พบข้อมูลในเครื่องกับ Cloud ขัดแย้งกัน จึงหยุดซิงก์เพื่อรักษาข้อมูลเดิม"
-                        : "พบบาร์โค้ดซ้ำ " + duplicateBarcodes + " รายการ จึงหยุดซิงก์ไว้ก่อน";
-                android.widget.Toast.makeText(MainActivity.this, warning, android.widget.Toast.LENGTH_LONG).show();
+                android.widget.Toast.makeText(MainActivity.this,
+                        "พบบาร์โค้ดซ้ำ " + duplicateBarcodes
+                                + " รายการ จึงหยุดซิงก์ไว้ก่อน",
+                        android.widget.Toast.LENGTH_LONG).show();
                 refreshManagementNotice();
                 return;
             }
-            // Do not release the guard between restore and upload: a second network callback
-            // here could start overlapping reconciliation while pending writes are uploading.
-            hub.backupPendingRecords(storeId, (succeeded, uploadFailed, syncMessage) -> runOnUiThread(() -> {
+
+            // Do not download or restore records during reconnect.
+            // Reconcile pending offline sales, then sync locally queued records.
+            hub.syncPendingRecords(storeId,
+                    (succeeded, syncFailed, message) -> runOnUiThread(() -> {
                 reconciliationRunning = false;
-                if (uploadFailed > 0) {
+                if (syncFailed > 0) {
                     android.widget.Toast.makeText(MainActivity.this,
-                            syncMessage + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ " + uploadFailed + ")",
+                            message + " (สำเร็จ " + succeeded + ", ไม่สำเร็จ "
+                                    + syncFailed + ")",
                             android.widget.Toast.LENGTH_LONG).show();
                 }
                 refreshManagementNotice();
             }));
-        }));
         }));
     }
 
@@ -294,20 +300,21 @@ public class MainActivity extends Activity {
             summary.append(debtWarning);
         }
         DataHub dataHub = DataHub.getInstance(getApplicationContext());
-        int pendingBackups = dataHub.getPendingBackupCount(storeId);
-        if (pendingBackups > 0) {
+        int pendingSync = dataHub.getPendingSyncCount(storeId);
+        if (pendingSync > 0) {
             if (summary.length() > 0) summary.append(" | ");
-            summary.append("สำรองข้อมูลค้าง ").append(pendingBackups).append(" รายการ — แตะข้อความนี้เพื่อลองซิงก์อีกครั้ง");
+            summary.append("มีรายการรอซิงก์ ").append(pendingSync).append(" รายการ — แตะข้อความนี้เพื่อลองซิงก์อีกครั้ง");
             managementNotice.setTextColor(Color.rgb(170, 80, 0));
             managementNotice.setOnClickListener(v -> {
                 managementNotice.setText("กำลังตรวจสอบข้อมูล Cloud ก่อนซิงก์...");
-                // Manual retry must use the same restore/conflict checks as reconnect.
+                // Manual retry uses the same offline-sale reconciliation before syncing.
                 // Never upload pending local records directly around reconciliation.
                 reconcileCloudAfterReconnect();
             });
         } else {
             managementNotice.setTextColor(Color.rgb(45, 90, 55));
-            managementNotice.setOnClickListener(null);
+            managementNotice.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, NotificationScreen.class)));
         }
         int duplicateBarcodes = dataHub.getDuplicateBarcodeCount(storeId);
         if (duplicateBarcodes > 0) {

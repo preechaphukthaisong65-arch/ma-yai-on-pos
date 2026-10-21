@@ -11,10 +11,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Retries pending SQLite-backed records when the network becomes available. */
-public final class BackupRetryWorker extends Worker {
+public final class SyncRetryWorker extends Worker {
     private static final String KEY_STORE_ID = "store_id";
 
-    public BackupRetryWorker(@NonNull Context context, @NonNull WorkerParameters params) {
+    public SyncRetryWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
     }
 
@@ -33,7 +33,7 @@ public final class BackupRetryWorker extends Worker {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger failed = new AtomicInteger(1);
 
-        DataHub.getInstance(getApplicationContext()).backupPendingRecords(
+        DataHub.getInstance(getApplicationContext()).syncPendingRecords(
                 checkedStoreId,
                 (succeeded, failedCount, message) -> {
                     failed.set(failedCount);
@@ -54,7 +54,7 @@ public final class BackupRetryWorker extends Worker {
         // remains, retry so large stores are drained instead of leaving the
         // records after the first 500 pending forever.
         if (DataHub.getInstance(getApplicationContext())
-                .getPendingBackupCount(checkedStoreId) > 0) {
+                .getPendingSyncCount(checkedStoreId) > 0) {
             return Result.retry();
         }
         return Result.success();
