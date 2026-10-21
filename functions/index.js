@@ -58,7 +58,10 @@ exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
   }
   const requestHash = crypto.createHash("sha256").update(JSON.stringify({
     storeId, deviceId, billId, paymentType, cashReceived: paymentType === "cash" ? received : 0,
-    customerRecordId: customerId, items: normalized.map(x => ({ productRecordId: x.productRecordId, quantity: x.quantity }))
+    customerRecordId: customerId,
+    customer: inputCustomer ? { firstName: String(inputCustomer.firstName || "").trim(),
+      lastName: String(inputCustomer.lastName || "").trim() } : null,
+    items: normalized.map(x => ({ productRecordId: x.productRecordId, quantity: x.quantity }))
   })).digest("hex");
 
   const ownerRef = db.collection("storeOwners").doc(storeId);
