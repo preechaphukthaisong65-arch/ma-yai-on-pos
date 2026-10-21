@@ -12,7 +12,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity {\n    private TextView tickerView;\n    private static final String TICKER_BASE = "ยินดีต้อนรับสู่ร้านแม่ใหญ่อ่อน POS     •     ระบบขายสินค้าและจัดการร้านค้า";
     private int dp(int n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
 
     private void hideSystemBars() {
@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
         }
 
         TextView ticker = new TextView(this);
-        ticker.setText("ยินดีต้อนรับสู่ร้านแม่ใหญ่อ่อน POS     •     ระบบขายสินค้าและจัดการร้านค้า");
+        tickerView = ticker;\n        ticker.setText(TICKER_BASE);
         ticker.setTextSize(14);
         ticker.setTextColor(Color.rgb(45, 90, 55));
         ticker.setSingleLine(true);
@@ -102,5 +102,5 @@ public class MainActivity extends Activity {
         parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(8)));
     }
 
-    @Override protected void onResume() { super.onResume(); hideSystemBars(); }
+    @Override protected void onResume() { super.onResume(); hideSystemBars(); boolean low=StockAlertManager.check(this); if(tickerView!=null) tickerView.setText(low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE); }
 }
