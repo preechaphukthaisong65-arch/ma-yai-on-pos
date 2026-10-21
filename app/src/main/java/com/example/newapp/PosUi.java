@@ -48,6 +48,19 @@ final class PosUi {
     static void speak(Activity a,String message) {
         final TextToSpeech[] holder = new TextToSpeech[1];\n        holder[0]=new TextToSpeech(a,status->{if(status==TextToSpeech.SUCCESS){ttsLangSafe(a,holder[0]); holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-tts");}});
     }
+    static void speakThen(Activity a,String message,Runnable after) {
+        final TextToSpeech[] holder = new TextToSpeech[1];
+        holder[0] = new TextToSpeech(a,status -> {
+            if(status!=TextToSpeech.SUCCESS){a.runOnUiThread(after);return;}
+            ttsLangSafe(a,holder[0]);
+            holder[0].setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener(){
+                @Override public void onStart(String id) {}
+                @Override public void onDone(String id) { a.runOnUiThread(()->{holder[0].shutdown();after.run();}); }
+                @Override public void onError(String id) { a.runOnUiThread(()->{holder[0].shutdown();after.run();}); }
+            });
+            holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-"+System.nanoTime());
+        });
+    }
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
         Locale th=new Locale("th","TH"); if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE) tts.setLanguage(th);
     }
