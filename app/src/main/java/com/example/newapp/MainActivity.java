@@ -105,5 +105,5 @@ public class MainActivity extends Activity {
         parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(8)));
     }
 
-    @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); boolean low=StockAlertManager.check(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;tickerView.setText(message);} }
+    @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); DebtReminderScheduler.scheduleIfMissing(this); boolean low=StockAlertManager.check(this); boolean overdue=DebtReminderNotifier.hasOverdue(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;if(overdue)message+="     •     มีลูกหนี้ค้างชำระเกิน 1 เดือน";tickerView.setText(message);tickerView.setOnClickListener(overdue?v->DebtReminderNotifier.showOverdue(this):null);} }
 }
