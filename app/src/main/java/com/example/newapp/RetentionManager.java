@@ -22,6 +22,7 @@ final class RetentionManager {
             db.delete("bills",expired,new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
             db.delete("stock_history","created_at<? AND change_type!='COUNT'",new String[]{String.valueOf(operationsCutoff)});
             db.delete("price_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
+            db.delete("sales_ledger_items","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
             db.delete("sales_ledger","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
