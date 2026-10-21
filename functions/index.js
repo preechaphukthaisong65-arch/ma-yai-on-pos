@@ -18,7 +18,7 @@ function asRecord(storeId, recordId, dataType, revision, payload, extra = {}) {
     revision: Math.max(1, revision), updatedAt: Date.now(), payload, ...extra };
 }
 
-exports.commitPosSale = onCall({ enforceAppCheck: true, maxInstances: 10 }, async (request) => {
+exports.commitPosSale = onCall({ maxInstances: 10 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid || request.auth?.token?.email_verified !== true) {
     fail("unauthenticated", "เจ้าของร้านต้องเข้าสู่ระบบและยืนยันอีเมลก่อน");
@@ -98,7 +98,7 @@ exports.commitPosSale = onCall({ enforceAppCheck: true, maxInstances: 10 }, asyn
       }
       const lineTotal = Math.round((price * item.quantity + Number.EPSILON) * 100) / 100;
       subtotal = Math.round((subtotal + lineTotal + Number.EPSILON) * 100) / 100;
-      nextProducts.push({ ref: productRefs[i], record: asRecord(storeId, item.productRecordId, "product",
+      nextProducts.push({ ref: productRefs[i], baseRevision: Number(snap.get("revision")) || 0, record: asRecord(storeId, item.productRecordId, "product",
         (Number(snap.get("revision")) || 0) + 1,
         { ...p, stockQuantity: stock - item.quantity, updatedAt: now }, { uploadedBy: uid, deviceId }) });
       lineItems.push({ productRecordId: item.productRecordId, name: String(p.name || ""),
@@ -150,7 +150,7 @@ exports.commitPosSale = onCall({ enforceAppCheck: true, maxInstances: 10 }, asyn
     tx.create(receiptRef, receiptRecord);
     tx.create(saleHistoryRef, auditRecord);
     return { alreadyCommitted: false, bill: billRecord,
-      records: [...nextProducts.map(x => x.record), ...stockHistoryRefs.map((ref, i) => ({
+      records: [...nextProducts.map(x => ({ ...x.record, expectedRevision: x.baseRevision })), ...stockHistoryRefs.map((ref, i) => ({
         storeId, recordId: ref.id, dataType: "stock_history", schemaVersion: 1, revision: 1,
         updatedAt: now, payload: { historyId: ref.id, productRecordId: normalized[i].productRecordId,
           productName: lineItems[i].name, barcode: lineItems[i].barcode, transactionType: "ขายสินค้า",
