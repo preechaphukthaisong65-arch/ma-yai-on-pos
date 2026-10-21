@@ -27,7 +27,7 @@ public class HistoryScreen extends Activity {
     private void details(long id){
         root=PosUi.page(this,"รายละเอียดบิล");
         Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","sale_type","status","subtotal_satang","fee_satang","total_satang","created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-        if(c.moveToFirst()){PosUi.line(this,root,"เลขที่บิล: "+c.getString(0));PosUi.line(this,root,"ประเภท: "+c.getString(1));PosUi.line(this,root,"สถานะ: "+c.getString(2));PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(c.getLong(3)));if(c.getLong(4)>0)PosUi.line(this,root,"ค่าบริการ: "+PosDatabase.money(c.getLong(4)));PosUi.line(this,root,"รวม: "+PosDatabase.money(c.getLong(5)));}c.close();
+        if(c.moveToFirst()){PosUi.line(this,root,"เลขที่บิล: "+c.getString(0));PosUi.line(this,root,"ประเภท: "+c.getString(1));PosUi.line(this,root,"สถานะ: "+c.getString(2));PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(c.getLong(3)));if("CREDIT".equals(c.getString(1))&&c.getLong(4)>0)PosUi.line(this,root,"ค่าบริการ: "+PosDatabase.money(c.getLong(4)));PosUi.line(this,root,"รวม: "+PosDatabase.money(c.getLong(5)));}c.close();
         Cursor it=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
         while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" "+it.getInt(1)+" "+it.getString(2)+" × "+PosDatabase.money(it.getLong(3))+" = "+PosDatabase.money(it.getLong(4)));it.close();PosUi.back(this,root);
     }
@@ -62,7 +62,7 @@ public class HistoryScreen extends Activity {
     private long payableTotal(ArrayList<Long> ids){
         long total=0,now=PosDatabase.now();SQLiteDatabase db=helper.getReadableDatabase();
         for(long id:ids){Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-            if(c.moveToFirst()){String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);total+=("CREDIT".equals(type)&&now-created<=86400000L)?subtotal:amount;}c.close();}
+            if(c.moveToFirst()){String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);total+=("CREDIT".equals(type)&&now>=created&&now-created<=86400000L)?subtotal:amount;}c.close();}
         return total;
     }
     private void payAll(long customerId,ArrayList<Long> ids,long total){
@@ -78,16 +78,16 @@ public class HistoryScreen extends Activity {
         spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
         PosUi.speakThen(this,spoken.toString(),()->{
         new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้").setMessage("รับเงินสด "+PosDatabase.money(total)+" บาท เพื่อชำระบิลทั้งหมดหรือไม่?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->{
-            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{long now=PosDatabase.now();StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\\n");
+            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{long now=PosDatabase.now();long actualTotal=0;StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\\n");
                 for(long id:ids){Cursor c=db.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","status"},"id=? AND customer_id=?",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
                     String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
-                    ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);db.update("bills",p,"id=? AND status='UNPAID'",new String[]{String.valueOf(id)});
-                    boolean waiveFee="CREDIT".equals(type)&&now-getBillTime(db,id)<=86400000L;
-                    long collected=waiveFee?sub:amount;
+                    ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);if(db.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
+                    boolean waiveFee="CREDIT".equals(type)&&now>=getBillTime(db,id)&&now-getBillTime(db,id)<=86400000L;
+                    long collected=waiveFee?sub:amount;actualTotal+=collected;
                     ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\\n");
                     // Within 24 hours, collect merchandise subtotal only; the original sale ledger is adjusted by the waived fee.
                     if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",getBillTime(db,id));db.insertOrThrow("sales_ledger",null,adj);}
-                }db.setTransactionSuccessful();new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ").setMessage("บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt).setPositiveButton("ตกลง",(x,y)->home()).show();
+                }if(actualTotal!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");db.setTransactionSuccessful();new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ").setMessage("บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt).setPositiveButton("ตกลง",(x,y)->home()).show();
             }catch(Exception e){new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
         }).show();
         });
