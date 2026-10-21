@@ -123,8 +123,33 @@ public final class StockSalesRepository {
             h.put("transactionType", "รับสินค้าเริ่มต้น"); h.put("beforeQuantity", 0);
             h.put("afterQuantity", initialQuantity); h.put("delta", initialQuantity);
             h.put("changedAt", System.currentTimeMillis()); h.put("note", "สร้างสินค้าใหม่");
-            List<JSONObject> records = new ArrayList<>(); records.add(productRecord);
+            List<JSONObject> records = new ArrayList<>();
+            records.add(productRecord);
             records.add(record(newId("stock_history"), STOCK_HISTORY, h));
+
+            // Keep a separate barcode-library entry for factory barcodes entered
+            // through stock receiving. The barcode library stores identity/price
+            // only; stock quantities and stock history remain product/ledger data.
+            boolean libraryEntryExists = false;
+            for (JSONObject existingBarcode : hub.getRecordsByType(storeId, "barcode_item")) {
+                JSONObject existingPayload = existingBarcode.optJSONObject("payload");
+                if (existingPayload != null
+                        && barcode.trim().equals(existingPayload.optString("barcode", "").trim())) {
+                    libraryEntryExists = true;
+                    break;
+                }
+            }
+            if (!libraryEntryExists) {
+                JSONObject barcodePayload = new JSONObject();
+                barcodePayload.put("name", name.trim());
+                barcodePayload.put("barcode", barcode.trim());
+                barcodePayload.put("price", price);
+                barcodePayload.put("source", "factory");
+                barcodePayload.put("productRecordId", id);
+                barcodePayload.put("createdAt", System.currentTimeMillis());
+                records.add(record(newId("barcode_item"), "barcode_item", barcodePayload));
+            }
+
             boolean saved = hub.saveRecordsAtomically(storeId, records);
             if (saved) { invalidateProductCache(); StockLimitNotifier.updateState(storeId, id, initialQuantity <= stockLimit, initialQuantity, stockLimit); }
             return saved;
