@@ -20,6 +20,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".SellScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".CreditAccountScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".StockScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".HistoryScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".ManageStoreScreen" android:screenOrientation="portrait" android:exported="false" />
