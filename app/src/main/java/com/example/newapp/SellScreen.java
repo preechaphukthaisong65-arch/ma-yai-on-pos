@@ -124,7 +124,7 @@ public class SellScreen extends Activity {
             for(Item i:cart.values()){
                 if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
                 ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
-                if(db.update("products",p,"id=? AND stock>=?",new String[]{String.valueOf(i.id),String.valueOf(i.qty)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยน กรุณาทำรายการใหม่");
+                if(db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
                 ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("unit",i.unit);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",i.price*i.qty);db.insertOrThrow("bill_items",null,it);
                 ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",code);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",i.price*i.qty);li.put("created_at",now);db.insertOrThrow("sales_ledger_items",null,li);
                 ContentValues h=new ContentValues();h.put("product_id",i.id);h.put("barcode",i.barcode);h.put("product_name",i.name);h.put("change_type","SALE");h.put("before_qty",i.stock);h.put("after_qty",i.stock-i.qty);h.put("difference",-i.qty);h.put("reference",code);h.put("created_at",now);db.insertOrThrow("stock_history",null,h);
