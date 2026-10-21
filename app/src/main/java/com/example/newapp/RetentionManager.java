@@ -28,6 +28,6 @@ final class RetentionManager {
             db.setTransactionSuccessful();
         } catch (android.database.sqlite.SQLiteException ignored) {
             // Keep the app usable if storage is full; retry on the next home-screen visit.
-        } finally { if(db.inTransaction()) db.endTransaction(); }
+        } finally { if(db.inTransaction()){try{db.endTransaction();}catch(android.database.sqlite.SQLiteException ignored){}} }
     }
 }
