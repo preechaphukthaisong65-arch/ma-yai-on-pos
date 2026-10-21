@@ -50,6 +50,30 @@ public class SellScreen extends Activity {
         PosUi.button(this,root,"ยืนยันขายเชื่อ",v->{String n=PosUi.str(customer);if(n.isEmpty()){customer.setError("กรอกชื่อเต็มลูกค้า");return;}commitSale(true,n,0);});PosUi.back(this,root);
     }
     private void commitSale(boolean credit,String customerName,long cash){
+        String duplicate=findDuplicate(credit,customerName);
+        if(duplicate!=null){
+            new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ").setMessage("พบบิลที่มีรายละเอียดสินค้าเหมือนกันใน 1 ชั่วโมงที่ผ่านมา ("+duplicate+") ต้องการสร้างบิลใหม่หรือไม่?")
+                    .setNegativeButton("ยกเลิก",(d,w)->home())
+                    .setPositiveButton("สร้างบิลใหม่",(d,w)->saveSale(credit,customerName,cash)).show();
+        }else saveSale(credit,customerName,cash);
+    }
+    private String findDuplicate(boolean credit,String customerName){
+        SQLiteDatabase db=helper.getReadableDatabase();
+        Cursor bills=db.rawQuery("SELECT b.id,b.bill_code,c.full_name FROM bills b LEFT JOIN customers c ON c.id=b.customer_id WHERE b.created_at>=? AND b.sale_type=? AND b.status IN ('PAID','UNPAID') ORDER BY b.created_at DESC",
+                new String[]{String.valueOf(PosDatabase.now()-3600000L),credit?"CREDIT":"CASH"});
+        String match=null;
+        while(bills.moveToNext()){
+            if(credit&&(bills.isNull(2)||!customerName.equalsIgnoreCase(bills.getString(2))))continue;
+            long billId=bills.getLong(0);Cursor items=db.query("bill_items",new String[]{"product_id","quantity","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,null);
+            java.util.HashMap<Long,int[]> existing=new java.util.HashMap<>();
+            while(items.moveToNext())existing.put(items.getLong(0),new int[]{items.getInt(1),(int)items.getLong(2)});items.close();
+            if(existing.size()!=cart.size())continue;boolean same=true;
+            for(Item item:cart.values()){int[] x=existing.get(item.id);if(x==null||x[0]!=item.qty||((long)x[1])!=item.price){same=false;break;}}
+            if(same){match=bills.getString(1);break;}
+        }
+        bills.close();return match;
+    }
+    private void saveSale(boolean credit,String customerName,long cash){
         SQLiteDatabase db=helper.getWritableDatabase();long now=PosDatabase.now();String code="B"+now;
         long sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=sub+fee;db.beginTransaction();
         try{
