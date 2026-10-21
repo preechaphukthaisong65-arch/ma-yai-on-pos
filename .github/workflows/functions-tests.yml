@@ -12,6 +12,7 @@ on:
       - main
       - fix/single-active-device-lock
       - feat/server-atomic-sales
+      - fix/server-committed-local-sync
     paths:
       - "functions/**"
       - "firebase.json"
