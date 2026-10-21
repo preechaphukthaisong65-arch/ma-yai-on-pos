@@ -29,7 +29,7 @@ public class BarcodeScreen extends Activity {
     private static final Object CREATE_LOCK = new Object();
     private static final long FIRST_BARCODE = 2000001L;
     private EditText nameInput, priceInput;
-    private LinearLayout root;
+    private LinearLayout root, resultContainer;
     private TextView status, barcodeText;
     private ImageView preview;
     private String lastBarcode = "", lastName = "";
@@ -63,6 +63,9 @@ public class BarcodeScreen extends Activity {
         POSUi.button(this, root, "เชื่อมต่อเครื่องพิมพ์", this::openPrintSettings);
         POSUi.button(this, root, "คลังบาร์โค้ด", () -> startActivity(new Intent(this, BarcodeLibraryScreen.class)));
         POSUi.button(this, root, "กลับหน้าหลัก", this::finish);
+        resultContainer = new LinearLayout(this);
+        resultContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(resultContainer);
     }
 
     private void createBarcode() {
@@ -165,8 +168,9 @@ public class BarcodeScreen extends Activity {
     }
 
     private void showCreated() {
+        resultContainer.removeAllViews();
         barcodeText = POSUi.text(this, "บาร์โค้ด: " + lastBarcode, 18);
-        root.addView(barcodeText);
+        resultContainer.addView(barcodeText);
         preview = new ImageView(this);
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -176,10 +180,10 @@ public class BarcodeScreen extends Activity {
             for (int y = 0; y < matrix.getHeight(); y++) for (int x = 0; x < matrix.getWidth(); x++)
                 bitmap.setPixel(x, y, matrix.get(x, y) ? Color.BLACK : Color.WHITE);
             preview.setImageBitmap(bitmap);
-            root.addView(preview, new LinearLayout.LayoutParams(-1, POSUi.dp(this, 100)));
+            resultContainer.addView(preview, new LinearLayout.LayoutParams(-1, POSUi.dp(this, 100)));
         } catch (Exception ignored) { }
-        root.addView(POSUi.text(this, lastName + " — " + String.format(Locale.US, "%.2f", lastPrice) + " บาท", 16));
-        POSUi.button(this, root, "พิมพ์บาร์โค้ด", this::askPrintQuantity);
+        resultContainer.addView(POSUi.text(this, lastName + " — " + String.format(Locale.US, "%.2f", lastPrice) + " บาท", 16));
+        POSUi.button(this, resultContainer, "พิมพ์บาร์โค้ด", this::askPrintQuantity);
     }
 
     private void askPrintQuantity() {
