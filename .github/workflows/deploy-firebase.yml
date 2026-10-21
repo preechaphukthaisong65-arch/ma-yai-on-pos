@@ -1,0 +1,64 @@
+name: Deploy MaeyaiOn POS Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      store_id:
+        description: "Store ID to bind to the verified owner account"
+        required: true
+        type: string
+      owner_uid:
+        description: "Firebase Authentication UID of the verified owner account"
+        required: true
+        type: string
+      confirm_production:
+        description: "Confirm deployment to Firebase project android-pos-593e9"
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maeyai-on-pos-firebase-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-bind-owner:
+    if: ${{ inputs.confirm_production == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Configure Firebase service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || {
+            echo "::error::Repository secret FIREBASE_SERVICE_ACCOUNT_JSON is not configured."
+            exit 1
+          }
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Install Cloud Functions dependencies
+        run: npm install --prefix functions --no-audit --no-fund
+
+      - name: Deploy Firestore rules and Cloud Functions
+        run: npx --yes firebase-tools@15.0.0 deploy --only firestore:rules,functions --project android-pos-593e9 --non-interactive
+
+      - name: Bind verified owner to store ID without overwriting an existing owner
+        env:
+          STORE_ID: ${{ inputs.store_id }}
+          OWNER_UID: ${{ inputs.owner_uid }}
+        run: node functions/scripts/provision-owner.js
+
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
