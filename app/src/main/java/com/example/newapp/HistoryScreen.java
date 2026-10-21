@@ -50,15 +50,20 @@ public class HistoryScreen extends Activity {
         }
         c.close();PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
         if(!allIds.isEmpty()){
-            final long allTotal=total;
-            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,allTotal));
+            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,payableTotal(allIds)));
             PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
-                ArrayList<Long> chosen=new ArrayList<>(selected);long selectedTotal=0;for(Long id:chosen)selectedTotal+=amounts.get(id);
+                ArrayList<Long> chosen=new ArrayList<>(selected);long selectedTotal=payableTotal(chosen);
                 if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
                 payAll(customerId,chosen,selectedTotal);
             });
         }
         PosUi.back(this,root);
+    }
+    private long payableTotal(ArrayList<Long> ids){
+        long total=0,now=PosDatabase.now();SQLiteDatabase db=helper.getReadableDatabase();
+        for(long id:ids){Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
+            if(c.moveToFirst()){String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);total+=("CREDIT".equals(type)&&now-created<=86400000L)?subtotal:amount;}c.close();}
+        return total;
     }
     private void payAll(long customerId,ArrayList<Long> ids,long total){
         new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้").setMessage("รับเงินสด "+PosDatabase.money(total)+" บาท เพื่อชำระบิลทั้งหมดหรือไม่?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->{
