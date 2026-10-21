@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 6;
+    private static final int DB_VERSION = 7;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -116,6 +116,10 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_bill_items_bill_id ON bill_items(bill_id)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_ledger_items_bill_id ON sales_ledger_items(bill_id,event_type)");
+        }
+        if (oldVersion < 7) {
+            db.execSQL("INSERT OR IGNORE INTO barcode_registry(barcode,name,price_satang,source,created_at) SELECT barcode,name,price_satang,'LEGACY',created_at FROM products");
+            db.execSQL("UPDATE barcode_registry SET price_satang=(SELECT p.price_satang FROM products p WHERE p.barcode=barcode_registry.barcode) WHERE EXISTS (SELECT 1 FROM products p WHERE p.barcode=barcode_registry.barcode)");
         }
     }
 
