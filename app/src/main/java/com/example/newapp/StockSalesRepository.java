@@ -214,6 +214,16 @@ public final class StockSalesRepository {
         try {
             // This local-only sale must be reconciled as one server transaction.
             // Preserve the cloud revision observed before each local stock decrement.
+            // Ensure pending sales have a strictly increasing order even if two
+            // confirmations occur in the same millisecond or the device clock moves back.
+            long saleCreatedAt = Math.max(1L, billPayload.optLong("createdAt", System.currentTimeMillis()));
+            for (JSONObject pendingBill : hub.getRecordsByType(storeId, "sale_bill")) {
+                JSONObject pendingPayload = pendingBill.optJSONObject("payload");
+                if (pendingPayload != null && pendingPayload.optBoolean("offlinePending", false)) {
+                    saleCreatedAt = Math.max(saleCreatedAt, pendingPayload.optLong("createdAt", 0L) + 1L);
+                }
+            }
+            billPayload.put("createdAt", saleCreatedAt);
             billPayload.put("offlinePending", true);
             org.json.JSONArray saleItems = billPayload.optJSONArray("items");
             if (saleItems == null || saleItems.length() != soldProducts.size()) return false;
