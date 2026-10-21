@@ -1,3 +1,4 @@
+
 name: Deploy MaeyaiOn POS Firebase
 
 on:
@@ -27,8 +28,9 @@ jobs:
   deploy-and-bind-owner:
     if: ${{ inputs.confirm_production == true }}
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout selected ref
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Set up Node.js
@@ -36,21 +38,97 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Verify required Firebase files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "firebase.json"
+            "firestore.rules"
+            "functions/package.json"
+            "functions/index.js"
+            "functions/scripts/provision-owner.js"
+          )
+
+          missing=0
+
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "FOUND: $file"
+            else
+              echo "::error::Required file is missing: $file"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Deployment stopped. Add and verify the missing Firebase files before deploying."
+            exit 1
+          fi
+
       - name: Configure Firebase service account
+        shell: bash
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
-          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || {
+          set -euo pipefail
+
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
             echo "::error::Repository secret FIREBASE_SERVICE_ACCOUNT_JSON is not configured."
             exit 1
+          fi
+
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" \
+            > "$RUNNER_TEMP/firebase-service-account.json"
+
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" \
+            >> "$GITHUB_ENV"
+
+      - name: Verify Firebase credential identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require("fs");
+
+          const credentialPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+          const credentials = JSON.parse(
+            fs.readFileSync(credentialPath, "utf8")
+          );
+
+          const expected =
+            "github-firebase-deploy@android-pos-593e9.iam.gserviceaccount.com";
+
+          if (credentials.client_email !== expected) {
+            console.error(
+              "Credential identity mismatch. Expected " +
+              expected +
+              "; found " +
+              (credentials.client_email || "(missing)") +
+              "."
+            );
+            process.exit(1);
           }
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+          if (!credentials.private_key) {
+            console.error("Service account private key is missing.");
+            process.exit(1);
+          }
+
+          console.log("Firebase service account identity verified.");
+          NODE
 
       - name: Install Cloud Functions dependencies
-        run: npm install --prefix functions --no-audit --no-fund
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix functions --no-audit --no-fund
 
-      - name: Preflight owner account and store binding (read-only)
+      - name: Validate owner account and store binding
         env:
           STORE_ID: ${{ inputs.store_id }}
           OWNER_EMAIL: ${{ inputs.owner_email }}
@@ -58,9 +136,13 @@ jobs:
         run: node functions/scripts/provision-owner.js
 
       - name: Deploy Firestore rules and Cloud Functions
-        run: npx --yes firebase-tools@15.0.0 deploy --only firestore:rules,functions --project android-pos-593e9 --non-interactive
+        run: >
+          npx --yes firebase-tools@15.0.0 deploy
+          --only firestore:rules,functions
+          --project android-pos-593e9
+          --non-interactive
 
-      - name: Bind verified owner to store ID without overwriting an existing owner
+      - name: Bind verified owner to store
         env:
           STORE_ID: ${{ inputs.store_id }}
           OWNER_EMAIL: ${{ inputs.owner_email }}
@@ -68,4 +150,6 @@ jobs:
 
       - name: Remove temporary credentials
         if: always()
-        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/firebase-service-account.json"
