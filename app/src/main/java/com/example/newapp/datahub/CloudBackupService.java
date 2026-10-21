@@ -6,6 +6,8 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.SetOptions;
 
 import org.json.JSONArray;
@@ -382,9 +384,23 @@ public class CloudBackupService {
         data.put("ownerUid", user.getUid());
         data.put("deviceId", deviceId);
         data.put("createdAt", System.currentTimeMillis());
+        Query existingBarcodeQuery = firestore.collection(COLLECTION_BACKUPS)
+                .document(store).collection(COLLECTION_RECORDS)
+                .whereEqualTo("payload.barcode", code);
         firestore.runTransaction(transaction -> {
             DocumentSnapshot existing = transaction.get(reservation);
             if (existing.exists()) throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+
+            // The reservation collection alone does not know about factory barcodes
+            // already saved as product records. Check the store's canonical backup
+            // records inside the same transaction before reserving a generated code.
+            QuerySnapshot matchingRecords = transaction.get(existingBarcodeQuery);
+            for (DocumentSnapshot matching : matchingRecords.getDocuments()) {
+                String type = matching.getString("dataType");
+                if ("product".equals(type) || "barcode_item".equals(type)) {
+                    throw new IllegalStateException("บาร์โค้ดนี้ถูกจองแล้ว กรุณาสร้างเลขใหม่");
+                }
+            }
             transaction.set(reservation, data);
             return null;
         }).addOnSuccessListener(unused -> { if (callback != null) callback.onSuccess(); })
