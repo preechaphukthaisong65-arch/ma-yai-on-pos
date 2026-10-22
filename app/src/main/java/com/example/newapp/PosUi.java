@@ -1,6 +1,7 @@
 package com.example.newapp;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.speech.tts.TextToSpeech;
@@ -48,7 +49,15 @@ final class PosUi {
         IntentIntegrator scan=new IntentIntegrator(a);
         scan.setPrompt(prompt); scan.setBeepEnabled(false);
         scan.setOrientationLocked(true); scan.setDesiredBarcodeFormats(IntentIntegrator.ONE_D_CODE_TYPES);
-        scan.initiateScan();
+        try {
+            scan.initiateScan();
+        } catch (RuntimeException e) {
+            new AlertDialog.Builder(a)
+                    .setTitle("เปิดกล้องสแกนไม่ได้")
+                    .setMessage("ระบบเปิดหน้าสแกนไม่สำเร็จ กรุณาตรวจสอบสิทธิ์กล้องและติดตั้งแอปใหม่หากยังเกิดปัญหา")
+                    .setPositiveButton("ตกลง", null)
+                    .show();
+        }
     }
     static void speak(Activity a,String message) { speakThen(a,message,()->{}); }
     static void speakThen(Activity a,String message,Runnable after) {

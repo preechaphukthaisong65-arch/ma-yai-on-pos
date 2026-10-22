@@ -8,6 +8,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -27,25 +28,36 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         hideSystemBars();
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setGravity(Gravity.CENTER);
-        page.setPadding(dp(8), dp(4), dp(8), dp(6));
+        FrameLayout frame = new FrameLayout(this);
         int bg = getResources().getIdentifier("app_background", "drawable", getPackageName());
-        if (bg != 0) page.setBackgroundResource(bg);
+        if (bg != 0) frame.setBackgroundResource(bg);
 
+        // Draw the logo as a full-width background layer. Its intrinsic aspect ratio
+        // determines its height, so it can extend behind the ticker and menu tiles.
         int logoId = getResources().getIdentifier("logomain", "drawable", getPackageName());
         if (logoId != 0) {
             ImageView logo = new ImageView(this);
             logo.setImageResource(logoId);
-            logo.setAdjustViewBounds(false);
             logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            int screenDp = getResources().getDisplayMetrics().heightPixels / Math.max(1, (int)getResources().getDisplayMetrics().density);
-            int logoHeight = Math.min(130, Math.max(64, screenDp / 5));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(logoHeight));
-            lp.bottomMargin = dp(2);
-            page.addView(logo, lp);
+            logo.setAdjustViewBounds(true);
+            android.graphics.drawable.Drawable logoDrawable = logo.getDrawable();
+            int intrinsicWidth = logoDrawable == null ? 0 : logoDrawable.getIntrinsicWidth();
+            int intrinsicHeight = logoDrawable == null ? 0 : logoDrawable.getIntrinsicHeight();
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            int logoHeight = intrinsicWidth > 0 && intrinsicHeight > 0
+                    ? Math.round(screenWidth * (intrinsicHeight / (float) intrinsicWidth))
+                    : dp(180);
+            FrameLayout.LayoutParams logoParams = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, Math.max(dp(1), logoHeight),
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            frame.addView(logo, logoParams);
         }
+
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setGravity(Gravity.CENTER);
+        page.setPadding(dp(8), dp(4), dp(8), dp(6));
+        page.setBackgroundColor(Color.TRANSPARENT);
 
         TextView ticker = new TextView(this);
         tickerView = ticker;
@@ -72,9 +84,9 @@ public class MainActivity extends Activity {
         page.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        int backgroundId = getResources().getIdentifier("app_background", "drawable", getPackageName());
-        if (backgroundId != 0) page.setBackgroundResource(backgroundId);
-        setContentView(page);
+        frame.addView(page, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(frame);
         hideSystemBars();
     }
 
