@@ -77,9 +77,11 @@ public class MainActivity extends Activity {
         ticker.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
         ticker.setMarqueeRepeatLimit(-1);
         ticker.setSelected(true);
-        ticker.setPadding(dp(4), dp(8), dp(4), dp(8));
-        notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, -2));
-        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, 0, 4f));
+        ticker.setPadding(dp(8), dp(8), dp(8), dp(8));
+        ticker.setGravity(Gravity.CENTER_VERTICAL);
+        ticker.setBackgroundColor(Color.WHITE);
+        notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, -1));
+        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         LinearLayout menuArea = new LinearLayout(this);
         menuArea.setOrientation(LinearLayout.VERTICAL);
@@ -102,8 +104,11 @@ public class MainActivity extends Activity {
         menuArea.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
         page.addView(menuArea, new LinearLayout.LayoutParams(-1, 0, 6f));
 
-        frame.addView(page, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int homePanelHeight = Math.round(screenHeight * 0.70f); // 10% notifications + 60% menu
+        FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, homePanelHeight, Gravity.BOTTOM);
+        frame.addView(page, pageParams);
         setContentView(frame);
         hideSystemBars();
     }
@@ -131,6 +136,8 @@ public class MainActivity extends Activity {
         caption.setTextColor(Color.rgb(35, 45, 55));
         caption.setTextSize(14);
         caption.setGravity(Gravity.CENTER);
+        caption.setBackgroundColor(Color.WHITE);
+        caption.setPadding(dp(2), dp(3), dp(2), dp(3));
         caption.setMaxLines(2);
         tile.addView(caption, new LinearLayout.LayoutParams(-1, -2));
         r.addView(tile, new LinearLayout.LayoutParams(0, -1, 1f));
