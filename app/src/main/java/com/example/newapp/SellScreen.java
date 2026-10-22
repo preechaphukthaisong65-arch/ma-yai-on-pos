@@ -166,9 +166,14 @@ public class SellScreen extends Activity {
         }
         if(result!=null){
             cart.clear();StockAlertManager.check(this);
-            String message="เลขที่บิล "+result.billCode+"\nยอดสินค้า "+PosDatabase.money(result.subtotalSatang)+" บาท\n"+
-                    (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
-                            "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
+            String message;
+            try{
+                message=ReceiptService.formatBill(ReceiptService.load(helper,result.billId));
+            }catch(Exception receiptError){
+                message="เลขที่บิล "+result.billCode+"\nยอดสินค้า "+PosDatabase.money(result.subtotalSatang)+" บาท\n"+
+                        (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
+                                "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
+            }
             new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
         }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
     }
