@@ -157,6 +157,8 @@ final class SalesTransactionService {
             ledger.put("total_satang", total);
             ledger.put("created_at", timestamp);
             db.insertOrThrow("sales_ledger", null, ledger);
+            AuditService.record(db,"BILL",billCode,"SALE_CREATED",
+                    "type="+(credit?"CREDIT":"CASH")+";subtotal="+subtotal+";fee="+fee+";lines="+lines.size(),timestamp);
 
             db.setTransactionSuccessful();
         } finally {
