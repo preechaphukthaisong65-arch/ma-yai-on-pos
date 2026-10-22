@@ -62,7 +62,7 @@ public class StockScreen extends Activity {
             PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();saveLimit(id,limit,q);}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("add".equals(mode)){
             PosUi.speak(this,name+"ค่ะ"); EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
-            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,stock+q,"RECEIVE");}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
+            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,Math.addExact(stock,q),"RECEIVE");}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
         }
         PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
     }
@@ -79,6 +79,7 @@ public class StockScreen extends Activity {
             db=helper.getWritableDatabase();db.beginTransaction();started=true;
             ContentValues cv=new ContentValues();cv.put("stock_limit",newLimit);cv.put("updated_at",PosDatabase.now());
             if(db.update("products",cv,"id=? AND stock_limit=?",new String[]{String.valueOf(id),String.valueOf(oldLimit)})!=1)throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+            PosDatabase.audit(db,"STOCK_LIMIT_CHANGED","PRODUCT",String.valueOf(id),"old_limit="+oldLimit+"; new_limit="+newLimit);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();}
         finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ";}}}
@@ -96,7 +97,9 @@ public class StockScreen extends Activity {
             if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
             h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
-            db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();saved=true;
+            db.insertOrThrow("stock_history",null,h);
+            PosDatabase.audit(db,"STOCK_"+type,"PRODUCT",String.valueOf(id),"barcode="+barcode+"; before="+before+"; after="+after);
+            db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();saved=false;}
         finally{
             if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
@@ -125,7 +128,9 @@ public class StockScreen extends Activity {
                 ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
-                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
+                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);
+                PosDatabase.audit(db,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; stock="+q);
+                db.setTransactionSuccessful();
             }finally{db.endTransaction();}StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
         }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
         PosUi.back(this,root);
