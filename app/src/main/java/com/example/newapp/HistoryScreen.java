@@ -69,13 +69,14 @@ public class HistoryScreen extends Activity {
     }
 
     private void summary(){
-        ReportingService.Summary s=ReportingService.allTimeSummary(helper);
+        ReportingService.Summary s=ReportingService.retainedSummary(helper);
         root=PosUi.page(this,"สรุปยอดขายและหนี้สิน");
+        PosUi.line(this,root,"หมายเหตุ: ยอดขายรวมใช้ข้อมูลบัญชีที่ยังเก็บไว้ตามนโยบายสำรองประวัติ");
         PosUi.line(this,root,"ยอดขายสินค้าเดิม: "+PosDatabase.money(s.grossSalesSatang)+" บาท");
         PosUi.line(this,root,"ยอดคืนสินค้า: "+PosDatabase.money(s.returnsSatang)+" บาท");
         PosUi.line(this,root,"ยอดยกเลิกบิล: "+PosDatabase.money(s.cancellationsSatang)+" บาท");
         PosUi.line(this,root,"ยอดค่าบริการสุทธิ: "+PosDatabase.money(s.netFeesSatang)+" บาท");
-        PosUi.line(this,root,"ยอดขายสุทธิ: "+PosDatabase.money(s.netSalesSatang)+" บาท");
+        PosUi.line(this,root,"ยอดขายสุทธิจากข้อมูลที่เก็บไว้: "+PosDatabase.money(s.netSalesSatang)+" บาท");
         PosUi.line(this,root,"ยอดหนี้คงค้างปัจจุบัน: "+PosDatabase.money(s.outstandingDebtSatang)+" บาท");
         PosUi.back(this,root);
     }
