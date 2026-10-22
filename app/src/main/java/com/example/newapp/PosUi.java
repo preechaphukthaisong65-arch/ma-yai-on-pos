@@ -8,17 +8,29 @@ import android.graphics.drawable.GradientDrawable;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.util.ArrayDeque;
 import java.util.Locale;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 final class PosUi {
     private PosUi() {}
+    private static final Map<Activity,ArrayDeque<LinearLayout>> HISTORY=new WeakHashMap<>();
+    private static final Map<Activity,LinearLayout> CURRENT=new WeakHashMap<>();
+
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
+
+    static void resetNavigation(Activity a) {
+        HISTORY.remove(a);
+        CURRENT.remove(a);
+    }
 
     static LinearLayout page(Activity a, String title) {
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -27,20 +39,29 @@ final class PosUi {
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
-        FrameLayout frame = new FrameLayout(a);
-        ScrollView scroll = new ScrollView(a);
-        int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
-        if (background != 0) scroll.setBackgroundResource(background);
+        LinearLayout previous=CURRENT.get(a);
+        if(previous!=null)HISTORY.computeIfAbsent(a,k->new ArrayDeque<>()).push(previous);
+
         LinearLayout root = new LinearLayout(a);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,82));
         root.setBackgroundColor(Color.TRANSPARENT);
-        if (background == 0) scroll.setBackgroundColor(Color.rgb(248,250,247));
         TextView heading = text(a,title,24,Color.rgb(35,80,48));
         heading.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a);
         root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
+        showRoot(a,root);
+        return root;
+    }
+
+    private static void showRoot(Activity a,LinearLayout root) {
+        if(root.getParent() instanceof ViewGroup)((ViewGroup)root.getParent()).removeView(root);
+        FrameLayout frame = new FrameLayout(a);
+        ScrollView scroll = new ScrollView(a);
+        int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
+        if (background != 0) scroll.setBackgroundResource(background);
+        else scroll.setBackgroundColor(Color.rgb(248,250,247));
         scroll.addView(root);
         frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
 
@@ -51,13 +72,14 @@ final class PosUi {
         navigation.setBackgroundColor(Color.WHITE);
         Button home = navButton(a,"⌂ หน้าหลัก");
         home.setOnClickListener(v -> {
+            resetNavigation(a);
             Intent intent = new Intent(a,MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             a.startActivity(intent);
             a.finish();
         });
         Button back = navButton(a,"← ย้อนกลับ");
-        back.setOnClickListener(v -> a.finish());
+        back.setOnClickListener(v -> navigateBack(a));
         navigation.addView(home,new LinearLayout.LayoutParams(0,dp(a,38),1f));
         View spacer = new View(a);
         navigation.addView(spacer,new LinearLayout.LayoutParams(dp(a,8),1));
@@ -65,7 +87,19 @@ final class PosUi {
         FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(-1,dp(a,46),Gravity.BOTTOM);
         frame.addView(navigation,navParams);
         a.setContentView(frame);
-        return root;
+        CURRENT.put(a,root);
+    }
+
+    private static void navigateBack(Activity a) {
+        ArrayDeque<LinearLayout> stack=HISTORY.get(a);
+        if(stack!=null&&!stack.isEmpty()) {
+            LinearLayout previous=stack.pop();
+            if(stack.isEmpty())HISTORY.remove(a);
+            showRoot(a,previous);
+        } else {
+            CURRENT.remove(a);
+            a.finish();
+        }
     }
 
     private static Button navButton(Activity a,String label) {
@@ -180,6 +214,6 @@ final class PosUi {
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
 
-    // Navigation is fixed to the bottom edge by page(); do not add duplicate in-content controls.
+    // Navigation controls are rendered in the fixed bottom bar by page().
     static void back(Activity a,LinearLayout root) {}
 }
