@@ -57,4 +57,6 @@ public class HistoryScreen extends Activity {
         else do{PosUi.line(this,root,c.getString(0)+" • "+PosDatabase.money(c.getLong(1))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2))));}while(c.moveToNext());
         c.close();PosUi.back(this,root);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }
