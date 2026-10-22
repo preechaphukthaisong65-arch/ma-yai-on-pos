@@ -16,6 +16,7 @@ public class BackupScreen extends Activity {
     @Override protected void onCreate(Bundle state){super.onCreate(state);home();}
 
     private void home(){
+        PosUi.resetNavigation(this);
         root=PosUi.page(this,"สำรอง / กู้คืนข้อมูล");
         PosUi.line(this,root,"ไฟล์สำรองมีข้อมูลสินค้า ลูกค้า บิล และประวัติธุรกรรม ควรเก็บไว้ในพื้นที่ส่วนตัว");
         PosUi.button(this,root,"ส่งออกไฟล์สำรอง",v->chooseExport());
@@ -69,20 +70,19 @@ public class BackupScreen extends Activity {
             runOnUiThread(()->{
                 if(isFinishing())return;
                 if(error==null){
-                    new AlertDialog.Builder(this).setMessage(success)
-                            .setPositiveButton("ตกลง",(d,w)->{
+                    PosUi.result(this,true,success,success,()->{
                                 if(returnHome){
                                     Intent intent=new Intent(this,MainActivity.class);
                                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
                                     startActivity(intent);finish();
                                 }else home();
-                            }).show();
+                            });
                 }else{
                     String message=error.getMessage()==null?"เกิดข้อผิดพลาดในการจัดการไฟล์":error.getMessage();
-                    new AlertDialog.Builder(this).setTitle("ดำเนินการไม่สำเร็จ").setMessage(message)
-                            .setPositiveButton("ตกลง",(d,w)->home()).show();
+                    PosUi.result(this,false,"ดำเนินการไม่สำเร็จ",message,()->home());
                 }
             });
         },"pos-backup").start();
     }
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }

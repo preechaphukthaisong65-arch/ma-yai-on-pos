@@ -13,7 +13,7 @@ import java.util.Locale;
 public class ReportScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"รายงานยอดขาย");
+    private void home(){PosUi.resetNavigation(this);root=PosUi.page(this,"รายงานยอดขาย");
         PosUi.button(this,root,"ยอดขายวันนี้",v->period("วันนี้",startOfDay(),PosDatabase.now()+1L));
         PosUi.button(this,root,"ยอดขายสัปดาห์นี้",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()+1L));
         PosUi.button(this,root,"ยอดขายเดือนนี้",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()+1L));
@@ -107,4 +107,5 @@ public class ReportScreen extends Activity {
         PosUi.back(this,root);
     }
 
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }

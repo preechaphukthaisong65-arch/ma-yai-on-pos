@@ -11,7 +11,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class BarcodeScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"สร้างบาร์โค้ด");
+    private void home(){PosUi.resetNavigation(this);root=PosUi.page(this,"สร้างบาร์โค้ด");
         PosUi.button(this,root,"สร้างบาร์โค้ดใหม่",v->create());
         PosUi.button(this,root,"คลังบาร์โค้ด",v->registry());
         PosUi.back(this,root);
@@ -29,13 +29,12 @@ public class BarcodeScreen extends Activity {
             final String generatedName=result.entry.name;
             final boolean wasReused=result.reused;
             if(wasReused)price.setText(PosDatabase.money(generatedPrice));
-            new AlertDialog.Builder(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ")
-                    .setMessage("สินค้า: "+generatedName+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+
-                            PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""))
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,wasReused?"ใช้บาร์โค้ดเดิมสำเร็จ":"สร้างบาร์โค้ดสำเร็จ",
+                    "สินค้า: "+generatedName+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+
+                            PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""),()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"ข้อมูลบาร์โค้ดไม่ถูกต้อง":e.getMessage();
-            new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"สร้างบาร์โค้ดไม่สำเร็จ",error,null);
         }});
         PosUi.back(this,root);
     }
@@ -50,4 +49,5 @@ public class BarcodeScreen extends Activity {
         while(c.moveToNext())PosUi.line(this,root,c.getString(1)+" • "+c.getString(0)+" • "+PosDatabase.money(c.getLong(2))+" บาท • "+c.getString(3));c.close();PosUi.back(this,root);
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){super.onActivityResult(requestCode,resultCode,data);IntentResult r=BarcodeScanner.parseResult(requestCode,resultCode,data);if(r!=null){if(r.getContents()!=null)search(r.getContents());else home();}}
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }
