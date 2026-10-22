@@ -115,11 +115,13 @@ public class StockScreen extends Activity {
         Cursor registry=helper.getReadableDatabase().query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null,"1");
         if(registry.moveToFirst()){name.setText(registry.getString(0));price.setText(PosDatabase.money(registry.getLong(1)));name.setEnabled(false);price.setEnabled(false);}
         registry.close();
-        EditText cost=PosUi.input(this,root,"ต้นทุน (บาท)");EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
-        EditText qty=PosUi.input(this,root,"จำนวนเริ่มต้น");
+        PosUi.line(this,root,"หน่วยเริ่มต้น: ชิ้น");
+        PosUi.line(this,root,"ลิมิตสต๊อกตั้งต้น: ไม่กำหนด");
+        EditText qty=PosUi.input(this,root,"จำนวนสินค้าเริ่มต้น");
         PosUi.button(this,root,"บันทึกสินค้า",v->{try{
-            String nm=PosUi.str(name),un=PosUi.str(unit);if(nm.isEmpty()||un.isEmpty())throw new IllegalArgumentException();
-            int q=Integer.parseInt(PosUi.str(qty)),l=Integer.parseInt(PosUi.str(lim));long p=PosUi.satang(price),co=PosUi.satang(cost);if(q<0||l<0)throw new IllegalArgumentException();
+            String nm=PosUi.str(name);if(nm.isEmpty())throw new IllegalArgumentException("กรุณากรอกชื่อสินค้า");
+            int q=Integer.parseInt(PosUi.str(qty));long p=PosUi.satang(price);if(q<=0)throw new IllegalArgumentException("จำนวนสินค้าเริ่มต้นต้องมากกว่า 0");
+            long co=0;String un="ชิ้น";int l=0;
             SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
                 Cursor existingRegistry=db.query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null);
                 boolean registryExists=existingRegistry.moveToFirst();
@@ -129,7 +131,7 @@ public class StockScreen extends Activity {
                 long id=db.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
                 ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);
-                PosDatabase.audit(db,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; stock="+q);
+                PosDatabase.audit(db,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; price_satang="+p+"; stock="+q+"; unit=ชิ้น; cost_satang=0; stock_limit=0");
                 db.setTransactionSuccessful();
             }finally{db.endTransaction();}StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
         }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
