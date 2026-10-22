@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 7;
+    private static final int DB_VERSION = 8;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -37,7 +37,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE barcode_registry (barcode TEXT PRIMARY KEY, name TEXT NOT NULL," +
                 "price_satang INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
-        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL UNIQUE COLLATE NOCASE, created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL UNIQUE COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE bills (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_code TEXT NOT NULL UNIQUE," +
                 "customer_id INTEGER, sale_type TEXT NOT NULL CHECK(sale_type IN ('CASH','CREDIT'))," +
                 "status TEXT NOT NULL CHECK(status IN ('PAID','UNPAID','CANCELLED','RETURNED'))," +
@@ -79,6 +79,9 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_ledger_items_product ON sales_ledger_items(barcode,created_at)");
         db.execSQL("CREATE INDEX idx_ledger_items_bill_id ON sales_ledger_items(bill_id,event_type)");
         db.execSQL("CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+        db.execSQL("CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX idx_audit_log_created ON audit_log(created_at)");
+        db.execSQL("CREATE INDEX idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
         db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','100000000000')");
     }
 
@@ -121,9 +124,47 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("INSERT OR IGNORE INTO barcode_registry(barcode,name,price_satang,source,created_at) SELECT barcode,name,price_satang,'LEGACY',created_at FROM products");
             db.execSQL("UPDATE barcode_registry SET price_satang=(SELECT p.price_satang FROM products p WHERE p.barcode=barcode_registry.barcode) WHERE EXISTS (SELECT 1 FROM products p WHERE p.barcode=barcode_registry.barcode)");
         }
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE customers ADD COLUMN first_name TEXT NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE customers ADD COLUMN last_name TEXT NOT NULL DEFAULT ''");
+            Cursor legacy = db.query("customers", new String[]{"id","full_name"}, null, null, null, null, null);
+            while (legacy.moveToNext()) {
+                long id = legacy.getLong(0);
+                String oldName = legacy.getString(1) == null ? "" : legacy.getString(1).trim();
+                int split = oldName.indexOf(' ');
+                String first = split > 0 ? oldName.substring(0, split).trim() : oldName;
+                String last = split > 0 ? oldName.substring(split + 1).trim() : "";
+                ContentValues profile = new ContentValues();
+                profile.put("first_name", first);
+                profile.put("last_name", last);
+                db.update("customers", profile, "id=?", new String[]{String.valueOf(id)});
+            }
+            legacy.close();
+            db.execSQL("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
+        }
     }
 
     public static long now() { return AppClock.now(); }
+
+    /** Append-only operational audit entry. Actor identity remains unknown until user accounts are implemented. */
+    public static void audit(SQLiteDatabase db, String action, String entityType, String entityId, String details) {
+        ContentValues row = new ContentValues();
+        row.put("actor_label", "ยังไม่ระบุผู้ใช้");
+        row.put("action", action);
+        row.put("entity_type", entityType);
+        if (entityId != null) row.put("entity_id", entityId);
+        if (details != null) row.put("details", details);
+        row.put("created_at", now());
+        db.insertOrThrow("audit_log", null, row);
+    }
+
+    public static String customerName(String firstName, String lastName) {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        return (first + " " + last).trim();
+    }
     public static ContentValues values() { return new ContentValues(); }
     public static String money(long satang) {
         return String.format(java.util.Locale.US, "%.2f", satang / 100.0d);
@@ -131,11 +172,13 @@ public final class PosDatabase extends SQLiteOpenHelper {
     public static long toSatang(String value) {
         java.math.BigDecimal d = new java.math.BigDecimal(value.trim());
         if (d.signum() < 0) throw new IllegalArgumentException("ราคาต้องไม่ติดลบ");
-        return d.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        return d.movePointRight(2).setScale(0, java.math.RoundingMode.CEILING).longValueExact();
     }
     public static long creditFee(long subtotalSatang) {
         // 5% in satang, rounded upward to the next satang.
-        return (subtotalSatang + 19L) / 20L;
+        if (subtotalSatang < 0L) throw new IllegalArgumentException("ยอดขายเชื่อต้องไม่ติดลบ");
+        long whole = subtotalSatang / 20L;
+        return whole + (subtotalSatang % 20L == 0L ? 0L : 1L);
     }
     public Cursor findProduct(SQLiteDatabase db, String barcode) {
         return db.query("products", null, "barcode=? AND active=1", new String[]{barcode}, null, null, null, "1");
