@@ -38,8 +38,8 @@ public class BarcodeScreen extends Activity {
                 db.setTransactionSuccessful();
             }finally{db.endTransaction();}
             final String generatedCode=code;final long generatedPrice=p;final boolean wasReused=reused;
-            new AlertDialog.Builder(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ").setMessage("สินค้า: "+n+"\\nบาร์โค้ด: "+generatedCode+"\\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\\nใช้บาร์โค้ดเดิมจากคลัง":"")).setPositiveButton("ตกลง",(d,w)->home()).show();
-        }catch(Exception e){new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
+            PosUi.result(this,true,"สินค้า: "+n+"\\nบาร์โค้ด: "+generatedCode+"\\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\\nใช้บาร์โค้ดเดิมจากคลัง":""),this::home);
+        }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
     private void registry(){
