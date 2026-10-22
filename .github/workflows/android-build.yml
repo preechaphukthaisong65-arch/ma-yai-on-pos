@@ -5,9 +5,11 @@ on:
     branches:
       - feature/central-product-catalog-service
       - feature/central-reporting-integrity
+      - feature/ui-ux-confirmation-font-nav-2026-10-22
   pull_request:
     branches:
       - main
+      - feature/central-reporting-integrity
 
 permissions:
   contents: read
