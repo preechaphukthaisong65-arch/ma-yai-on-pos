@@ -28,13 +28,16 @@ final class StockAlertManager {
         if(db.update("app_meta",cv,"key='low_alert_ids'",null)==0){cv.put("key","low_alert_ids");db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);}
         Cursor notifiedCursor=db.query("app_meta",new String[]{"value"},"key='low_alert_notified_ids'",null,null,null,null);
         Set<String> notified=new HashSet<>();if(notifiedCursor.moveToFirst()){String ids=notifiedCursor.getString(0);if(ids!=null&&!ids.isEmpty())for(String id:ids.split(","))notified.add(id);}notifiedCursor.close();
+        notified.retainAll(low);
         boolean pendingNotification=false;for(String id:low)if(!notified.contains(id)){pendingNotification=true;break;}
         if(low.isEmpty()){
             NotificationManager manager=(NotificationManager)activity.getSystemService(Context.NOTIFICATION_SERVICE);if(manager!=null)manager.cancel(NOTICE_ID);
-            ContentValues cleared=new ContentValues();cleared.put("key","low_alert_notified_ids");cleared.put("value","");db.insertWithOnConflict("app_meta",null,cleared,SQLiteDatabase.CONFLICT_REPLACE);
+            notified.clear();
         }else if(pendingNotification&&notify(activity)){
-            ContentValues sent=new ContentValues();sent.put("key","low_alert_notified_ids");sent.put("value",value.toString());db.insertWithOnConflict("app_meta",null,sent,SQLiteDatabase.CONFLICT_REPLACE);
+            notified.addAll(low);
         }
+        StringBuilder notifiedValue=new StringBuilder();for(String id:notified){if(notifiedValue.length()>0)notifiedValue.append(',');notifiedValue.append(id);}
+        ContentValues sent=new ContentValues();sent.put("key","low_alert_notified_ids");sent.put("value",notifiedValue.toString());db.insertWithOnConflict("app_meta",null,sent,SQLiteDatabase.CONFLICT_REPLACE);
         return !low.isEmpty();
         } catch (android.database.sqlite.SQLiteException e) { return false; }
     }
