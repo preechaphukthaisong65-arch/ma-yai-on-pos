@@ -52,6 +52,7 @@ public class SellScreen extends Activity {
         Item old=cart.get(id);
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showCart);return;}
         if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
+        try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showCart()).show();return;}
         PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::showCart);
     }
     private long lineTotal(Item i){return Math.multiplyExact(i.price,(long)i.qty);}
@@ -111,7 +112,9 @@ public class SellScreen extends Activity {
         PosUi.line(this,root,"หรือสร้างลูกค้าใหม่");
         EditText first=PosUi.input(this,root,"ชื่อ");
         EditText last=PosUi.input(this,root,"นามสกุล");
-        long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=Math.addExact(sub,fee);
+        long sub,fee,total;
+        try{sub=subtotal();fee=PosDatabase.creditFee(sub);total=Math.addExact(sub,fee);}
+        catch(ArithmeticException e){PosUi.line(this,root,"ยอดเกินขอบเขตที่ระบบรองรับ จึงไม่สามารถขายเชื่อได้");PosUi.back(this,root);return;}
         PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
         PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
         PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
