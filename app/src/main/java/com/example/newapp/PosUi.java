@@ -82,19 +82,78 @@ final class PosUi {
                     .show();
         }
     }
+    private static TextToSpeech sharedTts;
+    private static boolean ttsReady=false;
+    private static boolean ttsInitializing=false;
+    private static final ArrayDeque<SpeechRequest> SPEECH_QUEUE=new ArrayDeque<>();
+    private static final java.util.HashMap<String,SpeechRequest> SPEECH_CALLBACKS=new java.util.HashMap<>();
+    private static final class SpeechRequest {
+        final java.lang.ref.WeakReference<Activity> activity;
+        final String message;
+        final Runnable after;
+        final String id;
+        SpeechRequest(Activity a,String m,Runnable r) {
+            activity=new java.lang.ref.WeakReference<>(a);
+            message=m;
+            after=r;
+            id="pos-"+System.nanoTime();
+        }
+    }
     static void speak(Activity a,String message) { speakThen(a,message,()->{}); }
     static void speakThen(Activity a,String message,Runnable after) {
-        final TextToSpeech[] holder = new TextToSpeech[1];
-        holder[0] = new TextToSpeech(a,status -> {
-            if(status!=TextToSpeech.SUCCESS){if(holder[0]!=null)holder[0].shutdown();a.runOnUiThread(after);return;}
-            ttsLangSafe(a,holder[0]);
-            holder[0].setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener(){
-                @Override public void onStart(String id) {}
-                @Override public void onDone(String id) { a.runOnUiThread(()->{holder[0].shutdown();after.run();}); }
-                @Override public void onError(String id) { a.runOnUiThread(()->{holder[0].shutdown();after.run();}); }
-            });
-            holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-"+System.nanoTime());
-        });
+        if(a==null||a.isFinishing())return;
+        SpeechRequest request=new SpeechRequest(a,message,after==null?()->{}:after);
+        synchronized(PosUi.class) {
+            SPEECH_QUEUE.addLast(request);
+            if(!ttsInitializing&&!ttsReady) {
+                ttsInitializing=true;
+                sharedTts=new TextToSpeech(a.getApplicationContext(),status->{
+                    synchronized(PosUi.class) {
+                        ttsInitializing=false;
+                        if(status!=TextToSpeech.SUCCESS) {
+                            ttsReady=false;
+                            sharedTts=null;
+                            while(!SPEECH_QUEUE.isEmpty())runAfter(SPEECH_QUEUE.removeFirst());
+                            return;
+                        }
+                        ttsReady=true;
+                        ttsLangSafe(a,sharedTts);
+                        sharedTts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener(){
+                            @Override public void onStart(String id) {}
+                            @Override public void onDone(String id) { completeSpeech(id); }
+                            @Override public void onError(String id) { completeSpeech(id); }
+                        });
+                        speakNext();
+                    }
+                });
+            } else if(ttsReady) {
+                speakNext();
+            }
+        }
+    }
+    private static void speakNext() {
+        if(!ttsReady||sharedTts==null||SPEECH_QUEUE.isEmpty())return;
+        SpeechRequest request=SPEECH_QUEUE.removeFirst();
+        Activity activity=request.activity.get();
+        if(activity==null||activity.isFinishing()) {
+            speakNext();
+            return;
+        }
+        SPEECH_CALLBACKS.put(request.id,request);
+        int result=sharedTts.speak(request.message,TextToSpeech.QUEUE_ADD,null,request.id);
+        if(result==TextToSpeech.ERROR)completeSpeech(request.id);
+    }
+    private static void completeSpeech(String id) {
+        SpeechRequest request;
+        synchronized(PosUi.class) {
+            request=SPEECH_CALLBACKS.remove(id);
+            speakNext();
+        }
+        if(request!=null)runAfter(request);
+    }
+    private static void runAfter(SpeechRequest request) {
+        Activity activity=request.activity.get();
+        if(activity!=null&&!activity.isFinishing())activity.runOnUiThread(request.after);
     }
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
         Locale th=new Locale("th","TH");
