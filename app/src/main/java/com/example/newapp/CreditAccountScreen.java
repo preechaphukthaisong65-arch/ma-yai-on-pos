@@ -239,7 +239,7 @@ public class CreditAccountScreen extends Activity {
             db.setTransactionSuccessful();paid=true;
         }catch(Exception e){error=e.getMessage()==null?"รับชำระไม่สำเร็จ":e.getMessage();paid=false;}
         finally{if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){paid=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
-        if(paid)PosUi.result(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt,this::home);
+        if(paid)PosUi.result(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt+"ยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท",this::arrearsSearch);
         else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 
