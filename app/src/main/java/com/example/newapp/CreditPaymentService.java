@@ -163,8 +163,18 @@ final class CreditPaymentService {
         if (subtotal < 0 || fee < 0 || originalTotal < 0 || createdAt < 0) {
             throw new IllegalStateException("ยอดเงินหรือวันเวลาของบิลไม่ถูกต้อง");
         }
-        boolean waive = "CREDIT".equals(type) && now >= createdAt && now - createdAt <= 86400000L;
-        long payable = waive ? subtotal : originalTotal;
+        if (!"CREDIT".equals(type)) {
+            throw new IllegalStateException("บิลค้างชำระต้องเป็นบิลขายเชื่อ");
+        }
+        long expectedTotal;
+        try { expectedTotal = Math.addExact(subtotal, fee); }
+        catch (ArithmeticException e) { throw new IllegalStateException("ยอดบิลเกินขอบเขตที่รองรับ"); }
+        if (originalTotal != expectedTotal) {
+            throw new IllegalStateException("ยอดรวมบิลไม่ตรงกับยอดสินค้าและค่าบริการ");
+        }
+        boolean waive = fee > 0 && now >= createdAt &&
+                now - createdAt <= ReportingService.FEE_WAIVER_WINDOW_MS;
+        long payable = ReportingService.payableNow(type, subtotal, fee, originalTotal, createdAt, now);
         return new BillQuote(id, code, type, subtotal, fee, originalTotal, payable, waive);
     }
 
