@@ -11,7 +11,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class BarcodeScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"สร้างบาร์โค้ด");
+    private void home(){PosUi.resetNavigation(this);root=PosUi.page(this,"สร้างบาร์โค้ด");
         PosUi.button(this,root,"สร้างบาร์โค้ดใหม่",v->create());
         PosUi.button(this,root,"คลังบาร์โค้ด",v->registry());
         PosUi.back(this,root);
