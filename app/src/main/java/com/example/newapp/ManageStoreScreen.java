@@ -52,11 +52,10 @@ public class ManageStoreScreen extends Activity {
         try{
             ProductCatalogService.updatePrice(helper,id,barcode,name,old,next,PosDatabase.now());
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
-            PosUi.dialog(this).setMessage("บันทึกราคาใหม่เรียบร้อย")
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,"บันทึกราคาใหม่สำเร็จ","บันทึกราคา "+name+" เรียบร้อย",()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกราคาไม่สำเร็จ":e.getMessage();
-            PosUi.dialog(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"บันทึกราคาไม่สำเร็จ",error,null);
         }
     }
     private void history(String barcode,String name){
@@ -114,13 +113,11 @@ public class ManageStoreScreen extends Activity {
         try{
             ReturnCancellationService.commit(helper,id,code,returning,PosDatabase.now());
             StockAlertManager.check(this);
-            PosUi.dialog(this)
-                    .setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย")
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,returning?"คืนสินค้าสำเร็จ":"ยกเลิกบิลสำเร็จ",
+                    (returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+" และคืนสต๊อกเรียบร้อย",()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"ทำรายการไม่สำเร็จ":e.getMessage();
-            PosUi.dialog(this).setMessage("ทำรายการไม่สำเร็จ: "+error)
-                    .setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"ทำรายการไม่สำเร็จ",error,null);
         }
     }
 }
