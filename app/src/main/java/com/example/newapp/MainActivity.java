@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
         TextView ticker = new TextView(this);
         tickerView = ticker;
         ticker.setText(TICKER_BASE);
-        ticker.setTextSize(14);
+        ticker.setTextSize(21);
         ticker.setTextColor(Color.rgb(35, 55, 40));
         // Translucent notification strip lets the logo remain visible behind it.
         ticker.setBackgroundColor(Color.argb(218, 255, 255, 255));
@@ -77,11 +77,11 @@ public class MainActivity extends Activity {
         ticker.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
         ticker.setMarqueeRepeatLimit(-1);
         ticker.setSelected(true);
-        ticker.setPadding(dp(8), dp(8), dp(8), dp(8));
+        ticker.setPadding(dp(8), dp(2), dp(8), dp(2));
         ticker.setGravity(Gravity.CENTER_VERTICAL);
         ticker.setBackgroundColor(Color.WHITE);
-        notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, -1));
-        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, 0, 1f));
+        notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, dp(40)));
+        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, dp(40)));
 
         LinearLayout menuArea = new LinearLayout(this);
         menuArea.setOrientation(LinearLayout.VERTICAL);
@@ -102,7 +102,7 @@ public class MainActivity extends Activity {
         row2Params.bottomMargin = dp(3);
         menuArea.addView(r2, row2Params);
         menuArea.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        page.addView(menuArea, new LinearLayout.LayoutParams(-1, 0, 7f));
+        page.addView(menuArea, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
         int homePanelHeight = Math.round(screenHeight * 0.80f); // 10% notifications + 70% menu
