@@ -89,7 +89,7 @@ public class ReportScreen extends Activity {
         while(c.moveToNext()){
             long qty=c.getLong(1);
             String note=!best&&qty==0?" • ไม่มีประวัติขายสุทธิใน 30 วัน":"";
-            PosUi.line(this,root,i+++". "+c.getString(0)+" — "+qty+" ชิ้น"+note);
+            PosUi.line(this,root,i+++". "+c.getString(0)+" — จำนวน "+qty+note);
         }
         if(i==1)PosUi.line(this,root,best?"ยังไม่มีสินค้าที่มียอดขายสุทธิในช่วงนี้":"ยังไม่มีสินค้าในคลัง");
         c.close();PosUi.back(this,root);
