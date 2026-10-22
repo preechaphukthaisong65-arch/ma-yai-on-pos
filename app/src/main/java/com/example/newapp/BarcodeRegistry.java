@@ -20,7 +20,33 @@ final class BarcodeRegistry {
         }
     }
 
+    static final class CreateResult {
+        final Entry entry;
+        final boolean reused;
+        CreateResult(Entry entry,boolean reused){this.entry=entry;this.reused=reused;}
+    }
+
     private BarcodeRegistry() {}
+
+    static CreateResult createOrReuse(PosDatabase helper,String name,long priceSatang,long createdAt) {
+        if(helper==null||name==null||name.trim().isEmpty()||priceSatang<0)
+            throw new IllegalArgumentException("ข้อมูลชื่อสินค้าหรือราคาไม่ถูกต้อง");
+        SQLiteDatabase db=helper.getWritableDatabase();
+        db.beginTransaction();
+        try {
+            Entry found=findByName(db,name.trim());
+            if(found!=null) {
+                db.setTransactionSuccessful();
+                return new CreateResult(found,true);
+            }
+            String code=nextGenerated(db);
+            registerIfMissing(db,code,name.trim(),priceSatang,"STORE",createdAt);
+            Entry created=find(db,code);
+            if(created==null)throw new IllegalStateException("สร้างรายการบาร์โค้ดไม่สำเร็จ");
+            db.setTransactionSuccessful();
+            return new CreateResult(created,false);
+        } finally {db.endTransaction();}
+    }
 
     static Entry find(SQLiteDatabase db, String barcode) {
         Cursor c = db.query("barcode_registry",
