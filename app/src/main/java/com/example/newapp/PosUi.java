@@ -208,7 +208,7 @@ final class PosUi {
             if(heading!=null)heading.setTextSize(26);
         });
         dialog.show();
-        String spoken = title + ". " + message;
+        String spoken = success ? "บันทึกสำเร็จ" : "บันทึกไม่สำเร็จ";
         speak(a,spoken);
     }
 
