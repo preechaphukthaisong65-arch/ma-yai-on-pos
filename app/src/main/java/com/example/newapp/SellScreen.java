@@ -24,10 +24,11 @@ public class SellScreen extends Activity {
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
-        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));PosUi.button(this,root,"กลับหน้าหลัก",v->finish());
+        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));
         addSalesChart("ยอดขายรายสัปดาห์ • 8 สัปดาห์ล่าสุด","week",8);
         addSalesChart("ยอดขายรายเดือน • 12 เดือนล่าสุด","month",12);
         addSalesChart("ยอดขายรายปี • ปีปัจจุบันและข้อมูลที่เหลือของปีก่อน","year",2);
+        PosUi.back(this,root);
     }
     private void addSalesChart(String title,String unit,int count){
         String[] labels=new String[count];long[] values=new long[count];Calendar base=Calendar.getInstance();
@@ -74,7 +75,7 @@ public class SellScreen extends Activity {
     private long subtotal(){long s=0;for(Item i:cart.values())s+=i.price*i.qty;return s;}
     private void showCart(){
         root=PosUi.page(this,"ตรวจสอบรายการขาย");
-        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());return;}
+        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());PosUi.back(this,root);return;}
         StringBuilder speech=new StringBuilder();
         for(Item i:cart.values()){
             PosUi.line(this,root,i.name+"  "+i.qty+" "+i.unit+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(i.price*i.qty)+" บาท");
@@ -87,6 +88,7 @@ public class SellScreen extends Activity {
             PosUi.button(this,root,"ขายเงินสด",v->cashSale());
             PosUi.button(this,root,"ขายเชื่อ",v->creditSale());
             PosUi.button(this,root,"ยกเลิกบิลนี้",v->home());
+            PosUi.back(this,root);
         });
     }
     private void cashSale(){
@@ -98,10 +100,24 @@ public class SellScreen extends Activity {
     private void creditSale(){
         root=PosUi.page(this,"ขายเชื่อ");
         PosUi.line(this,root,"เลือกลูกค้าเดิมจากคำแนะนำ หรือกรอกชื่อเต็มเพื่อสร้างลูกค้าใหม่");
-        AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);
+        AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);PosUi.styleInput(this,customer);
         java.util.ArrayList<String> customerNames=CustomerService.listNames(helper);
-        customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
-        root.addView(customer,new LinearLayout.LayoutParams(-1,-2));
+        ArrayAdapter<String> customerAdapter=new ArrayAdapter<String>(this,android.R.layout.simple_dropdown_item_1line,customerNames) {
+            @Override public android.view.View getView(int position,android.view.View convertView,android.view.ViewGroup parent) {
+                android.widget.TextView item=(android.widget.TextView)super.getView(position,convertView,parent);
+                item.setTextSize(24);
+                item.setPadding(PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10),PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10));
+                return item;
+            }
+            @Override public android.view.View getDropDownView(int position,android.view.View convertView,android.view.ViewGroup parent) {
+                android.widget.TextView item=(android.widget.TextView)super.getDropDownView(position,convertView,parent);
+                item.setTextSize(24);
+                item.setPadding(PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10),PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10));
+                return item;
+            }
+        };
+        customer.setAdapter(customerAdapter);
+        LinearLayout.LayoutParams customerParams=new LinearLayout.LayoutParams(-1,-2);customerParams.bottomMargin=PosUi.dp(this,10);root.addView(customer,customerParams);
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
         PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
         PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
@@ -111,12 +127,12 @@ public class SellScreen extends Activity {
     }
     private void commitSale(boolean credit,String customerName,long cash){
         if(saleInProgress||duplicatePromptOpen)return;
-        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        if(cart.isEmpty()){PosUi.dialog(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         String duplicate;
-        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){new AlertDialog.Builder(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
+        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){PosUi.result(this,false,"ตรวจสอบบิลไม่สำเร็จ","ระบบยังบันทึกการขายไม่ได้ กรุณาลองใหม่",null);return;}
         if(duplicate!=null){
             duplicatePromptOpen=true;
-            new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ")
+            PosUi.dialog(this).setTitle("พบบิลที่อาจซ้ำ")
                     .setMessage("พบบิลที่มีรายละเอียดตรงกันใน 1 ชั่วโมงที่ผ่านมา ("+duplicate+") ต้องการสร้างบิลใหม่หรือไม่?")
                     .setNegativeButton("ยกเลิก",(d,w)->{duplicatePromptOpen=false;home();})
                     .setPositiveButton("ยืนยันว่าเป็นการขายจริง",(d,w)->{duplicatePromptOpen=false;saveSale(credit,customerName,cash);})
@@ -150,7 +166,7 @@ public class SellScreen extends Activity {
     }
     private void saveSale(boolean credit,String customerName,long cash){
         if(saleInProgress)return;
-        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        if(cart.isEmpty()){PosUi.dialog(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         saleInProgress=true;
         SalesTransactionService.Result result=null;
         String error=null;
@@ -175,7 +191,7 @@ public class SellScreen extends Activity {
                         (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
                                 "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
             }
-            new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
-        }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,true,"บันทึกการขายสำเร็จ",message,()->home());
+        }else PosUi.result(this,false,"บันทึกไม่สำเร็จ",error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }

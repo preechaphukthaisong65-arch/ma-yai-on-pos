@@ -28,7 +28,7 @@ public class ManageStoreScreen extends Activity {
     private void findProduct(String barcode){
         ProductCatalogService.Product product=ProductCatalogService.findActiveByBarcode(helper,barcode);
         if(product==null){
-            new AlertDialog.Builder(this).setMessage("ไม่พบสินค้า")
+            PosUi.dialog(this).setMessage("ไม่พบสินค้า")
                     .setPositiveButton("ตกลง",(d,w)->home()).show();return;
         }
         long id=product.id,old=product.priceSatang;String name=product.name;
@@ -41,7 +41,7 @@ public class ManageStoreScreen extends Activity {
         PosUi.button(this,root,"บันทึกราคาใหม่",v->{
             try{
                 long p=PosUi.satang(price);
-                new AlertDialog.Builder(this).setMessage("ยืนยันเปลี่ยนราคา "+PosDatabase.money(old)+" เป็น "+PosDatabase.money(p)+" บาท?")
+                PosUi.dialog(this).setMessage("ยืนยันเปลี่ยนราคา "+PosDatabase.money(old)+" เป็น "+PosDatabase.money(p)+" บาท?")
                         .setNegativeButton("ยกเลิก",null)
                         .setPositiveButton("ยืนยัน",(d,w)->savePrice(id,barcode,name,old,p)).show();
             }catch(Exception e){price.setError("กรอกราคาให้ถูกต้อง");}
@@ -52,11 +52,10 @@ public class ManageStoreScreen extends Activity {
         try{
             ProductCatalogService.updatePrice(helper,id,barcode,name,old,next,PosDatabase.now());
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
-            new AlertDialog.Builder(this).setMessage("บันทึกราคาใหม่เรียบร้อย")
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,"บันทึกราคาใหม่สำเร็จ","บันทึกราคา "+name+" เรียบร้อย",()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกราคาไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"บันทึกราคาไม่สำเร็จ",error,null);
         }
     }
     private void history(String barcode,String name){
@@ -70,7 +69,7 @@ public class ManageStoreScreen extends Activity {
             bill=ReturnCancellationService.inspect(helper,code,PosDatabase.now());
         }catch(Exception e){
             String message=e.getMessage()==null?"ตรวจสอบบิลไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.dialog(this).setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
             return;
         }
         boolean feeWaived=bill.feeWaived;
@@ -94,7 +93,7 @@ public class ManageStoreScreen extends Activity {
             returnConfirm+="\nจะยกเลิกหนี้เต็มจำนวนของบิลนี้";
         }
         final String confirmationMessage=returnConfirm;
-        PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->new AlertDialog.Builder(this)
+        PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->PosUi.dialog(this)
                 .setMessage(confirmationMessage).setNegativeButton("ไม่ใช่",null)
                 .setPositiveButton("ยืนยัน",(d,w)->processBill(bill.id,bill.code,true)).show());
 
@@ -105,7 +104,7 @@ public class ManageStoreScreen extends Activity {
                 cancelConfirm+=" (ไม่คืนค่าบริการ 5%)";
         }
         final String cancelConfirmation=cancelConfirm;
-        PosUi.button(this,root,"ยกเลิกบิล",v->new AlertDialog.Builder(this)
+        PosUi.button(this,root,"ยกเลิกบิล",v->PosUi.dialog(this)
                 .setMessage(cancelConfirmation).setNegativeButton("ไม่ใช่",null)
                 .setPositiveButton("ยืนยัน",(d,w)->processBill(bill.id,bill.code,false)).show());
         PosUi.back(this,root);
@@ -114,13 +113,11 @@ public class ManageStoreScreen extends Activity {
         try{
             ReturnCancellationService.commit(helper,id,code,returning,PosDatabase.now());
             StockAlertManager.check(this);
-            new AlertDialog.Builder(this)
-                    .setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย")
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,returning?"คืนสินค้าสำเร็จ":"ยกเลิกบิลสำเร็จ",
+                    (returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+" และคืนสต๊อกเรียบร้อย",()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"ทำรายการไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage("ทำรายการไม่สำเร็จ: "+error)
-                    .setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"ทำรายการไม่สำเร็จ",error,null);
         }
     }
 }

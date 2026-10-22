@@ -63,8 +63,8 @@ final class DebtReminderNotifier {
     static String homeSummary(Context context){StringBuilder out=new StringBuilder();for(Debt debt:overdue(context)){if(out.length()>0)out.append("     •     ");out.append(debt.message);}return out.toString();}
     static void showOverdue(Activity activity){
         ArrayList<Debt> debts=overdue(activity);
-        if(debts.isEmpty()){new AlertDialog.Builder(activity).setMessage("ไม่มีลูกหนี้ค้างชำระเกิน 1 เดือน").setPositiveButton("ตกลง",null).show();return;}
+        if(debts.isEmpty()){PosUi.dialog(activity).setMessage("ไม่มีลูกหนี้ค้างชำระเกิน 1 เดือน").setPositiveButton("ตกลง",null).show();return;}
         StringBuilder message=new StringBuilder();for(Debt d:debts)message.append(d.message).append('\n');
-        new AlertDialog.Builder(activity).setTitle("ลูกหนี้ค้างชำระเกิน 1 เดือน").setMessage(message.toString()).setPositiveButton("ตกลง",null).show();
+        PosUi.dialog(activity).setTitle("ลูกหนี้ค้างชำระเกิน 1 เดือน").setMessage(message.toString()).setPositiveButton("ตกลง",null).show();
     }
 }
