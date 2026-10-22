@@ -173,7 +173,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
     }
     public static ContentValues values() { return new ContentValues(); }
     public static String money(long satang) {
-        return String.format(java.util.Locale.US, "%.2f", satang / 100.0d);
+        return java.math.BigDecimal.valueOf(satang, 2).setScale(2, java.math.RoundingMode.UNNECESSARY).toPlainString();
     }
     public static long toSatang(String value) {
         java.math.BigDecimal d = new java.math.BigDecimal(value.trim());
