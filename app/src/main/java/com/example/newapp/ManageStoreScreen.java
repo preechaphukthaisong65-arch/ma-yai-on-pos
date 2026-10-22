@@ -11,7 +11,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class ManageStoreScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;private String mode="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosUi.scan(this);});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosUi.scan(this);});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
+    private void home(){PosUi.resetNavigation(this);root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosUi.scan(this);});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosUi.scan(this);});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosUi.scan(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
@@ -52,11 +52,10 @@ public class ManageStoreScreen extends Activity {
         try{
             ProductCatalogService.updatePrice(helper,id,barcode,name,old,next,PosDatabase.now());
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
-            new AlertDialog.Builder(this).setMessage("บันทึกราคาใหม่เรียบร้อย")
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,"บันทึกราคาใหม่สำเร็จ","สินค้า "+name+" เปลี่ยนราคาเป็น "+PosDatabase.money(next)+" บาท",()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกราคาไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"บันทึกราคาไม่สำเร็จ",error,null);
         }
     }
     private void history(String barcode,String name){
@@ -114,13 +113,10 @@ public class ManageStoreScreen extends Activity {
         try{
             ReturnCancellationService.commit(helper,id,code,returning,PosDatabase.now());
             StockAlertManager.check(this);
-            new AlertDialog.Builder(this)
-                    .setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย")
-                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+            PosUi.result(this,true,returning?"คืนสินค้าสำเร็จ":"ยกเลิกบิลสำเร็จ",(returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+" และคืนสต๊อกเรียบร้อย",()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"ทำรายการไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage("ทำรายการไม่สำเร็จ: "+error)
-                    .setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"ทำรายการไม่สำเร็จ",error,null);
         }
     }
 }
