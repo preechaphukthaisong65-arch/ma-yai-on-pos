@@ -34,6 +34,9 @@ final class ReportingService {
     /** Amount currently payable for an unpaid bill, including the 24-hour fee-waiver rule. */
     static long payableNow(String saleType,long subtotal,long fee,long total,long createdAt,long now) {
         if(subtotal<0||fee<0||total<0||createdAt<0)throw new IllegalStateException("ยอดเงินหรือวันเวลาของบิลไม่ถูกต้อง");
+        long expected;
+        try{expected=Math.addExact(subtotal,fee);}catch(ArithmeticException e){throw new IllegalStateException("ยอดบิลเกินขอบเขตที่รองรับ");}
+        if(expected!=total)throw new IllegalStateException("ยอดรวมบิลไม่ตรงกับยอดสินค้าและค่าบริการ");
         if("CREDIT".equals(saleType)&&now>=createdAt&&now-createdAt<=FEE_WAIVER_WINDOW_MS)return subtotal;
         return total;
     }
@@ -185,9 +188,10 @@ final class ReportingService {
         try {
             if(c.moveToFirst()){gross=c.getLong(0);returns=c.getLong(1);cancellations=c.getLong(2);fees=c.getLong(3);net=c.getLong(4);}
         } finally { c.close(); }
-        Cursor debt=db.rawQuery("SELECT COALESCE(SUM(CASE WHEN sale_type='CREDIT' AND ? >= created_at AND ?-created_at<=? "+
+        long now=PosDatabase.now();
+        Cursor debt=db.rawQuery("SELECT COALESCE(SUM(CASE WHEN sale_type='CREDIT' AND ? >= created_at AND ? - created_at <= ? "+
                 "THEN subtotal_satang ELSE total_satang END),0) FROM bills WHERE status='UNPAID'",
-                new String[]{String.valueOf(PosDatabase.now()),String.valueOf(PosDatabase.now()),String.valueOf(FEE_WAIVER_WINDOW_MS)});
+                new String[]{String.valueOf(now),String.valueOf(now),String.valueOf(FEE_WAIVER_WINDOW_MS)});
         long due=0;
         try { if(debt.moveToFirst())due=debt.getLong(0); } finally { debt.close(); }
         return new Summary(gross,returns,cancellations,fees,net,due);
