@@ -130,8 +130,8 @@ public class CreditAccountScreen extends Activity {
                 spoken.append("ยอดที่ต้องชำระ ").append(PosDatabase.money(waive?sub:amount)).append(" บาท ");
             }
             bill.close();
-            Cursor items=readDb.query("bill_items",new String[]{"product_name","quantity","unit","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-            while(items.moveToNext())spoken.append(items.getString(0)).append(" ").append(items.getInt(1)).append(" ").append(items.getString(2)).append(" ราคา ").append(PosDatabase.money(items.getLong(3))).append(" บาท ");
+            Cursor items=readDb.query("bill_items",new String[]{"product_name","quantity","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
+            while(items.moveToNext())spoken.append(items.getString(0)).append(" จำนวน ").append(items.getInt(1)).append(" ราคา ").append(PosDatabase.money(items.getLong(2))).append(" บาท ");
             items.close();
         }
         spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
