@@ -69,18 +69,16 @@ public class BackupScreen extends Activity {
             runOnUiThread(()->{
                 if(isFinishing())return;
                 if(error==null){
-                    PosUi.dialog(this).setMessage(success)
-                            .setPositiveButton("ตกลง",(d,w)->{
-                                if(returnHome){
-                                    Intent intent=new Intent(this,MainActivity.class);
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                                    startActivity(intent);finish();
-                                }else home();
-                            }).show();
+                    PosUi.result(this,true,"ดำเนินการสำเร็จ",success,()->{
+                        if(returnHome){
+                            Intent intent=new Intent(this,MainActivity.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                            startActivity(intent);finish();
+                        }else home();
+                    });
                 }else{
                     String message=error.getMessage()==null?"เกิดข้อผิดพลาดในการจัดการไฟล์":error.getMessage();
-                    PosUi.dialog(this).setTitle("ดำเนินการไม่สำเร็จ").setMessage(message)
-                            .setPositiveButton("ตกลง",(d,w)->home()).show();
+                    PosUi.result(this,false,"ดำเนินการไม่สำเร็จ",message,()->home());
                 }
             });
         },"pos-backup").start();
