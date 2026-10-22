@@ -49,7 +49,9 @@ public class SellScreen extends Activity {
         Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","unit","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
         if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
         long id=c.getLong(0);String name=c.getString(1),unit=c.getString(2);long price=c.getLong(3);int stock=c.getInt(4);c.close();
-        Item old=cart.get(id);if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
+        Item old=cart.get(id);
+        if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showCart);return;}
+        if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
         PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::showCart);
     }
     private long lineTotal(Item i){return Math.multiplyExact(i.price,(long)i.qty);}
@@ -60,7 +62,7 @@ public class SellScreen extends Activity {
         StringBuilder speech=new StringBuilder();
         for(Item i:cart.values()){
             PosUi.line(this,root,i.name+"  "+i.qty+" "+i.unit+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(lineTotal(i))+" บาท");
-            speech.append(i.name).append(" ").append(i.qty).append(" ").append(i.unit).append(" ราคา ").append(PosDatabase.money(i.price)).append(" บาท รวม ").append(PosDatabase.money(i.price*i.qty)).append(" บาท ");
+            speech.append(i.name).append(" ").append(i.qty).append(" ").append(i.unit).append(" ราคา ").append(PosDatabase.money(i.price)).append(" บาท รวม ").append(PosDatabase.money(lineTotal(i))).append(" บาท ");
         }
         PosUi.line(this,root,"รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");
         final String summary=speech.append("ยอดรวม ").append(PosDatabase.money(subtotal())).append(" บาท").toString();
@@ -196,8 +198,8 @@ public class SellScreen extends Activity {
                 if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
                 ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
                 if(db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
-                ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("unit",i.unit);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",i.price*i.qty);db.insertOrThrow("bill_items",null,it);
-                ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",code);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",i.price*i.qty);li.put("created_at",now);db.insertOrThrow("sales_ledger_items",null,li);
+                ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("unit",i.unit);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));db.insertOrThrow("bill_items",null,it);
+                ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",code);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",lineTotal(i));li.put("created_at",now);db.insertOrThrow("sales_ledger_items",null,li);
                 ContentValues h=new ContentValues();h.put("product_id",i.id);h.put("barcode",i.barcode);h.put("product_name",i.name);h.put("change_type","SALE");h.put("before_qty",i.stock);h.put("after_qty",i.stock-i.qty);h.put("difference",-i.qty);h.put("reference",code);h.put("created_at",now);db.insertOrThrow("stock_history",null,h);
             }
             ContentValues ledger=new ContentValues();ledger.put("bill_id",billId);ledger.put("bill_code",code);ledger.put("sale_type",credit?"CREDIT":"CASH");ledger.put("event_type","SALE");ledger.put("subtotal_satang",sub);ledger.put("fee_satang",fee);ledger.put("total_satang",total);ledger.put("created_at",now);db.insertOrThrow("sales_ledger",null,ledger);
