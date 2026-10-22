@@ -22,7 +22,7 @@ import java.util.Calendar;
 import java.util.Locale;
 
 public class SellScreen extends Activity {
-    private static final class Item { long id,price;String barcode,name,unit;int qty,stock; Item(long i,String b,String n,String u,long p,int s){id=i;barcode=b;name=n;unit=u;price=p;stock=s;qty=1;} }
+    private static final class Item { long id,price;String barcode,name;final String unit="ชิ้น";int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
@@ -46,12 +46,12 @@ public class SellScreen extends Activity {
         }
     }
     private void addScanned(String barcode){
-        Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","unit","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
+        Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
         if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
-        long id=c.getLong(0);String name=c.getString(1),unit=c.getString(2);long price=c.getLong(3);int stock=c.getInt(4);c.close();
+        long id=c.getLong(0);String name=c.getString(1);long price=c.getLong(2);int stock=c.getInt(3);c.close();
         Item old=cart.get(id);
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showCart);return;}
-        if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
+        if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
         try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showCart()).show();return;}
         PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::showCart);
     }
