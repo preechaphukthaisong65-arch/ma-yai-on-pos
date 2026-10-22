@@ -35,6 +35,10 @@ final class IntegrityCheckService {
         if(badBills>0)issues.add("พบบิล "+badBills+" ใบที่ไม่มีรายการสินค้าหรือยอดสินค้าไม่ตรงกับรายละเอียด");
 
         rules++;
+        long badTotals=count(db,"SELECT COUNT(*) FROM bills WHERE total_satang<>subtotal_satang+fee_satang OR subtotal_satang<0 OR fee_satang<0",null);
+        if(badTotals>0)issues.add("พบบิล "+badTotals+" ใบที่ยอดรวมไม่ตรงกับยอดสินค้าและค่าบริการ");
+
+        rules++;
         long badSaleLedger=count(db,"SELECT COUNT(*) FROM sales_ledger l JOIN bills b ON b.id=l.bill_id "+
                 "WHERE l.event_type='SALE' AND (l.subtotal_satang<>b.subtotal_satang OR "+
                 "l.fee_satang<>b.fee_satang OR l.total_satang<>b.total_satang)",null);
