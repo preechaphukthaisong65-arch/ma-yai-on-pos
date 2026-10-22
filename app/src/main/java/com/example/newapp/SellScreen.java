@@ -167,7 +167,7 @@ public class SellScreen extends Activity {
             saleInProgress=false;
         }
         if(result!=null){
-            cart.clear();StockAlertManager.check(this);
+            cart.clear();try{StockAlertManager.check(this);}catch(Exception ignored){}
             String message;
             try{
                 message=ReceiptService.formatBill(ReceiptService.load(helper,result.billId));
