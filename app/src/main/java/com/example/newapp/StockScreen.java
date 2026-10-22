@@ -56,13 +56,13 @@ public class StockScreen extends Activity {
         PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock+" "+unit);
         if("count".equals(mode)){
             EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
-            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();if(saveStock(id,barcode,name,stock,qty,"COUNT"))home();}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,qty,"COUNT");}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("limit".equals(mode)){
             EditText lim=PosUi.input(this,root,"ลิมิตสต๊อกปัจจุบัน "+limit);
-            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();if(saveLimit(id,limit,q))home();}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();saveLimit(id,limit,q);}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("add".equals(mode)){
             PosUi.speak(this,name+"ค่ะ"); EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
-            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();if(saveStock(id,barcode,name,stock,stock+q,"RECEIVE"))home();}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
+            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,stock+q,"RECEIVE");}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
         }
         PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
     }
@@ -82,8 +82,8 @@ public class StockScreen extends Activity {
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();}
         finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ";}}}
-        if(saved)StockAlertManager.check(this);
-        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกลิมิตไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+        if(saved){StockAlertManager.check(this);PosUi.result(this,true,"บันทึกลิมิตสต๊อกเรียบร้อย",this::home);}
+        else PosUi.result(this,false,error==null?"บันทึกลิมิตไม่สำเร็จ":error,null);
         return saved;
     }
 
@@ -101,8 +101,8 @@ public class StockScreen extends Activity {
         finally{
             if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
         }
-        if(saved)StockAlertManager.check(this);
-        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกสต๊อกไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+        if(saved){StockAlertManager.check(this);String action="COUNT".equals(type)?"บันทึกผลนับสต๊อกเรียบร้อย":"RECEIVE".equals(type)?"บันทึกรับสินค้าเข้าสต๊อกเรียบร้อย":"บันทึกสต๊อกเรียบร้อย";PosUi.result(this,true,action,this::home);}
+        else PosUi.result(this,false,error==null?"บันทึกสต๊อกไม่สำเร็จ":error,null);
         return saved;
     }
     private void newProduct(String barcode){
@@ -126,8 +126,8 @@ public class StockScreen extends Activity {
                 long id=db.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
                 ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
-            }finally{db.endTransaction();}StockAlertManager.check(this);home();
-        }catch(Exception e){new AlertDialog.Builder(this).setMessage("บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
+            }finally{db.endTransaction();}StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
+        }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
 }
