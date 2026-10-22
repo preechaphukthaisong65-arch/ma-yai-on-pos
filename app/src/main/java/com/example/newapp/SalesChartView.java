@@ -27,7 +27,7 @@ final class SalesChartView extends View {
             paint.setColor(Color.rgb(70,145,85));canvas.drawRect(x,bottom-bh,x+barW,bottom,paint);
             paint.setColor(Color.DKGRAY);paint.setTextSize(13.5f*density);String label=labels[i];float tw=paint.measureText(label);
             canvas.drawText(label,x+barW/2-tw/2,h-8*density,paint);
-            if(values[i]>0&&slot>38*density){String amount=compact(values[i]);paint.setTextSize(8*density);float aw=paint.measureText(amount);canvas.drawText(amount,x+barW/2-aw/2,Math.max(top+9*density,bottom-bh-3*density),paint);}
+            if(values[i]>0&&slot>38*density){String amount=compact(values[i]);paint.setTextSize(12*density);float aw=paint.measureText(amount);canvas.drawText(amount,x+barW/2-aw/2,Math.max(top+9*density,bottom-bh-3*density),paint);}
         }
     }
     private String compact(long satang){double baht=satang/100.0;if(baht>=1000000)return String.format(Locale.US,"%.1fM",baht/1000000);if(baht>=1000)return String.format(Locale.US,"%.1fk",baht/1000);return String.format(Locale.US,"%.0f",baht);}
