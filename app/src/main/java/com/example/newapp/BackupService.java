@@ -45,6 +45,10 @@ final class BackupService {
             validateBackup(incoming);
 
             PosDatabase helper=PosDatabase.get(context);
+            SQLiteDatabase currentDb=helper.getWritableDatabase();
+            Cursor checkpoint=currentDb.rawQuery("PRAGMA wal_checkpoint(FULL)",null);
+            try { if(checkpoint.moveToFirst()&&checkpoint.getInt(0)!=0)throw new IllegalStateException("ฐานข้อมูลกำลังใช้งาน กรุณาลองใหม่"); }
+            finally {checkpoint.close();}
             helper.close();
             File live=context.getDatabasePath(helper.getDatabaseName());
             if(live.isFile())copyFile(live,rollback);
@@ -91,6 +95,11 @@ final class BackupService {
                         new String[]{table});
                 try {if(!exists.moveToFirst())throw new IllegalArgumentException("ไฟล์สำรองไม่มีตาราง "+table);}
                 finally {exists.close();}
+            }
+            if(version>=8) {
+                Cursor audit=db.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log'",null);
+                try {if(!audit.moveToFirst())throw new IllegalArgumentException("ไฟล์สำรองเวอร์ชัน 8 ไม่มีตารางประวัติการเปลี่ยนแปลง");}
+                finally {audit.close();}
             }
         } finally {db.close();}
     }
