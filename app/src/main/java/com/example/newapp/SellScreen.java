@@ -67,7 +67,11 @@ public class SellScreen extends Activity {
     private void showScanScreen(){
         root=PosUi.page(this,"สแกนสินค้า");
         addSideBySideButtons(root,"สแกนสินค้าเพิ่ม",v->scan(),"สแกนเสร็จสิ้น",v->finishScanning());
-        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในตะกร้า");return;}
+        if(cart.isEmpty()){
+            PosUi.line(this,root,"ยังไม่มีสินค้าในตะกร้า");
+            addClearCartButton();
+            return;
+        }
         for(Item i:cart.values()){
             android.widget.TextView line=new android.widget.TextView(this);
             line.setText(i.name+"  จำนวน "+i.qty+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(lineTotal(i))+" บาท");
@@ -79,6 +83,34 @@ public class SellScreen extends Activity {
         total.setText("รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");total.setTextSize(14.4f);
         total.setTextColor(android.graphics.Color.DKGRAY);total.setPadding(0,PosUi.dp(this,6),0,PosUi.dp(this,6));
         root.addView(total,new LinearLayout.LayoutParams(-1,-2));
+        addClearCartButton();
+    }
+    private void addClearCartButton(){
+        LinearLayout row=new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.END);
+        Button clear=new Button(this);
+        clear.setText("เคลียร์ตะกร้า");
+        clear.setTextSize(16);
+        clear.setMinHeight(PosUi.dp(this,52));
+        clear.setOnClickListener(v->{
+            if(cart.isEmpty()){
+                new AlertDialog.Builder(this).setMessage("ตะกร้ายังว่างอยู่").setPositiveButton("ตกลง",null).show();
+                return;
+            }
+            new AlertDialog.Builder(this)
+                    .setTitle("เคลียร์ตะกร้า")
+                    .setMessage("ต้องการลบสินค้าทั้งหมดในตะกร้า เพื่อเริ่มสแกนใหม่หรือไม่?")
+                    .setNegativeButton("ยกเลิก",null)
+                    .setPositiveButton("เคลียร์ตะกร้า",(dialog,which)->{
+                        cart.clear();
+                        showScanScreen();
+                    }).show();
+        });
+        row.addView(clear,new LinearLayout.LayoutParams(-2,-2));
+        LinearLayout.LayoutParams rowParams=new LinearLayout.LayoutParams(-1,-2);
+        rowParams.topMargin=PosUi.dp(this,12);
+        root.addView(row,rowParams);
     }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
