@@ -116,7 +116,7 @@ public class StockScreen extends Activity {
         if(registry.moveToFirst()){name.setText(registry.getString(0));price.setText(PosDatabase.money(registry.getLong(1)));name.setEnabled(false);price.setEnabled(false);}
         registry.close();
         
-        PosUi.line(this,root,"ลิมิตสต๊อกเริ่มต้น: 10 (แก้ไขได้ที่ปุ่ม ตั้งค่าลิมิตสต๊อก)");
+        PosUi.line(this,root,"ลิมิตสต๊อกเริ่มต้น: 10 (แก้ไขภายหลังได้ที่ปุ่ม ลิมิตสต๊อก)");
         EditText qty=PosUi.input(this,root,"จำนวนสินค้าเริ่มต้น");
         PosUi.button(this,root,"บันทึกสินค้า",v->{try{
             String nm=PosUi.str(name);if(nm.isEmpty())throw new IllegalArgumentException("กรุณากรอกชื่อสินค้า");
