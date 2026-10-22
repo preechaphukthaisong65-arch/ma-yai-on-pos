@@ -19,9 +19,12 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.Locale;
+import java.util.ArrayDeque;
+import java.util.WeakHashMap;
 
 final class PosUi {
     private static final float TEXT_SCALE = 1.5f;
+    private static final WeakHashMap<Activity, ArrayDeque<View>> PAGE_HISTORY = new WeakHashMap<>();
     private PosUi() {}
 
     static int dp(Activity a, int n) {
@@ -29,6 +32,7 @@ final class PosUi {
     }
 
     static LinearLayout page(Activity a, String title) {
+        rememberCurrentPage(a, title);
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         a.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
@@ -96,14 +100,14 @@ final class PosUi {
         Button home = navButton(a, "← หน้าหลัก");
         home.setContentDescription("กลับหน้าหลัก");
         home.setOnClickListener(v -> {
-            Intent intent = new Intent(a, MainActivity.class);
+            PAGE_HISTORY.remove(a);\n            Intent intent = new Intent(a, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             a.startActivity(intent);
             a.finish();
         });
         Button back = navButton(a, "ย้อนกลับ →");
         back.setContentDescription("ย้อนกลับหน้าก่อน");
-        back.setOnClickListener(v -> a.finish());
+        back.setOnClickListener(v -> navigateBack(a));
 
         bar.addView(home, new LinearLayout.LayoutParams(0, -1, 1f));
         View spacer = new View(a);
@@ -124,6 +128,43 @@ final class PosUi {
         b.setBackground(tintedRounded(Color.rgb(232,242,233), Color.rgb(45,95,56), dp(a,10)));
         b.setTextColor(Color.rgb(35,80,48));
         return b;
+    }
+
+    private static void rememberCurrentPage(Activity a, String title) {
+        View content = a.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup)content;
+        if (group.getChildCount() == 0) return;
+        View current = group.getChildAt(0);
+        if (!"pos-ui-frame".equals(current.getTag())) return;
+        if (isTopLevelPage(title)) {
+            PAGE_HISTORY.remove(a);
+            return;
+        }
+        ArrayDeque<View> stack = PAGE_HISTORY.get(a);
+        if (stack == null) {
+            stack = new ArrayDeque<>();
+            PAGE_HISTORY.put(a, stack);
+        }
+        stack.push(current);
+    }
+
+    private static boolean isTopLevelPage(String title) {
+        return "ขายสินค้า".equals(title) || "คลังสินค้า".equals(title) ||
+                "ประวัติการขาย".equals(title) || "จัดการร้านค้า".equals(title) ||
+                "สร้างบาร์โค้ด".equals(title) || "รายงานยอดขาย".equals(title) ||
+                "บัญชีลูกค้าสินเชื่อ".equals(title) || "สำรอง / กู้คืนข้อมูล".equals(title);
+    }
+
+    private static void navigateBack(Activity a) {
+        ArrayDeque<View> stack = PAGE_HISTORY.get(a);
+        if (stack != null && !stack.isEmpty()) {
+            View previous = stack.pop();
+            a.setContentView(previous);
+            if (stack.isEmpty()) PAGE_HISTORY.remove(a);
+        } else {
+            a.finish();
+        }
     }
 
     private static GradientDrawable tintedRounded(int fill, int stroke, int radius) {
