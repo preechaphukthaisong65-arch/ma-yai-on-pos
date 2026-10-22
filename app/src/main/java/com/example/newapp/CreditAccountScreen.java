@@ -95,14 +95,7 @@ public class CreditAccountScreen extends Activity {
     private void recordPayment(long customerId,ArrayList<Long> ids,long total){
         try{
             CreditPaymentService.Result result=CreditPaymentService.commit(helper,customerId,ids,total,PosDatabase.now());
-            StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\n");
-            for(CreditPaymentService.BillQuote bill:result.bills){
-                receipt.append("บิล ").append(bill.billCode).append(" รับชำระ ")
-                        .append(PosDatabase.money(bill.payableSatang)).append(" บาท\n");
-                if(bill.feeWaived&&bill.feeSatang>0){
-                    receipt.append("ยกเว้นค่าบริการ ").append(PosDatabase.money(bill.feeSatang)).append(" บาท\n");
-                }
-            }
+            String receipt=ReceiptService.formatPayment(result);
             new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ")
                     .setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt)
                     .setPositiveButton("ตกลง",(dialog,which)->home()).show();
