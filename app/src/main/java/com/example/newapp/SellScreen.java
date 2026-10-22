@@ -89,7 +89,6 @@ public class SellScreen extends Activity {
     private void paymentChoice(){
         root=PosUi.page(this,"เลือกวิธีขาย");
         addSideBySideButtons(root,"ชำระเงินสด",v->cashSale(),"ค้างชำระ",v->creditSale());
-        PosUi.button(this,root,"กลับไปสแกนสินค้า",v->showScanScreen());
     }
     private void cashSale(){
         root=PosUi.page(this,"รับชำระเงินสด");PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(subtotal())+" บาท");
