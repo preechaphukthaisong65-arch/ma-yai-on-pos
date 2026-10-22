@@ -111,12 +111,12 @@ public class SellScreen extends Activity {
     }
     private void commitSale(boolean credit,String customerName,long cash){
         if(saleInProgress||duplicatePromptOpen)return;
-        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        if(cart.isEmpty()){PosUi.dialog(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         String duplicate;
-        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){new AlertDialog.Builder(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
+        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){PosUi.dialog(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
         if(duplicate!=null){
             duplicatePromptOpen=true;
-            new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ")
+            PosUi.dialog(this).setTitle("พบบิลที่อาจซ้ำ")
                     .setMessage("พบบิลที่มีรายละเอียดตรงกันใน 1 ชั่วโมงที่ผ่านมา ("+duplicate+") ต้องการสร้างบิลใหม่หรือไม่?")
                     .setNegativeButton("ยกเลิก",(d,w)->{duplicatePromptOpen=false;home();})
                     .setPositiveButton("ยืนยันว่าเป็นการขายจริง",(d,w)->{duplicatePromptOpen=false;saveSale(credit,customerName,cash);})
@@ -150,7 +150,7 @@ public class SellScreen extends Activity {
     }
     private void saveSale(boolean credit,String customerName,long cash){
         if(saleInProgress)return;
-        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        if(cart.isEmpty()){PosUi.dialog(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         saleInProgress=true;
         SalesTransactionService.Result result=null;
         String error=null;
