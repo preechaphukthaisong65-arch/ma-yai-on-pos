@@ -130,4 +130,6 @@ public class StockScreen extends Activity {
         }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }
