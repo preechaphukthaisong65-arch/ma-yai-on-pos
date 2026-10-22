@@ -82,6 +82,7 @@ public class StockScreen extends Activity {
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();}
         finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ";}}}
+        if(saved)StockAlertManager.check(this);
         if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกลิมิตไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
         return saved;
     }
@@ -100,6 +101,7 @@ public class StockScreen extends Activity {
         finally{
             if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
         }
+        if(saved)StockAlertManager.check(this);
         if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกสต๊อกไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
         return saved;
     }
@@ -124,7 +126,7 @@ public class StockScreen extends Activity {
                 long id=db.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
                 ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
-            }finally{db.endTransaction();}home();
+            }finally{db.endTransaction();}StockAlertManager.check(this);home();
         }catch(Exception e){new AlertDialog.Builder(this).setMessage("บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
         PosUi.back(this,root);
     }
