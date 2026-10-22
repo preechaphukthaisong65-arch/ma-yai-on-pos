@@ -2,6 +2,7 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Application;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -24,8 +25,23 @@ final class PosUi {
     private PosUi() {}
     private static final Map<Activity,ArrayDeque<LinearLayout>> HISTORY=new WeakHashMap<>();
     private static final Map<Activity,LinearLayout> CURRENT=new WeakHashMap<>();
+    private static boolean lifecycleHooked=false;
 
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
+
+    private static void ensureLifecycleCleanup(Activity a) {
+        if(lifecycleHooked)return;
+        a.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks(){
+            @Override public void onActivityCreated(Activity activity,android.os.Bundle state) {}
+            @Override public void onActivityStarted(Activity activity) {}
+            @Override public void onActivityResumed(Activity activity) {}
+            @Override public void onActivityPaused(Activity activity) {}
+            @Override public void onActivityStopped(Activity activity) {}
+            @Override public void onActivitySaveInstanceState(Activity activity,android.os.Bundle state) {}
+            @Override public void onActivityDestroyed(Activity activity) { resetNavigation(activity); }
+        });
+        lifecycleHooked=true;
+    }
 
     static void resetNavigation(Activity a) {
         HISTORY.remove(a);
@@ -33,6 +49,7 @@ final class PosUi {
     }
 
     static LinearLayout page(Activity a, String title) {
+        ensureLifecycleCleanup(a);
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         a.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
