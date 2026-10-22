@@ -43,11 +43,12 @@ final class DebtReminderNotifier {
     static void sendWeekly(Context context){
         ArrayList<Debt> debts=overdue(context);
         NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(manager!=null&&Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel(CHANNEL,"แจ้งเตือนลูกหนี้ค้างชำระ",NotificationManager.IMPORTANCE_DEFAULT));
+        boolean notificationsEnabled=manager!=null&&(Build.VERSION.SDK_INT<24||manager.areNotificationsEnabled());
         Set<String> currentIds=new HashSet<>();
         for(Debt debt:debts){
             currentIds.add(String.valueOf(debt.id));
-            if(manager==null||(Build.VERSION.SDK_INT>=24&&!manager.areNotificationsEnabled()))continue;
-            if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel(CHANNEL,"แจ้งเตือนลูกหนี้ค้างชำระ",NotificationManager.IMPORTANCE_DEFAULT));
+            if(!notificationsEnabled)continue;
             Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,CHANNEL):new Notification.Builder(context);
             builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แจ้งเตือนลูกหนี้").setContentText(debt.message).setStyle(new Notification.BigTextStyle().bigText(debt.message)).setAutoCancel(true);
             manager.notify(200000+(int)(debt.id%1000000L),builder.build());
