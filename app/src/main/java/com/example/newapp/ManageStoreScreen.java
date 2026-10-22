@@ -11,7 +11,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class ManageStoreScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;private String mode="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosUi.scan(this);});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosUi.scan(this);});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
+    private void home(){PosUi.resetNavigation(this);root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosUi.scan(this);});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosUi.scan(this);});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosUi.scan(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
