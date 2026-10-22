@@ -11,7 +11,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class StockScreen extends Activity {
     private PosDatabase helper; private LinearLayout root; private String mode=""; private String scanned="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){
+    private void home(){PosUi.resetNavigation(this);
         root=PosUi.page(this,"คลังสินค้า");
         PosUi.button(this,root,"สินค้าทั้งหมด",v->showAll());
         PosUi.button(this,root,"นับสต๊อกสินค้า",v->countMenu());
@@ -61,20 +61,20 @@ public class StockScreen extends Activity {
             EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
             PosUi.button(this,root,"บันทึกผลนับ",v->{try{
                 int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();
-                if(saveStock(id,barcode,name,stock,qty,"COUNT"))home();
+                saveStock(id,barcode,name,stock,qty,"COUNT");
             }catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         }else if("limit".equals(mode)){
             EditText lim=PosUi.input(this,root,"ลิมิตสต๊อกปัจจุบัน "+limit);
             PosUi.button(this,root,"บันทึกลิมิต",v->{try{
                 int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();
-                if(saveLimit(id,limit,q))home();
+                saveLimit(id,limit,q);
             }catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         }else if("add".equals(mode)){
             PosUi.speak(this,name+"ค่ะ");EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
             PosUi.button(this,root,"บันทึกรับเข้า",v->{try{
                 int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();
                 int after=Math.addExact(stock,q);
-                if(saveStock(id,barcode,name,stock,after,"RECEIVE"))home();
+                saveStock(id,barcode,name,stock,after,"RECEIVE");
             }catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0 และไม่เกินขอบเขต");}});
         }
         PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain());PosUi.back(this,root);
@@ -89,11 +89,12 @@ public class StockScreen extends Activity {
     private boolean saveLimit(long id,int oldLimit,int newLimit){
         try{
             ProductCatalogService.updateStockLimit(helper,id,oldLimit,newLimit,PosDatabase.now());
-            StockAlertManager.check(this);
+            try{StockAlertManager.check(this);}catch(Exception ignored){}
+            PosUi.showResult(this,true,"บันทึกลิมิตสำเร็จ","บันทึกลิมิตสต๊อกเรียบร้อย",()->home());
             return true;
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.showResult(this,false,"บันทึกลิมิตไม่สำเร็จ",error,null);
             return false;
         }
     }
@@ -101,11 +102,12 @@ public class StockScreen extends Activity {
     private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
         try{
             InventoryService.changeStock(helper,id,barcode,name,before,after,type,null,PosDatabase.now());
-            StockAlertManager.check(this);
+            try{StockAlertManager.check(this);}catch(Exception ignored){}
+            PosUi.showResult(this,true,"บันทึกสต๊อกสำเร็จ", "ปรับปรุงจำนวนสินค้าเรียบร้อย",()->home());
             return true;
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();
-            new AlertDialog.Builder(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.showResult(this,false,"บันทึกสต๊อกไม่สำเร็จ",error,null);
             return false;
         }
     }
@@ -140,11 +142,11 @@ public class StockScreen extends Activity {
             catch(Exception e){price.setError("ราคาขายไม่ถูกต้อง เช่น 25 หรือ 25.50");price.requestFocus();return;}
             try{
                 ProductCatalogService.create(helper,barcode,nm,priceSatang,un,limit,PosDatabase.now());
-                StockAlertManager.check(this);home();
+                try{StockAlertManager.check(this);}catch(Exception ignored){}
+                PosUi.showResult(this,true,"บันทึกสินค้าสำเร็จ","เพิ่มสินค้า "+nm+" เรียบร้อย",()->home());
             }catch(Exception e){
                 String error=e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage();
-                new AlertDialog.Builder(this).setTitle("บันทึกสินค้าไม่สำเร็จ").setMessage(error)
-                        .setPositiveButton("ตกลง",null).show();
+                PosUi.showResult(this,false,"บันทึกสินค้าไม่สำเร็จ",error,null);
             }
         });
         PosUi.back(this,root);

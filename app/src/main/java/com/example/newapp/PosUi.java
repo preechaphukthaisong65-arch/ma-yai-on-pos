@@ -2,61 +2,190 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Application;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.util.ArrayDeque;
 import java.util.Locale;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 final class PosUi {
     private PosUi() {}
+    private static final Map<Activity,ArrayDeque<LinearLayout>> HISTORY=new WeakHashMap<>();
+    private static final Map<Activity,LinearLayout> CURRENT=new WeakHashMap<>();
+    private static boolean lifecycleHooked=false;
+
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
+
+    private static void ensureLifecycleCleanup(Activity a) {
+        if(lifecycleHooked)return;
+        a.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks(){
+            @Override public void onActivityCreated(Activity activity,android.os.Bundle state) {}
+            @Override public void onActivityStarted(Activity activity) {}
+            @Override public void onActivityResumed(Activity activity) {}
+            @Override public void onActivityPaused(Activity activity) {}
+            @Override public void onActivityStopped(Activity activity) {}
+            @Override public void onActivitySaveInstanceState(Activity activity,android.os.Bundle state) {}
+            @Override public void onActivityDestroyed(Activity activity) { resetNavigation(activity); }
+        });
+        lifecycleHooked=true;
+    }
+
+    static void resetNavigation(Activity a) {
+        HISTORY.remove(a);
+        CURRENT.remove(a);
+    }
+
     static LinearLayout page(Activity a, String title) {
+        ensureLifecycleCleanup(a);
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         a.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        LinearLayout previous=CURRENT.get(a);
+        if(previous!=null){
+            ArrayDeque<LinearLayout> stack=HISTORY.get(a);
+            if(stack==null){stack=new ArrayDeque<>();HISTORY.put(a,stack);}
+            stack.push(previous);
+        }
+
+        LinearLayout root = new LinearLayout(a);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,82));
+        root.setBackgroundColor(Color.TRANSPARENT);
+        TextView heading = text(a,title,24,Color.rgb(35,80,48));
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
+        View gap = new View(a);
+        root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
+        showRoot(a,root);
+        return root;
+    }
+
+    private static void showRoot(Activity a,LinearLayout root) {
+        if(root.getParent() instanceof ViewGroup)((ViewGroup)root.getParent()).removeView(root);
+        FrameLayout frame = new FrameLayout(a);
         ScrollView scroll = new ScrollView(a);
         int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
         if (background != 0) scroll.setBackgroundResource(background);
-        LinearLayout root = new LinearLayout(a); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,24));
-        root.setBackgroundColor(Color.TRANSPARENT);
-        if (background == 0) scroll.setBackgroundColor(Color.rgb(248,250,247));
-        TextView heading = text(a,title,24,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
-        View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
-        scroll.addView(root); a.setContentView(scroll); return root;
+        else scroll.setBackgroundColor(Color.rgb(248,250,247));
+        scroll.addView(root);
+        frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+
+        LinearLayout navigation = new LinearLayout(a);
+        navigation.setOrientation(LinearLayout.HORIZONTAL);
+        navigation.setGravity(Gravity.CENTER_VERTICAL);
+        navigation.setPadding(dp(a,8),dp(a,3),dp(a,8),dp(a,3));
+        navigation.setBackgroundColor(Color.WHITE);
+        Button home = navButton(a,"⌂ หน้าหลัก");
+        home.setOnClickListener(v -> {
+            resetNavigation(a);
+            Intent intent = new Intent(a,MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            a.startActivity(intent);
+            a.finish();
+        });
+        Button back = navButton(a,"← ย้อนกลับ");
+        back.setOnClickListener(v -> navigateBack(a));
+        navigation.addView(home,new LinearLayout.LayoutParams(0,dp(a,38),1f));
+        View spacer = new View(a);
+        navigation.addView(spacer,new LinearLayout.LayoutParams(dp(a,8),1));
+        navigation.addView(back,new LinearLayout.LayoutParams(0,dp(a,38),1f));
+        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(-1,dp(a,46),Gravity.BOTTOM);
+        frame.addView(navigation,navParams);
+        a.setContentView(frame);
+        CURRENT.put(a,root);
     }
+
+    private static void navigateBack(Activity a) {
+        ArrayDeque<LinearLayout> stack=HISTORY.get(a);
+        if(stack!=null&&!stack.isEmpty()) {
+            LinearLayout previous=stack.pop();
+            if(stack.isEmpty())HISTORY.remove(a);
+            showRoot(a,previous);
+        } else {
+            CURRENT.remove(a);
+            a.finish();
+        }
+    }
+
+    private static Button navButton(Activity a,String label) {
+        Button b=new Button(a);
+        b.setText(label);
+        b.setTextSize(13);
+        b.setSingleLine(true);
+        b.setMaxLines(1);
+        b.setPadding(dp(a,3),0,dp(a,3),0);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        return b;
+    }
+
     static TextView text(Activity a,String value,int size,int color) {
-        TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        TextView t=new TextView(a);
+        t.setText(value);
+        t.setTextSize(size*1.5f);
+        t.setTextColor(color);
         t.setPadding(dp(a,8),dp(a,5),dp(a,8),dp(a,5));
-        t.setBackgroundColor(Color.WHITE); return t;
+        t.setBackgroundColor(Color.WHITE);
+        return t;
     }
+
     static Button button(Activity a, LinearLayout root, String label, View.OnClickListener listener) {
-        Button b=new Button(a); b.setText(label); b.setOnClickListener(listener);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(a,6); root.addView(b,lp); return b;
+        Button b=new Button(a);
+        b.setText(label);
+        b.setTextSize(21f);
+        b.setMinHeight(dp(a,52));
+        b.setOnClickListener(listener);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(a,8);
+        root.addView(b,lp);
+        return b;
     }
-    static EditText input(Activity a, LinearLayout root,String hint) {
-        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint);
+
+    static void styleInput(Activity a,EditText e) {
+        e.setSingleLine(true);
+        e.setTextSize(24f);
         e.setTextColor(Color.rgb(30,30,30));
         e.setHintTextColor(Color.rgb(110,110,110));
-        e.setBackgroundColor(Color.WHITE);
-        e.setPadding(dp(a,8),dp(a,4),dp(a,8),dp(a,4));
-        root.addView(e,new LinearLayout.LayoutParams(-1,-2)); return e;
+        GradientDrawable border=new GradientDrawable();
+        border.setColor(Color.WHITE);
+        border.setCornerRadius(dp(a,9));
+        border.setStroke(dp(a,1),Color.rgb(125,155,132));
+        e.setBackground(border);
+        e.setPadding(dp(a,12),dp(a,10),dp(a,12),dp(a,10));
+        e.setMinimumHeight(dp(a,56));
     }
+
+    static EditText input(Activity a, LinearLayout root,String hint) {
+        EditText e=new EditText(a);
+        e.setHint(hint);
+        styleInput(a,e);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(a,8);
+        root.addView(e,lp);
+        return e;
+    }
+
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
     static void scan(Activity a) { BarcodeScanner.launch(a); }
     static void scan(Activity a,String prompt) { BarcodeScanner.launch(a,prompt); }
     static void speak(Activity a,String message) { speakThen(a,message,()->{}); }
+
     static void speakThen(Activity a,String message,Runnable after) {
         final TextToSpeech[] holder = new TextToSpeech[1];
         holder[0] = new TextToSpeech(a,status -> {
@@ -70,6 +199,23 @@ final class PosUi {
             holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-"+System.nanoTime());
         });
     }
+
+    static void showResult(Activity a,boolean success,String title,String message,Runnable after) {
+        AlertDialog dialog=new AlertDialog.Builder(a).setTitle(title).setMessage(message)
+                .setPositiveButton("ตกลง",(d,w)->{if(after!=null)after.run();}).create();
+        dialog.setOnShowListener(d -> {
+            TextView messageView=dialog.findViewById(android.R.id.message);
+            if(messageView!=null)messageView.setTextSize(24f);
+            int titleId=a.getResources().getIdentifier("alertTitle","id","android");
+            TextView titleView=dialog.findViewById(titleId);
+            if(titleView!=null)titleView.setTextSize(25f);
+            Button positive=dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if(positive!=null)positive.setTextSize(21f);
+            speak(a,success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ");
+        });
+        dialog.show();
+    }
+
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
         Locale th=new Locale("th","TH");
         if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE){
@@ -89,7 +235,10 @@ final class PosUi {
             }
         }
     }
+
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
-    static void back(Activity a,LinearLayout root) { button(a,root,"กลับหน้าก่อน",v->a.finish()); }
+
+    // Navigation controls are rendered in the fixed bottom bar by page().
+    static void back(Activity a,LinearLayout root) {}
 }
