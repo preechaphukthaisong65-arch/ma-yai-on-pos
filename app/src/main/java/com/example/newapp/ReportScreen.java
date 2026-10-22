@@ -39,11 +39,24 @@ public class ReportScreen extends Activity {
     private void period(String label,long from,long to){
         root=PosUi.page(this,"รายงานยอดขาย • "+label);SQLiteDatabase db=helper.getReadableDatabase();
         Cursor gross=db.rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(gross.moveToFirst())PosUi.line(this,root,"ยอดขายก่อนคืน/ยกเลิก: "+PosDatabase.money(gross.getLong(0))+" บาท");gross.close();
-        Cursor c=db.rawQuery("SELECT COALESCE(SUM(subtotal_satang),0),COALESCE(SUM(fee_satang),0),COALESCE(SUM(total_satang),0),COUNT(*),SUM(CASE WHEN sale_type='CREDIT' THEN 1 ELSE 0 END) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
-        if(c.moveToFirst()){PosUi.line(this,root,"ยอดสินค้า (สุทธิ): "+PosDatabase.money(c.getLong(0))+" บาท");if(c.getInt(4)>0)PosUi.line(this,root,"ค่าบริการสุทธิ (เฉพาะขายเชื่อ): "+PosDatabase.money(c.getLong(1))+" บาท");PosUi.line(this,root,"ยอดขายสุทธิ: "+PosDatabase.money(c.getLong(2))+" บาท");PosUi.line(this,root,"จำนวนรายการบัญชี: "+c.getInt(3));}c.close();
+        Cursor c=db.rawQuery("SELECT COALESCE(SUM(subtotal_satang),0),COALESCE(SUM(fee_satang),0),COALESCE(SUM(total_satang),0),COUNT(*),SUM(CASE WHEN sale_type='CREDIT' THEN 1 ELSE 0 END) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});
+        if(c.moveToFirst()){PosUi.line(this,root,"ยอดสินค้า (สุทธิ): "+PosDatabase.money(c.getLong(0))+" บาท");if(c.getInt(4)>0)PosUi.line(this,root,"ค่าบริการสุทธิจากการขาย/คืน/ยกเลิก: "+PosDatabase.money(c.getLong(1))+" บาท");PosUi.line(this,root,"ยอดขายสุทธิหลังคืน/ยกเลิก: "+PosDatabase.money(c.getLong(2))+" บาท");PosUi.line(this,root,"จำนวนรายการบัญชี: "+c.getInt(3));}c.close();
         Cursor soldQty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(soldQty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าที่ขาย: "+soldQty.getLong(0)+" ชิ้น");soldQty.close();
         Cursor netQty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});if(netQty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าสุทธิหลังคืน/ยกเลิก: "+netQty.getLong(0)+" ชิ้น");netQty.close();
-        Cursor cash=db.rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND sale_type='CASH' AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(cash.moveToFirst())PosUi.line(this,root,"ยอดขายเงินสดก่อนคืน/ยกเลิก: "+PosDatabase.money(cash.getLong(0))+" บาท");cash.close();
+        Cursor cash=db.rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND sale_type='CASH' AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});
+        long cashSales=0;if(cash.moveToFirst()){cashSales=cash.getLong(0);PosUi.line(this,root,"ยอดขายเงินสดก่อนคืน/ยกเลิก: "+PosDatabase.money(cashSales)+" บาท");}cash.close();
+        Cursor receipts=db.rawQuery("SELECT COALESCE(SUM(amount_satang),0) FROM payment_history WHERE created_at BETWEEN ? AND ?",new String[]{String.valueOf(from),String.valueOf(to)});
+        long debtReceipts=0;if(receipts.moveToFirst())debtReceipts=receipts.getLong(0);receipts.close();
+        Cursor refunds=db.rawQuery("SELECT COALESCE(SUM(-total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('RETURN','CANCEL') AND total_satang<0 AND (sale_type='CASH' OR (sale_type='CREDIT' AND fee_satang=0))",new String[]{String.valueOf(from),String.valueOf(to)});
+        long refundTotal=0;if(refunds.moveToFirst())refundTotal=refunds.getLong(0);refunds.close();
+        Cursor waived=db.rawQuery("SELECT COALESCE(SUM(-fee_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(from),String.valueOf(to)});
+        long waivedFees=0;if(waived.moveToFirst())waivedFees=waived.getLong(0);waived.close();
+        long cashNet=Math.subtractExact(Math.addExact(cashSales,debtReceipts),refundTotal);
+        PosUi.line(this,root,"รับชำระหนี้ในช่วงนี้: "+PosDatabase.money(debtReceipts)+" บาท");
+        PosUi.line(this,root,"เงินคืนจากการคืนสินค้า/ยกเลิก: "+PosDatabase.money(refundTotal)+" บาท");
+        PosUi.line(this,root,"ค่าบริการขายเชื่อที่ยกเว้นในช่วงนี้: "+PosDatabase.money(waivedFees)+" บาท");
+        PosUi.line(this,root,"เงินสดสุทธิ (ขายเงินสด + รับชำระหนี้ − เงินคืน): "+PosDatabase.money(cashNet)+" บาท");
+        PosUi.line(this,root,"หมายเหตุ: รายการคืน/ยกเลิกและการยกเว้นค่าบริการนับตามวันที่บันทึกรายการ เพื่อให้ตรวจสอบก่อนตัดยอดแต่ละวันได้");
         PosUi.back(this,root);
     }
     private void topProducts(boolean best){
