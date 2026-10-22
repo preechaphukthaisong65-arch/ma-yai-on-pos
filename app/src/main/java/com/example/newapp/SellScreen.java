@@ -75,7 +75,7 @@ public class SellScreen extends Activity {
     private long subtotal(){long s=0;for(Item i:cart.values())s+=i.price*i.qty;return s;}
     private void showCart(){
         root=PosUi.page(this,"ตรวจสอบรายการขาย");
-        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());return;}
+        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());PosUi.back(this,root);return;}
         StringBuilder speech=new StringBuilder();
         for(Item i:cart.values()){
             PosUi.line(this,root,i.name+"  "+i.qty+" "+i.unit+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(i.price*i.qty)+" บาท");
