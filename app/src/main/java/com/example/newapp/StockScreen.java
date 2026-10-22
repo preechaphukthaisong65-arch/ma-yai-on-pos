@@ -116,9 +116,13 @@ public class StockScreen extends Activity {
             String nm=PosUi.str(name),un=PosUi.str(unit);if(nm.isEmpty()||un.isEmpty())throw new IllegalArgumentException();
             int q=Integer.parseInt(PosUi.str(qty)),l=Integer.parseInt(PosUi.str(lim));long p=PosUi.satang(price),co=PosUi.satang(cost);if(q<0||l<0)throw new IllegalArgumentException();
             SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
+                Cursor existingRegistry=db.query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null);
+                boolean registryExists=existingRegistry.moveToFirst();
+                if(registryExists&&(!nm.equals(existingRegistry.getString(0))||p!=existingRegistry.getLong(1))){existingRegistry.close();throw new IllegalStateException("บาร์โค้ดนี้มีข้อมูลในคลังบาร์โค้ดไม่ตรงกัน กรุณาสแกนตรวจสอบก่อน");}
+                existingRegistry.close();
                 ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
-                ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertWithOnConflict("barcode_registry",null,br,SQLiteDatabase.CONFLICT_IGNORE);
+                if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
                 ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
             }finally{db.endTransaction();}home();
         }catch(Exception e){new AlertDialog.Builder(this).setMessage("บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
