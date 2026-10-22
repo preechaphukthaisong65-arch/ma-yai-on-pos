@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.AutoCompleteTextView;
 import android.widget.ArrayAdapter;
 import com.google.zxing.integration.android.IntentIntegrator;
@@ -43,7 +44,17 @@ public class SellScreen extends Activity {
         top.addView(sell,sp);bottom.addView(arrears,ap);
         sell.setOnClickListener(v->showScanScreen());
         arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra("arrears_search_mode",true);startActivity(i);});
-        setContentView(sections);
+        FrameLayout screen=new FrameLayout(this);
+        screen.addView(sections,new FrameLayout.LayoutParams(-1,-1));
+        Button back=new Button(this);
+        back.setText("← ย้อนกลับ");
+        back.setTextSize(14);
+        back.setMinHeight(PosUi.dp(this,42));
+        FrameLayout.LayoutParams backParams=new FrameLayout.LayoutParams(-2,PosUi.dp(this,44),android.view.Gravity.BOTTOM|android.view.Gravity.END);
+        backParams.setMargins(0,0,PosUi.dp(this,8),PosUi.dp(this,8));
+        screen.addView(back,backParams);
+        back.setOnClickListener(v->finish());
+        setContentView(screen);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
     private android.widget.TextView circleButton(String label,int color,int diameter){
