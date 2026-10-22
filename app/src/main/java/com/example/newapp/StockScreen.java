@@ -107,7 +107,7 @@ public class StockScreen extends Activity {
             return true;
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();
-            PosUi.dialog(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"บันทึกสต๊อกไม่สำเร็จ",error,null);
             return false;
         }
     }
