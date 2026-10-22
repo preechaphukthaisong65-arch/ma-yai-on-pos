@@ -142,7 +142,7 @@ public class CreditAccountScreen extends Activity {
             allIds.add(id);selected.add(id);dueTotal+=amount;
             CheckBox box=new CheckBox(this);
             box.setText(code+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(created)));
-            box.setChecked(true);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
+            box.setChecked(false);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
             root.addView(box,new LinearLayout.LayoutParams(-1,-2));
         }
         c.close();
