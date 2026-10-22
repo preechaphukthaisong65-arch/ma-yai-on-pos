@@ -143,6 +143,12 @@ final class PosUi {
 
     static EditText input(Activity a, LinearLayout root,String hint) {
         EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint);
+        String normalizedHint=hint.toLowerCase(Locale.ROOT);
+        if(normalizedHint.contains("จำนวน") || normalizedHint.contains("ลิมิต")) {
+            e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        } else if(normalizedHint.contains("ราคา") || normalizedHint.contains("รับเงิน") || normalizedHint.contains("(บาท)")) {
+            e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        }
         e.setTextSize(24);
         e.setTextColor(Color.rgb(30,30,30));
         e.setHintTextColor(Color.rgb(110,110,110));
