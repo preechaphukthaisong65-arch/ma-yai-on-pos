@@ -10,6 +10,17 @@ import android.database.sqlite.SQLiteDatabase;
 final class InventoryService {
     private InventoryService() {}
 
+    static void changeStock(PosDatabase helper,long productId,String barcode,String productName,
+                            int expectedBefore,int after,String changeType,String reference,long timestamp) {
+        if(helper==null)throw new IllegalArgumentException("ฐานข้อมูลไม่พร้อมใช้งาน");
+        SQLiteDatabase db=helper.getWritableDatabase();
+        db.beginTransaction();
+        try {
+            changeStock(db,productId,barcode,productName,expectedBefore,after,changeType,reference,timestamp);
+            db.setTransactionSuccessful();
+        } finally {db.endTransaction();}
+    }
+
     static void changeStock(SQLiteDatabase db, long productId, String barcode,
                             String productName, int expectedBefore, int after,
                             String changeType, String reference, long timestamp) {
