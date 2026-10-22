@@ -145,6 +145,8 @@ final class CreditPaymentService {
                     adjustment.put("created_at", timestamp);
                     db.insertOrThrow("sales_ledger", null, adjustment);
                 }
+                AuditService.record(db,"BILL",q.billCode,"CREDIT_PAYMENT",
+                        "amount="+q.payableSatang+";feeWaived="+q.feeWaived,timestamp);
                 actualTotal = Math.addExact(actualTotal, q.payableSatang);
                 committedBills.add(q);
             }
