@@ -34,6 +34,18 @@ final class BarcodeRegistry {
         }
     }
 
+    static Entry findByName(SQLiteDatabase db, String name) {
+        Cursor c = db.query("barcode_registry",
+                new String[]{"barcode", "name", "price_satang", "source"},
+                "name=? COLLATE NOCASE", new String[]{name}, null, null, "created_at ASC", "1");
+        try {
+            if (!c.moveToFirst()) return null;
+            return new Entry(c.getString(0), c.getString(1), c.getLong(2), c.getString(3));
+        } finally {
+            c.close();
+        }
+    }
+
     static void ensureConsistent(SQLiteDatabase db, String barcode, String name, long priceSatang) {
         Entry entry = find(db, barcode);
         if (entry != null && (!name.equals(entry.name) || priceSatang != entry.priceSatang)) {
