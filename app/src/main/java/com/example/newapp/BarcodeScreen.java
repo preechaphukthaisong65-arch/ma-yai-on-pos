@@ -25,8 +25,8 @@ public class BarcodeScreen extends Activity {
             String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}long p=PosUi.satang(price);
             SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();String code=null;boolean reused=false;
             try{
-                Cursor found=db.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
-                if(found.moveToFirst()){code=found.getString(0);p=found.getLong(1);price.setText(PosDatabase.money(p));reused=true;}found.close();
+                BarcodeRegistry.Entry found=BarcodeRegistry.findByName(db,n);
+                if(found!=null){code=found.barcode;p=found.priceSatang;price.setText(PosDatabase.money(p));reused=true;}
                 if(!reused){
                     code=BarcodeRegistry.nextGenerated(db);
                     BarcodeRegistry.registerIfMissing(db,code,n,p,"STORE",PosDatabase.now());
