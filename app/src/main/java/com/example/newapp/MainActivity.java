@@ -60,20 +60,17 @@ public class MainActivity extends Activity {
         page.addView(ticker);
 
         LinearLayout r1 = row(), r2 = row(), r3 = row();
-        int screenDpForTiles = getResources().getDisplayMetrics().heightPixels / Math.max(1, (int)getResources().getDisplayMetrics().density);
-        int logoDpForTiles = Math.min(130, Math.max(64, screenDpForTiles / 5));
-        int tileImageHeight = Math.min(120, Math.max(48, (screenDpForTiles - logoDpForTiles - 105) / 3 - 38));
         addMenu(r1, "menu_sell", "ขายสินค้า", SellScreen.class);
         addMenu(r1, "menu_stock", "คลังสินค้า", StockScreen.class);
         addMenu(r2, "menu_history", "ประวัติการขาย", HistoryScreen.class);
         addMenu(r2, "menu_manage", "จัดการร้านค้า", ManageStoreScreen.class);
         addMenu(r3, "menu_barcode", "สร้างบาร์โค้ด", BarcodeScreen.class);
         addMenu(r3, "menu_report", "รายงานยอดขาย", ReportScreen.class);
-        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, 0, 1f);
         page.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        page.setBackgroundResource(getResources().getIdentifier("app_background", "drawable", getPackageName()));
+        int backgroundId = getResources().getIdentifier("app_background", "drawable", getPackageName());
+        if (backgroundId != 0) page.setBackgroundResource(backgroundId);
         setContentView(page);
         hideSystemBars();
     }
@@ -97,7 +94,6 @@ public class MainActivity extends Activity {
         image.setAdjustViewBounds(false);
         int screenDp = getResources().getDisplayMetrics().heightPixels / Math.max(1, (int)getResources().getDisplayMetrics().density);
         int logoDp = Math.min(130, Math.max(64, screenDp / 5));
-        int imageHeight = Math.min(120, Math.max(48, (screenDp - logoDp - 105) / 3 - 38));
         tile.addView(image, new LinearLayout.LayoutParams(-1, 0, 1f));
         TextView caption = new TextView(this);
         caption.setText(label);
