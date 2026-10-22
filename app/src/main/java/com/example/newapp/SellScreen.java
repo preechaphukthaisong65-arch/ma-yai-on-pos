@@ -100,10 +100,10 @@ public class SellScreen extends Activity {
     private void creditSale(){
         root=PosUi.page(this,"ขายเชื่อ");
         PosUi.line(this,root,"เลือกลูกค้าเดิมจากคำแนะนำ หรือกรอกชื่อเต็มเพื่อสร้างลูกค้าใหม่");
-        AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);
+        AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);PosUi.styleInput(this,customer);
         java.util.ArrayList<String> customerNames=CustomerService.listNames(helper);
         customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
-        root.addView(customer,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams customerParams=new LinearLayout.LayoutParams(-1,-2);customerParams.bottomMargin=PosUi.dp(this,10);root.addView(customer,customerParams);
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
         PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
         PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
