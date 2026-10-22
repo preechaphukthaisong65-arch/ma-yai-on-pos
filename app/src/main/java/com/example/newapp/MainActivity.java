@@ -102,10 +102,10 @@ public class MainActivity extends Activity {
         row2Params.bottomMargin = dp(3);
         menuArea.addView(r2, row2Params);
         menuArea.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        page.addView(menuArea, new LinearLayout.LayoutParams(-1, 0, 6f));
+        page.addView(menuArea, new LinearLayout.LayoutParams(-1, 0, 7f));
 
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
-        int homePanelHeight = Math.round(screenHeight * 0.70f); // 10% notifications + 60% menu
+        int homePanelHeight = Math.round(screenHeight * 0.80f); // 10% notifications + 70% menu
         FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, homePanelHeight, Gravity.BOTTOM);
         frame.addView(page, pageParams);
@@ -131,15 +131,7 @@ public class MainActivity extends Activity {
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setAdjustViewBounds(false);
         tile.addView(image, new LinearLayout.LayoutParams(-1, 0, 1f));
-        TextView caption = new TextView(this);
-        caption.setText(label);
-        caption.setTextColor(Color.rgb(35, 45, 55));
-        caption.setTextSize(14);
-        caption.setGravity(Gravity.CENTER);
-        caption.setBackgroundColor(Color.WHITE);
-        caption.setPadding(dp(2), dp(3), dp(2), dp(3));
-        caption.setMaxLines(2);
-        tile.addView(caption, new LinearLayout.LayoutParams(-1, -2));
+        // Icon-only menu tiles: no text captions.
         r.addView(tile, new LinearLayout.LayoutParams(0, -1, 1f));
         tile.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, target)));
     }
