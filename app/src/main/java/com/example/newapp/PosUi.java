@@ -146,7 +146,7 @@ final class PosUi {
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
         LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
         footer.setPadding(0,dp(a,8),0,0);
-        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,8),0,dp(a,8),0);
+        Button previous=new Button(a); previous.setText("👈 หน้าก่อนหน้า"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,8),0,dp(a,8),0);
         footer.addView(previous,new LinearLayout.LayoutParams(-1,dp(a,44)));
         LinearLayout container=PAGE_CONTAINERS.get(root);
         if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
