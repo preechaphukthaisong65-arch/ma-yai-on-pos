@@ -42,19 +42,27 @@ final class PosUi {
         outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
-        TextView t=new TextView(a); t.setText(value); t.setTextSize(size*1.5f); t.setTextColor(color);
+        TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
         t.setPadding(0,dp(a,5),0,dp(a,5)); return t;
     }
     static Button button(Activity a, LinearLayout root, String label, View.OnClickListener listener) {
-        Button b=new Button(a); b.setText(label); b.setTextSize(21); b.setMinHeight(dp(a,56)); b.setPadding(dp(a,12),dp(a,8),dp(a,12),dp(a,8)); b.setOnClickListener(listener);
+        Button b=new Button(a); b.setText(label); b.setTextSize(16); b.setMinHeight(dp(a,56)); b.setPadding(dp(a,12),dp(a,8),dp(a,12),dp(a,8)); b.setOnClickListener(listener);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(a,6); root.addView(b,lp); return b;
     }
     static EditText input(Activity a, LinearLayout root,String hint) {
-        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint); e.setTextSize(24); e.setMinHeight(dp(a,60)); e.setPadding(dp(a,14),dp(a,10),dp(a,14),dp(a,10));
+        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint); e.setTextSize(14); e.setMinHeight(dp(a,60)); e.setPadding(dp(a,14),dp(a,10),dp(a,14),dp(a,10));
         GradientDrawable field=new GradientDrawable(); field.setColor(Color.WHITE); field.setCornerRadius(dp(a,10)); field.setStroke(dp(a,1),Color.rgb(150,170,155)); e.setBackground(field); e.setHintTextColor(Color.rgb(105,115,108));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(a,10); root.addView(e,lp); return e;
     }
-    static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
+    static void line(Activity a,LinearLayout root,String value) {
+        TextView t=text(a,value,12,Color.rgb(20,20,20));
+        t.setBackgroundColor(Color.WHITE);
+        t.setPadding(dp(a,10),dp(a,10),dp(a,10),dp(a,10));
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(a,4);
+        root.addView(t,lp);
+    }
     static void scan(Activity a) { scan(a,"สแกนบาร์โค้ดสินค้า"); }
     static void scan(Activity a,String prompt) {
         IntentIntegrator scan=new IntentIntegrator(a);
