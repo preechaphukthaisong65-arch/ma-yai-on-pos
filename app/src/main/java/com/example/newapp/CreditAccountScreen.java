@@ -94,13 +94,21 @@ public class CreditAccountScreen extends Activity {
     }
 
     private void recordPayment(long customerId,ArrayList<Long> ids,long total){
+        final CreditPaymentService.Result result;
         try{
-            CreditPaymentService.Result result=CreditPaymentService.commit(helper,customerId,ids,total,PosDatabase.now());
-            String receipt=ReceiptService.formatPayment(result);
-            PosUi.showResult(this,true,"รับชำระหนี้สำเร็จ",
-                    "บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt,()->home());;
+            result=CreditPaymentService.commit(helper,customerId,ids,total,PosDatabase.now());
         }catch(Exception e){
-            PosUi.showResult(this,false,"รับชำระไม่สำเร็จ",e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage(),null);
+            PosUi.showResult(this,false,"รับชำระไม่สำเร็จ",
+                    e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage(),null);
+            return;
         }
+        String receipt;
+        try{
+            receipt=ReceiptService.formatPayment(result);
+        }catch(Exception receiptError){
+            receipt="บันทึกรับชำระหนี้แล้ว แต่สร้างใบเสร็จไม่สำเร็จ";
+        }
+        PosUi.showResult(this,true,"รับชำระหนี้สำเร็จ",
+                "บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt,()->home());
     }
-}
+}}
