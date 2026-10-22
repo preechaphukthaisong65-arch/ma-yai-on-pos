@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
         ticker.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
         ticker.setMarqueeRepeatLimit(-1);
         ticker.setSelected(true);
-        ticker.setPadding(dp(8), dp(8), dp(8), dp(8));
+        ticker.setPadding(dp(8), dp(4), dp(8), dp(4));
         ticker.setGravity(Gravity.CENTER_VERTICAL);
         ticker.setBackgroundColor(Color.WHITE);
         notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, -1));
