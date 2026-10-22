@@ -17,6 +17,7 @@ public class CreditAccountScreen extends Activity {
     @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);home();}
 
     private void home(){
+        PosUi.resetNavigation(this);
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         ArrayList<ReportingService.CustomerDue> customers=ReportingService.unpaidCustomers(helper);
         for(ReportingService.CustomerDue customer:customers){
@@ -36,6 +37,9 @@ public class CreditAccountScreen extends Activity {
         for(ReportingService.BillDue bill:bills){
             allIds.add(bill.id);selected.add(bill.id);dueTotal=Math.addExact(dueTotal,bill.amountSatang);
             CheckBox box=new CheckBox(this);
+            box.setTextSize(24);
+            box.setMinHeight(PosUi.dp(this,58));
+            box.setPadding(PosUi.dp(this,10),PosUi.dp(this,8),PosUi.dp(this,10),PosUi.dp(this,8));
             box.setText(bill.code+" • "+PosDatabase.money(bill.amountSatang)+" บาท • "+
                     new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault())
                             .format(new java.util.Date(bill.createdAt)));
@@ -96,12 +100,9 @@ public class CreditAccountScreen extends Activity {
         try{
             CreditPaymentService.Result result=CreditPaymentService.commit(helper,customerId,ids,total,PosDatabase.now());
             String receipt=ReceiptService.formatPayment(result);
-            new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ")
-                    .setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt)
-                    .setPositiveButton("ตกลง",(dialog,which)->home()).show();
+            PosUi.result(this,true,"รับชำระหนี้สำเร็จ","บันทึกรับชำระหนี้เรียบร้อย\n"+receipt,()->home());
         }catch(Exception e){
-            new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+
-                    (e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage())).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"รับชำระหนี้ไม่สำเร็จ",e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage(),null);
         }
     }
 }
