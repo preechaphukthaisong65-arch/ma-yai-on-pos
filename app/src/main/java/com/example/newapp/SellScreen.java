@@ -26,25 +26,6 @@ public class SellScreen extends Activity {
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
         PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));
-        addSalesChart("ยอดขายรายสัปดาห์ • 8 สัปดาห์ล่าสุด","week",8);
-        addSalesChart("ยอดขายรายเดือน • 12 เดือนล่าสุด","month",12);
-        addSalesChart("ยอดขายรายปี • ปีปัจจุบันและข้อมูลที่เหลือของปีก่อน","year",2);
-    }
-    private void addSalesChart(String title,String unit,int count){
-        String[] labels=new String[count];long[] values=new long[count];Calendar base=Calendar.getInstance();
-        if(unit.equals("week")){base.setFirstDayOfWeek(Calendar.MONDAY);base.set(Calendar.DAY_OF_WEEK,Calendar.MONDAY);}
-        else if(unit.equals("month"))base.set(Calendar.DAY_OF_MONTH,1);
-        else{base.set(Calendar.MONTH,Calendar.JANUARY);base.set(Calendar.DAY_OF_MONTH,1);}
-        base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);
-        for(int i=0;i<count;i++){
-            Calendar start=(Calendar)base.clone();int offset=i-(count-1);
-            if(unit.equals("week"))start.add(Calendar.WEEK_OF_YEAR,offset);else if(unit.equals("month"))start.add(Calendar.MONTH,offset);else start.add(Calendar.YEAR,offset);
-            Calendar end=(Calendar)start.clone();if(unit.equals("week"))end.add(Calendar.WEEK_OF_YEAR,1);else if(unit.equals("month"))end.add(Calendar.MONTH,1);else end.add(Calendar.YEAR,1);
-            Cursor q=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(start.getTimeInMillis()),String.valueOf(end.getTimeInMillis()-1)});
-            if(q.moveToFirst())values[i]=q.getLong(0);q.close();
-            labels[i]=unit.equals("week")?new SimpleDateFormat("dd/MM",Locale.getDefault()).format(start.getTime()):unit.equals("month")?new SimpleDateFormat("MM/yy",Locale.getDefault()).format(start.getTime()):new SimpleDateFormat("yyyy",Locale.getDefault()).format(start.getTime());
-        }
-        SalesChartView chart=new SalesChartView(this);chart.setData(title,labels,values);root.addView(chart,new LinearLayout.LayoutParams(-1,PosUi.dp(this,180)));
     }
     private void scan(){
         // Use the same ZXing IntentIntegrator flow already used by BarcodeScreen.

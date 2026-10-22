@@ -32,7 +32,7 @@ final class DebtReminderNotifier {
         return String.format(Locale.US,"%,.2f",satang/100.0d);
     }
     private static ArrayList<Debt> overdue(Context context){
-        Calendar cutoff=Calendar.getInstance();cutoff.add(Calendar.MONTH,-1);
+        Calendar cutoff=AppClock.calendar();cutoff.add(Calendar.MONTH,-1);
         ArrayList<Debt> list=new ArrayList<>();
         Cursor c=PosDatabase.get(context).getReadableDatabase().rawQuery(
                 "SELECT c.id,c.full_name,SUM(b.total_satang),MIN(b.created_at) FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id HAVING MIN(b.created_at)<? ORDER BY SUM(b.total_satang) DESC,MIN(b.created_at) ASC",

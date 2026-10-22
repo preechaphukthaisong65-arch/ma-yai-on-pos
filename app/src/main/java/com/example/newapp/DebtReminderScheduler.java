@@ -20,9 +20,9 @@ final class DebtReminderScheduler {
         AlarmManager alarm=(AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
         if(alarm==null)return;
         PendingIntent pi=pendingIntent(context,PendingIntent.FLAG_UPDATE_CURRENT);
-        Calendar next=Calendar.getInstance();next.setFirstDayOfWeek(Calendar.MONDAY);
+        Calendar next=AppClock.calendar();next.setFirstDayOfWeek(Calendar.MONDAY);
         next.set(Calendar.DAY_OF_WEEK,Calendar.MONDAY);next.set(Calendar.HOUR_OF_DAY,9);next.set(Calendar.MINUTE,0);next.set(Calendar.SECOND,0);next.set(Calendar.MILLISECOND,0);
-        if(next.getTimeInMillis()<=System.currentTimeMillis())next.add(Calendar.DAY_OF_YEAR,7);
+        if(next.getTimeInMillis()<=AppClock.now())next.add(Calendar.DAY_OF_YEAR,7);
         if(Build.VERSION.SDK_INT>=23)alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,next.getTimeInMillis(),pi);
         else alarm.setExact(AlarmManager.RTC_WAKEUP,next.getTimeInMillis(),pi);
     }
