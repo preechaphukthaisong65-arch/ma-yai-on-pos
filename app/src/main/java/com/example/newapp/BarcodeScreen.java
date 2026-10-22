@@ -29,13 +29,13 @@ public class BarcodeScreen extends Activity {
             final String generatedName=result.entry.name;
             final boolean wasReused=result.reused;
             if(wasReused)price.setText(PosDatabase.money(generatedPrice));
-            new AlertDialog.Builder(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ")
+            PosUi.dialog(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ")
                     .setMessage("สินค้า: "+generatedName+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+
                             PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""))
                     .setPositiveButton("ตกลง",(d,w)->home()).show();
         }catch(Exception e){
             String error=e.getMessage()==null?"ข้อมูลบาร์โค้ดไม่ถูกต้อง":e.getMessage();
-            new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+error).setPositiveButton("ตกลง",null).show();
+            PosUi.dialog(this).setMessage("สร้างไม่สำเร็จ: "+error).setPositiveButton("ตกลง",null).show();
         }});
         PosUi.back(this,root);
     }
