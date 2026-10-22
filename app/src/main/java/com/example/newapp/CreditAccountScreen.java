@@ -89,11 +89,11 @@ public class CreditAccountScreen extends Activity {
         c.close();
         PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(dueTotal)+" บาท");
         if(!allIds.isEmpty()){
-            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,payableTotal(customerId,allIds)));
+            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->preparePayment(customerId,allIds));
             PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
                 ArrayList<Long> chosen=new ArrayList<>(selected);java.util.Collections.sort(chosen);
                 if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
-                payAll(customerId,chosen,payableTotal(customerId,chosen));
+                preparePayment(customerId,chosen);
             });
         }else PosUi.line(this,root,"ไม่มีบิลค้างชำระ");
         PosUi.back(this,root);
@@ -110,6 +110,11 @@ public class CreditAccountScreen extends Activity {
             c.close();
         }
         return total;
+    }
+
+    private void preparePayment(long customerId,ArrayList<Long> ids){
+        try{payAll(customerId,ids,payableTotal(customerId,ids));}
+        catch(ArithmeticException e){new AlertDialog.Builder(this).setMessage("ยอดรวมเกินขอบเขตที่ระบบรองรับ กรุณาแบ่งชำระเป็นชุดเล็กลง").setPositiveButton("ตกลง",null).show();}
     }
 
     private void payAll(long customerId,ArrayList<Long> ids,long total){
@@ -146,14 +151,14 @@ public class CreditAccountScreen extends Activity {
                 String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();
                 if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
                 long created=getBillTime(db,id);boolean waiveFee="CREDIT".equals(type)&&now>=created&&now-created<=86400000L;
-                long collected=waiveFee?sub:amount;actualTotal+=collected;
+                long collected=waiveFee?sub:amount;actualTotal=Math.addExact(actualTotal,collected);
                 ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
                 if(db.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                 ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);
                 ContentValues audit=new ContentValues();audit.put("bill_id",id);audit.put("bill_code",code);audit.put("amount_satang",collected);audit.put("created_at",now);db.insertOrThrow("payment_history",null,audit);
                 PosDatabase.audit(db,"PAYMENT_RECEIVED","BILL",code,"amount_satang="+collected);
                 receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
-                if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",now);db.insertOrThrow("sales_ledger",null,adj);}
+                if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",now);db.insertOrThrow("sales_ledger",null,adj);PosDatabase.audit(db,"CREDIT_FEE_WAIVED","BILL",code,"waived_fee_satang="+fee);}
             }
             if(actualTotal!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
             db.setTransactionSuccessful();paid=true;
