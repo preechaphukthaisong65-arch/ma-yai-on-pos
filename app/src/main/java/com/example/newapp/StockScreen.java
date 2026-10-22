@@ -48,12 +48,12 @@ public class StockScreen extends Activity {
         SQLiteDatabase db=helper.getReadableDatabase();
         Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
         if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else if("countHistory".equals(mode)){showStockHistory(barcode);return;}else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
-        long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));String unit="ชิ้น";
+        long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));
         int stock=c.getInt(c.getColumnIndexOrThrow("stock"));int limit=c.getInt(c.getColumnIndexOrThrow("stock_limit"));long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
         c.close();
-        if("detail".equals(mode)){new AlertDialog.Builder(this).setTitle(name).setMessage("บาร์โค้ด: "+barcode+"\nคงเหลือ: "+stock+" "+unit+"\nราคาขาย: "+PosDatabase.money(price)+" บาท").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;}
+        if("detail".equals(mode)){new AlertDialog.Builder(this).setTitle(name).setMessage("บาร์โค้ด: "+barcode+ "\nคงเหลือ: "+stock+"\nราคาขาย: "+PosDatabase.money(price)+" บาท").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;}
         root=PosUi.page(this,name);
-        PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock+" "+unit);
+        PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock);
         if("count".equals(mode)){
             EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
             PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,qty,"COUNT");}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
@@ -115,8 +115,8 @@ public class StockScreen extends Activity {
         Cursor registry=helper.getReadableDatabase().query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null,"1");
         if(registry.moveToFirst()){name.setText(registry.getString(0));price.setText(PosDatabase.money(registry.getLong(1)));name.setEnabled(false);price.setEnabled(false);}
         registry.close();
-        PosUi.line(this,root,"หน่วยเริ่มต้น: ชิ้น");
-        PosUi.line(this,root,"ลิมิตสต๊อกเริ่มต้น: 10 ชิ้น (แก้ไขได้ที่ปุ่ม ตั้งค่าลิมิตสต๊อก)");
+        
+        PosUi.line(this,root,"ลิมิตสต๊อกเริ่มต้น: 10 (แก้ไขได้ที่ปุ่ม ตั้งค่าลิมิตสต๊อก)");
         EditText qty=PosUi.input(this,root,"จำนวนสินค้าเริ่มต้น");
         PosUi.button(this,root,"บันทึกสินค้า",v->{try{
             String nm=PosUi.str(name);if(nm.isEmpty())throw new IllegalArgumentException("กรุณากรอกชื่อสินค้า");
