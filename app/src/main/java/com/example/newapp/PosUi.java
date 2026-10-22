@@ -262,8 +262,8 @@ final class PosUi {
 
     static void transactionFeedback(Activity a, boolean success, String detail, Runnable after) {
         String title = success ? "บันทึกสำเร็จ" : "บันทึกไม่สำเร็จ";
-        String spoken = success ? "บันทึกรายการสำเร็จค่ะ" : "บันทึกรายการไม่สำเร็จค่ะ";
-        if (detail != null && !detail.trim().isEmpty()) spoken += " " + detail;
+        final String spoken = (success ? "บันทึกรายการสำเร็จค่ะ" : "บันทึกรายการไม่สำเร็จค่ะ") +
+                (detail != null && !detail.trim().isEmpty() ? " " + detail : "");
         AlertDialog dialog = new AlertDialog.Builder(a)
                 .setTitle(title)
                 .setMessage(detail == null || detail.trim().isEmpty() ? title : detail)
