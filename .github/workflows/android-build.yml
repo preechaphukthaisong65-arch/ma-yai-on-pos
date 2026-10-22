@@ -5,6 +5,7 @@ on:
     branches:
       - feature/central-product-catalog-service
       - feature/central-reporting-integrity
+      - feature/ui-accessibility-transaction-feedback
   pull_request:
     branches:
       - main
