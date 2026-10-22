@@ -51,7 +51,10 @@ public class MainActivity extends Activity {
         tickerView = ticker;
         ticker.setText(TICKER_BASE);
         ticker.setTextSize(14);
-        ticker.setTextColor(Color.rgb(45, 90, 55));
+        ticker.setTextColor(Color.rgb(35, 55, 40));
+        // Light translucent white backing improves ticker/notification text contrast
+        // while allowing the shared home wallpaper to remain visible.
+        ticker.setBackgroundColor(Color.argb(218, 255, 255, 255));
         ticker.setSingleLine(true);
         ticker.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
         ticker.setMarqueeRepeatLimit(-1);
