@@ -59,6 +59,9 @@ final class ProductCatalogService {
                     throw new IllegalStateException("ข้อมูลสินค้าหรือราคาเปลี่ยนแล้ว กรุณาสแกนใหม่");
             } finally { current.close(); }
 
+            BarcodeRegistry.Entry registry=BarcodeRegistry.find(db,barcode.trim());
+            if(registry!=null&&!name.equals(registry.name))
+                throw new IllegalStateException("ชื่อสินค้าในคลังบาร์โค้ดไม่ตรงกับสินค้า กรุณาตรวจสอบข้อมูลก่อนเปลี่ยนราคา");
             ContentValues update=new ContentValues();update.put("price_satang",newPriceSatang);update.put("updated_at",now);
             if(db.update("products",update,"id=? AND price_satang=?",
                     new String[]{String.valueOf(id),String.valueOf(expectedOldSatang)})!=1)
