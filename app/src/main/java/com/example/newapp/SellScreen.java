@@ -29,8 +29,7 @@ public class SellScreen extends Activity {
         PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));
     }
     private void scan(){
-        // Use the same ZXing IntentIntegrator flow already used by BarcodeScreen.
-        // This avoids constructing a custom camera preview inside this Activity.
+        // Keep the cart screen as the return destination after each barcode scan.
         scanning=true;
         PosUi.scan(this,"สแกนบาร์โค้ดสินค้า");
     }
@@ -42,37 +41,55 @@ public class SellScreen extends Activity {
         if(result.getContents()!=null){
             addScanned(result.getContents());
         }else{
-            showCart();
+            showScanScreen();
         }
     }
     private void addScanned(String barcode){
         Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
-        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
+        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showScanScreen);return;}
         long id=c.getLong(0);String name=c.getString(1);long price=c.getLong(2);int stock=c.getInt(3);c.close();
         Item old=cart.get(id);
-        if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showCart);return;}
+        if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
-        try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showCart()).show();return;}
-        PosUi.speakThen(this,name+" จำนวน "+cart.get(id).qty+" ค่ะ",this::showCart);
+        try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
+        showScanScreen();
     }
     private long lineTotal(Item i){return Math.multiplyExact(i.price,(long)i.qty);}
     private long subtotal(){long s=0;for(Item i:cart.values())s=Math.addExact(s,lineTotal(i));return s;}
-    private void showCart(){
-        root=PosUi.page(this,"ตรวจสอบรายการขาย");
-        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());return;}
-        StringBuilder speech=new StringBuilder();
+    private void addSideBySideButtons(LinearLayout parent,String leftLabel,android.view.View.OnClickListener leftAction,String rightLabel,android.view.View.OnClickListener rightAction){
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        Button left=new Button(this);left.setText(leftLabel);left.setTextSize(17);left.setMinHeight(PosUi.dp(this,56));left.setOnClickListener(leftAction);
+        Button right=new Button(this);right.setText(rightLabel);right.setTextSize(17);right.setMinHeight(PosUi.dp(this,56));right.setOnClickListener(rightAction);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1f);lp.rightMargin=PosUi.dp(this,6);
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-2,1f);rp.leftMargin=PosUi.dp(this,6);
+        row.addView(left,lp);row.addView(right,rp);parent.addView(row,new LinearLayout.LayoutParams(-1,-2));
+    }
+    private void showScanScreen(){
+        root=PosUi.page(this,"สแกนสินค้า");
+        addSideBySideButtons(root,"สแกนสินค้าเพิ่ม",v->scan(),"สแกนเสร็จสิ้น",v->finishScanning());
+        if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในตะกร้า");return;}
         for(Item i:cart.values()){
-            PosUi.line(this,root,i.name+"  จำนวน "+i.qty+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(lineTotal(i))+" บาท");
-            speech.append(i.name).append(" จำนวน ").append(i.qty).append(" ราคา ").append(PosDatabase.money(i.price)).append(" บาท รวม ").append(PosDatabase.money(lineTotal(i))).append(" บาท ");
+            android.widget.TextView line=new android.widget.TextView(this);
+            line.setText(i.name+"  จำนวน "+i.qty+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(lineTotal(i))+" บาท");
+            line.setTextSize(14.4f);line.setTextColor(android.graphics.Color.DKGRAY);
+            line.setPadding(0,PosUi.dp(this,3),0,PosUi.dp(this,3));
+            root.addView(line,new LinearLayout.LayoutParams(-1,-2));
         }
-        PosUi.line(this,root,"รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");
-        final String summary=speech.append("ยอดรวม ").append(PosDatabase.money(subtotal())).append(" บาท").toString();
-        PosUi.speakThen(this,summary,()->{
-            PosUi.button(this,root,"สแกนเพิ่ม",v->scan());
-            PosUi.button(this,root,"ขายเงินสด",v->cashSale());
-            PosUi.button(this,root,"ขายเชื่อ",v->creditSale());
-            PosUi.button(this,root,"ยกเลิกบิลนี้",v->home());
-        });
+        android.widget.TextView total=new android.widget.TextView(this);
+        total.setText("รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");total.setTextSize(14.4f);
+        total.setTextColor(android.graphics.Color.DKGRAY);total.setPadding(0,PosUi.dp(this,6),0,PosUi.dp(this,6));
+        root.addView(total,new LinearLayout.LayoutParams(-1,-2));
+    }
+    private void finishScanning(){
+        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
+        StringBuilder summary=new StringBuilder("รายการสินค้าในตะกร้าทั้งหมด ");
+        for(Item i:cart.values())summary.append(i.name).append(" จำนวน ").append(i.qty).append(" รายการ ");
+        PosUi.speakThen(this,summary.toString(),this::paymentChoice);
+    }
+    private void paymentChoice(){
+        root=PosUi.page(this,"เลือกวิธีขาย");
+        addSideBySideButtons(root,"ชำระเงินสด",v->cashSale(),"ค้างชำระ",v->creditSale());
+        PosUi.button(this,root,"กลับไปสแกนสินค้า",v->showScanScreen());
     }
     private void cashSale(){
         root=PosUi.page(this,"รับชำระเงินสด");PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(subtotal())+" บาท");
@@ -160,8 +177,8 @@ public class SellScreen extends Activity {
             while(items.moveToNext()){
                 if(index>=current.size()){same=false;break;}
                 Item item=current.get(index++);
-                if(!item.barcode.equals(items.getString(0))||!item.name.equals(items.getString(1))||!item.unit.equals(items.getString(2))
-                        ||item.qty!=items.getInt(3)||item.price!=items.getLong(4)||lineTotal(item)!=items.getLong(5)){same=false;break;}
+                if(!item.barcode.equals(items.getString(0))||!item.name.equals(items.getString(1))
+                        ||item.qty!=items.getInt(2)||item.price!=items.getLong(3)||lineTotal(item)!=items.getLong(4)){same=false;break;}
             }
             items.close();
             if(same&&index==current.size()){match=bills.getString(1);break;}
