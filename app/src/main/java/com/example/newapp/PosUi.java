@@ -27,13 +27,13 @@ final class PosUi {
         root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,24));
         root.setBackgroundColor(Color.TRANSPARENT);
         if (background == 0) scroll.setBackgroundColor(Color.rgb(248,250,247));
-        TextView heading = text(a,title,36,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
+        TextView heading = text(a,title,24,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root); a.setContentView(scroll); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
-        TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        TextView t=new TextView(a); t.setText(value); t.setTextSize(size*1.5f); t.setTextColor(color);
         t.setPadding(0,dp(a,5),0,dp(a,5)); return t;
     }
     static Button button(Activity a, LinearLayout root, String label, View.OnClickListener listener) {
