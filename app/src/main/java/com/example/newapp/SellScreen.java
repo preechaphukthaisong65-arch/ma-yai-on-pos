@@ -22,7 +22,7 @@ import java.util.Calendar;
 import java.util.Locale;
 
 public class SellScreen extends Activity {
-    private static final class Item { long id,price;String barcode,name;final String unit="ชิ้น";int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
+    private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
@@ -53,7 +53,7 @@ public class SellScreen extends Activity {
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showCart);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
         try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showCart()).show();return;}
-        PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::showCart);
+        PosUi.speakThen(this,name+" จำนวน "+cart.get(id).qty+" ค่ะ",this::showCart);
     }
     private long lineTotal(Item i){return Math.multiplyExact(i.price,(long)i.qty);}
     private long subtotal(){long s=0;for(Item i:cart.values())s=Math.addExact(s,lineTotal(i));return s;}
@@ -62,8 +62,8 @@ public class SellScreen extends Activity {
         if(cart.isEmpty()){PosUi.line(this,root,"ยังไม่มีสินค้าในบิล");PosUi.button(this,root,"เริ่มใหม่",v->home());return;}
         StringBuilder speech=new StringBuilder();
         for(Item i:cart.values()){
-            PosUi.line(this,root,i.name+"  "+i.qty+" "+i.unit+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(lineTotal(i))+" บาท");
-            speech.append(i.name).append(" ").append(i.qty).append(" ").append(i.unit).append(" ราคา ").append(PosDatabase.money(i.price)).append(" บาท รวม ").append(PosDatabase.money(lineTotal(i))).append(" บาท ");
+            PosUi.line(this,root,i.name+"  จำนวน "+i.qty+" × "+PosDatabase.money(i.price)+" = "+PosDatabase.money(lineTotal(i))+" บาท");
+            speech.append(i.name).append(" จำนวน ").append(i.qty).append(" ราคา ").append(PosDatabase.money(i.price)).append(" บาท รวม ").append(PosDatabase.money(lineTotal(i))).append(" บาท ");
         }
         PosUi.line(this,root,"รวมสินค้า "+PosDatabase.money(subtotal())+" บาท");
         final String summary=speech.append("ยอดรวม ").append(PosDatabase.money(subtotal())).append(" บาท").toString();
@@ -155,7 +155,7 @@ public class SellScreen extends Activity {
             if(credit&&(customerId<=0||bills.isNull(2)||bills.getLong(2)!=customerId))continue;
             if(bills.getLong(3)!=cash||bills.getLong(4)!=change||bills.getLong(5)!=sub||bills.getLong(6)!=fee||bills.getLong(7)!=total)continue;
             long billId=bills.getLong(0);
-            Cursor items=db.query("bill_items",new String[]{"barcode","product_name","unit","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,"barcode ASC");
+            Cursor items=db.query("bill_items",new String[]{"barcode","product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,"barcode ASC");
             boolean same=true;int index=0;
             while(items.moveToNext()){
                 if(index>=current.size()){same=false;break;}
@@ -201,7 +201,7 @@ public class SellScreen extends Activity {
                 if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
                 ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
                 if(db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
-                ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("unit",i.unit);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));db.insertOrThrow("bill_items",null,it);
+                ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("unit","ชิ้น");it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));db.insertOrThrow("bill_items",null,it);
                 ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",code);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",lineTotal(i));li.put("created_at",now);db.insertOrThrow("sales_ledger_items",null,li);
                 ContentValues h=new ContentValues();h.put("product_id",i.id);h.put("barcode",i.barcode);h.put("product_name",i.name);h.put("change_type","SALE");h.put("before_qty",i.stock);h.put("after_qty",i.stock-i.qty);h.put("difference",-i.qty);h.put("reference",code);h.put("created_at",now);db.insertOrThrow("stock_history",null,h);
             }
