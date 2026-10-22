@@ -119,4 +119,5 @@ public class ManageStoreScreen extends Activity {
             PosUi.result(this,false,"ทำรายการไม่สำเร็จ",error,null);
         }
     }
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }
