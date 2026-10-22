@@ -14,7 +14,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class StockScreen extends Activity {
     private PosDatabase helper; private LinearLayout root; private String mode=""; private String scanned="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){
+    private void home(){PosUi.clearBackStack(this);
         root=PosUi.page(this,"คลังสินค้า");
         PosUi.button(this,root,"สินค้าทั้งหมด",v->showAll());
         PosUi.button(this,root,"นับสต๊อกสินค้า",v->countMenu());
@@ -130,4 +130,6 @@ public class StockScreen extends Activity {
         }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }

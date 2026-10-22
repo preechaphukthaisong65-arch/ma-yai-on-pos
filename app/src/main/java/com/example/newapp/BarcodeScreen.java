@@ -14,7 +14,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class BarcodeScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"สร้างบาร์โค้ด");
+    private void home(){PosUi.clearBackStack(this);root=PosUi.page(this,"สร้างบาร์โค้ด");
         PosUi.button(this,root,"สร้างบาร์โค้ดใหม่",v->create());
         PosUi.button(this,root,"คลังบาร์โค้ด",v->registry());
         PosUi.back(this,root);
@@ -53,4 +53,6 @@ public class BarcodeScreen extends Activity {
         while(c.moveToNext())PosUi.line(this,root,c.getString(1)+" • "+c.getString(0)+" • "+PosDatabase.money(c.getLong(2))+" บาท • "+c.getString(3));c.close();PosUi.back(this,root);
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){super.onActivityResult(requestCode,resultCode,data);IntentResult r=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);if(r!=null){if(r.getContents()!=null)search(r.getContents());else home();}}
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }

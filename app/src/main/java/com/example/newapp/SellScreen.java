@@ -24,8 +24,9 @@ public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name,unit;int qty,stock; Item(long i,String b,String n,String u,long p,int s){id=i;barcode=b;name=n;unit=u;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
-        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));
+    private void home(){PosUi.clearBackStack(this);root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
+        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"ชำระบิลค้างชำระ",v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra(CreditAccountScreen.EXTRA_SEARCH_MODE,true);startActivity(i);});
+        PosUi.back(this,root);
     }
     private void scan(){
         // Use the same ZXing IntentIntegrator flow already used by BarcodeScreen.
@@ -168,4 +169,6 @@ public class SellScreen extends Activity {
             PosUi.result(this,true,"เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }

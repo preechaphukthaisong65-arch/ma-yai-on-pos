@@ -19,10 +19,17 @@ public class MainActivity extends Activity {
 
     private void hideSystemBars() {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        View decor = getWindow().getDecorView();
+        final int immersiveFlags = View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+        decor.setSystemUiVisibility(immersiveFlags);
+        decor.setOnSystemUiVisibilityChangeListener(visibility -> {
+            if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0
+                    || (visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+                decor.setSystemUiVisibility(immersiveFlags);
+            }
+        });
     }
 
     @Override protected void onCreate(Bundle b) {
@@ -85,7 +92,7 @@ public class MainActivity extends Activity {
         page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
         FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, Math.round(getResources().getDisplayMetrics().heightPixels * 0.65f),
+                FrameLayout.LayoutParams.MATCH_PARENT, Math.round(getResources().getDisplayMetrics().heightPixels * 0.73f),
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         frame.addView(page, pageParams);
         setContentView(frame);
