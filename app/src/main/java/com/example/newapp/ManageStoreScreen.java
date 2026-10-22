@@ -53,8 +53,8 @@ public class ManageStoreScreen extends Activity {
         finally{if(db!=null&&transactionStarted&&db.inTransaction()){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
         if(saved){
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
-            new AlertDialog.Builder(this).setMessage("บันทึกราคาใหม่เรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();
-        }else new AlertDialog.Builder(this).setMessage(error==null?"บันทึกราคาไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,true,"บันทึกราคาใหม่เรียบร้อย",this::home);
+        }else PosUi.result(this,false,error==null?"บันทึกราคาไม่สำเร็จ":error,null);
     }
     private void history(String barcode,String name){
         root=PosUi.page(this,"ประวัติแก้ไขราคา • "+name);PosUi.line(this,root,"บาร์โค้ด: "+barcode);Cursor c=helper.getReadableDatabase().query("price_history",new String[]{"old_price_satang","new_price_satang","created_at"},"barcode=?",new String[]{barcode},null,null,"created_at ASC");
@@ -110,7 +110,7 @@ public class ManageStoreScreen extends Activity {
         finally{
             if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
         }
-        if(saved){StockAlertManager.check(this);new AlertDialog.Builder(this).setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();}
-        else new AlertDialog.Builder(this).setMessage("ทำรายการไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error)).setPositiveButton("ตกลง",null).show();
+        if(saved){StockAlertManager.check(this);PosUi.result(this,true,(returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย",this::home);}
+        else PosUi.result(this,false,"ทำรายการไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 }
