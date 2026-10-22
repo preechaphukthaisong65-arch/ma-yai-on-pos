@@ -102,7 +102,21 @@ public class SellScreen extends Activity {
         PosUi.line(this,root,"เลือกลูกค้าเดิมจากคำแนะนำ หรือกรอกชื่อเต็มเพื่อสร้างลูกค้าใหม่");
         AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);PosUi.styleInput(this,customer);
         java.util.ArrayList<String> customerNames=CustomerService.listNames(helper);
-        customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
+        ArrayAdapter<String> customerAdapter=new ArrayAdapter<String>(this,android.R.layout.simple_dropdown_item_1line,customerNames) {
+            @Override public android.view.View getView(int position,android.view.View convertView,android.view.ViewGroup parent) {
+                android.widget.TextView item=(android.widget.TextView)super.getView(position,convertView,parent);
+                item.setTextSize(24);
+                item.setPadding(PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10),PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10));
+                return item;
+            }
+            @Override public android.view.View getDropDownView(int position,android.view.View convertView,android.view.ViewGroup parent) {
+                android.widget.TextView item=(android.widget.TextView)super.getDropDownView(position,convertView,parent);
+                item.setTextSize(24);
+                item.setPadding(PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10),PosUi.dp(SellScreen.this,12),PosUi.dp(SellScreen.this,10));
+                return item;
+            }
+        };
+        customer.setAdapter(customerAdapter);
         LinearLayout.LayoutParams customerParams=new LinearLayout.LayoutParams(-1,-2);customerParams.bottomMargin=PosUi.dp(this,10);root.addView(customer,customerParams);
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
         PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
