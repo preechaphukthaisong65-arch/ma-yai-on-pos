@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.MaYaiOnPOS" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#2D5A37</item>
+        <item name="android:colorAccent">#168C83</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">#FFFFFF</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
@@ -10,6 +10,6 @@
 
     <style name="Theme.ScannerCapture" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#2D5A37</item>
+        <item name="android:colorAccent">#168C83</item>
     </style>
 </resources>
