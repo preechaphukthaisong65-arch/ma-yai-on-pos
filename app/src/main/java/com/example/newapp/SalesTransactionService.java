@@ -121,6 +121,19 @@ final class SalesTransactionService {
             billId = db.insertOrThrow("bills", null, bill);
 
             for (Line line : lines) {
+                Cursor current = db.query("products",
+                        new String[]{"barcode","name","unit","price_satang","stock","active"},
+                        "id=?", new String[]{String.valueOf(line.productId)}, null, null, null, "1");
+                try {
+                    if (!current.moveToFirst()) throw new IllegalStateException("ไม่พบสินค้าในคลัง: " + line.name);
+                    if (current.getInt(5) != 1 || !line.barcode.equals(current.getString(0)) ||
+                            !line.name.equals(current.getString(1)) || !line.unit.equals(current.getString(2)) ||
+                            line.unitPriceSatang != current.getLong(3) || line.expectedStock != current.getInt(4)) {
+                        throw new IllegalStateException("ข้อมูลหรือราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนสินค้าใหม่: " + line.name);
+                    }
+                } finally {
+                    current.close();
+                }
                 InventoryService.changeStock(db, line.productId, line.barcode, line.name,
                         line.expectedStock, line.expectedStock - line.quantity, "SALE", billCode, timestamp);
 
