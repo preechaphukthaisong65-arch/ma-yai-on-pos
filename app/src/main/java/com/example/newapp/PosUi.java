@@ -15,18 +15,38 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.zxing.integration.android.IntentIntegrator;
 import java.util.Locale;
+import java.util.ArrayDeque;
 import java.util.WeakHashMap;
 
 final class PosUi {
     private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
+    private static final WeakHashMap<Activity,ArrayDeque<View>> PAGE_HISTORY = new WeakHashMap<>();
     private PosUi() {}
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
-    static LinearLayout page(Activity a, String title) {
+    static void hideSystemBars(Activity a) {
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN, android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         a.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+    }
+    static void clearBackStack(Activity a) {
+        ArrayDeque<View> history=PAGE_HISTORY.get(a);
+        if(history!=null)history.clear();
+    }
+    static void goBack(Activity a) {
+        hideSystemBars(a);
+        ArrayDeque<View> history=PAGE_HISTORY.get(a);
+        if(history!=null&&!history.isEmpty()) {
+            View previous=history.pop();
+            a.setContentView(previous);
+            hideSystemBars(a);
+        } else {
+            a.finish();
+        }
+    }
+    static LinearLayout page(Activity a, String title) {
+        hideSystemBars(a);
         ScrollView scroll = new ScrollView(a);
         int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
         if (background != 0) scroll.setBackgroundResource(background);
@@ -39,7 +59,15 @@ final class PosUi {
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
         LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
-        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); return root;
+        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        android.view.ViewGroup content=(android.view.ViewGroup)a.findViewById(android.R.id.content);
+        if(content!=null&&content.getChildCount()>0) {
+            View previous=content.getChildAt(0);
+            ArrayDeque<View> history=PAGE_HISTORY.get(a);
+            if(history==null){history=new ArrayDeque<>();PAGE_HISTORY.put(a,history);}
+            history.push(previous);
+        }
+        a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); hideSystemBars(a); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size*1.5f); t.setTextColor(color);
@@ -108,20 +136,17 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
         footer.setPadding(0,dp(a,8),0,0);
-        Button home=new Button(a); home.setText("⌂ หน้าหลัก"); home.setTextSize(15); home.setSingleLine(true); home.setMinHeight(dp(a,42)); home.setPadding(dp(a,4),0,dp(a,4),0);
-        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,4),0,dp(a,4),0);
-        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,dp(a,44),1f); hp.rightMargin=dp(a,8);
-        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(a,44),1f);
-        footer.addView(home,hp); footer.addView(previous,bp);
+        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(18); previous.setSingleLine(true); previous.setMinHeight(dp(a,48)); previous.setPadding(dp(a,12),0,dp(a,12),0);
+        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(a,48));
+        footer.addView(previous,bp);
         LinearLayout container=PAGE_CONTAINERS.get(root);
-        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,48)));
+        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,54)));
         else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
-        home.setOnClickListener(v->{Intent i=new Intent(a,MainActivity.class);i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);a.startActivity(i);a.finish();});
-        previous.setOnClickListener(v->a.finish());
+        previous.setOnClickListener(v->goBack(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
-        new AlertDialog.Builder(a).setTitle(title).setMessage(message).setPositiveButton("ตกลง",(d,w)->{if(after!=null)after.run();}).show();
+        new AlertDialog.Builder(a).setTitle(title).setMessage(message).setPositiveButton("ตกลง",(d,w)->{if(after!=null){clearBackStack(a);after.run();}}).show();
         speak(a,(success?"บันทึกสำเร็จ ":"บันทึกไม่สำเร็จ ")+message);
     }
 }
