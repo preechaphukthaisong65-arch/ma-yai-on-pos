@@ -16,7 +16,7 @@ final class SalesChartView extends View {
     void setData(String chartTitle,String[] chartLabels,long[] chartValues){title=chartTitle;labels=chartLabels;values=chartValues;invalidate();}
     @Override protected void onDraw(Canvas canvas){
         super.onDraw(canvas);float density=getResources().getDisplayMetrics().density;float w=getWidth(),h=getHeight();
-        paint.setColor(Color.rgb(35,80,48));paint.setTextSize(15*density);paint.setFakeBoldText(true);canvas.drawText(title,12*density,22*density,paint);paint.setFakeBoldText(false);
+        paint.setColor(Color.rgb(35,80,48));paint.setTextSize(22.5f*density);paint.setFakeBoldText(true);canvas.drawText(title,12*density,22*density,paint);paint.setFakeBoldText(false);
         if(labels.length==0)return;
         float left=12*density,right=w-8*density,top=36*density,bottom=h-28*density;
         paint.setColor(Color.LTGRAY);canvas.drawLine(left,bottom,right,bottom,paint);
@@ -25,9 +25,9 @@ final class SalesChartView extends View {
         for(int i=0;i<labels.length;i++){
             float bh=(bottom-top)*Math.max(0,values[i])/(float)max;float x=left+i*slot+(slot-barW)/2;
             paint.setColor(Color.rgb(70,145,85));canvas.drawRect(x,bottom-bh,x+barW,bottom,paint);
-            paint.setColor(Color.DKGRAY);paint.setTextSize(9*density);String label=labels[i];float tw=paint.measureText(label);
+            paint.setColor(Color.DKGRAY);paint.setTextSize(13.5f*density);String label=labels[i];float tw=paint.measureText(label);
             canvas.drawText(label,x+barW/2-tw/2,h-8*density,paint);
-            if(values[i]>0&&slot>38*density){String amount=compact(values[i]);paint.setTextSize(8*density);float aw=paint.measureText(amount);canvas.drawText(amount,x+barW/2-aw/2,Math.max(top+9*density,bottom-bh-3*density),paint);}
+            if(values[i]>0&&slot>38*density){String amount=compact(values[i]);paint.setTextSize(12*density);float aw=paint.measureText(amount);canvas.drawText(amount,x+barW/2-aw/2,Math.max(top+9*density,bottom-bh-3*density),paint);}
         }
     }
     private String compact(long satang){double baht=satang/100.0;if(baht>=1000000)return String.format(Locale.US,"%.1fM",baht/1000000);if(baht>=1000)return String.format(Locale.US,"%.1fk",baht/1000);return String.format(Locale.US,"%.0f",baht);}
