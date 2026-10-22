@@ -21,6 +21,8 @@ public class ReportScreen extends Activity {
         PosUi.button(this,root,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
         PosUi.button(this,root,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
+        PosUi.button(this,root,"ประวัติการเปลี่ยนแปลงระบบ",v->auditHistory());
+        PosUi.button(this,root,"ตรวจสอบความถูกต้องของข้อมูล",v->checkIntegrity());
         PosUi.back(this,root);
     }
     private void returnedCancelled(){
@@ -71,6 +73,36 @@ public class ReportScreen extends Activity {
             PosUi.line(this,root,i+++". "+row.name+" — "+row.quantity+" ชิ้น"+note);
         }
         if(i==1)PosUi.line(this,root,best?"ยังไม่มีสินค้าที่มียอดขายสุทธิในช่วงนี้":"ยังไม่มีสินค้าในคลัง");
+        PosUi.back(this,root);
+    }
+
+    private void auditHistory(){
+        root=PosUi.page(this,"ประวัติการเปลี่ยนแปลงระบบ");
+        java.util.ArrayList<AuditService.Event> events=AuditService.recent(helper,100);
+        if(events.isEmpty())PosUi.line(this,root,"ยังไม่มีประวัติการเปลี่ยนแปลง");
+        for(AuditService.Event event:events){
+            String date=new SimpleDateFormat("dd/MM/yyyy HH:mm:ss",Locale.getDefault()).format(new Date(event.createdAt));
+            PosUi.line(this,root,date+" • "+event.action+" • "+event.entityType+" "+event.entityId+
+                    (event.details.isEmpty()?"":"\n"+event.details));
+        }
+        PosUi.back(this,root);
+    }
+
+    private void checkIntegrity(){
+        root=PosUi.page(this,"ตรวจสอบความถูกต้องของข้อมูล");
+        try{
+            IntegrityCheckService.Result result=IntegrityCheckService.run(helper);
+            PosUi.line(this,root,"ตรวจสอบแล้ว "+result.checkedRules+" หมวด");
+            if(result.isClean()){
+                PosUi.line(this,root,"ไม่พบความผิดปกติจากรายการตรวจสอบอัตโนมัติ");
+            }else{
+                PosUi.line(this,root,"พบประเด็นที่ต้องตรวจสอบเพิ่มเติม:");
+                for(String issue:result.issues)PosUi.line(this,root,"• "+issue);
+                PosUi.line(this,root,"ระบบไม่ได้แก้ไขข้อมูลให้อัตโนมัติ เพื่อป้องกันการเปลี่ยนแปลงข้อมูลโดยไม่ยืนยัน");
+            }
+        }catch(Exception e){
+            PosUi.line(this,root,"ตรวจสอบไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage()));
+        }
         PosUi.back(this,root);
     }
 
