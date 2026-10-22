@@ -22,36 +22,30 @@ public class ReportScreen extends Activity {
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.rgb(248,250,247));
-        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);
-        screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
-        LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,5),PosUi.dp(this,8),PosUi.dp(this,4));lower.setBackgroundColor(android.graphics.Color.rgb(238,244,238));
-        TextView summaryTitle=PosUi.text(this,"สรุปยอดขาย • วันนี้ / สัปดาห์นี้ / เดือนนี้",14,android.graphics.Color.rgb(35,80,48));lower.addView(summaryTitle,new LinearLayout.LayoutParams(-1,-2));
+        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
+        LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,4),PosUi.dp(this,8),PosUi.dp(this,2));lower.setBackgroundColor(android.graphics.Color.rgb(238,244,238));
+        addMenuButton(lower,"📊  สรุปยอดขาย",v->summaryReport());
+        addMenuButton(lower,"📈  สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
+        addMenuButton(lower,"📉  สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
+        addMenuButton(lower,"🧾  รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
+        addMenuButton(lower,"📋  ประวัติการทำรายการสำคัญ",v->auditLog());
+        android.widget.Button back=new android.widget.Button(this);back.setText("👈 หน้าก่อนหน้า");back.setTextSize(14);back.setSingleLine(true);back.setOnClickListener(v->finish());lower.addView(back,new LinearLayout.LayoutParams(-1,PosUi.dp(this,38)));
+        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));PosUi.showRoot(this,screen);
+    }
+    private void addMenuButton(LinearLayout parent,String label,android.view.View.OnClickListener action){
+        android.widget.Button button=new android.widget.Button(this);button.setText(label);button.setTextSize(14);button.setSingleLine(true);button.setMinHeight(0);button.setPadding(PosUi.dp(this,6),0,PosUi.dp(this,6),0);button.setOnClickListener(action);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,1f);lp.setMargins(0,PosUi.dp(this,1),0,PosUi.dp(this,1));parent.addView(button,lp);
+    }
+    private void summaryReport(){
+        root=PosUi.page(this,"สรุปยอดขาย");
+        TextView summaryTitle=PosUi.text(this,"สรุปยอดขาย • วันนี้ / สัปดาห์นี้ / เดือนนี้",14,android.graphics.Color.rgb(35,80,48));root.addView(summaryTitle,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout summaries=new LinearLayout(this);summaries.setOrientation(LinearLayout.HORIZONTAL);
         addSummary(summaries,"วันนี้",startOfDay(),PosDatabase.now());addSummary(summaries,"สัปดาห์นี้",startOfWeek(),PosDatabase.now());addSummary(summaries,"เดือนนี้",startOfMonth(),PosDatabase.now());
-        lower.addView(summaries,new LinearLayout.LayoutParams(-1,-2));
-        TextView chooseTitle=PosUi.text(this,"เลือกช่วงรายงาน",14,android.graphics.Color.rgb(35,80,48));lower.addView(chooseTitle,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);
-        addPeriodButton(row1,"วัน",v->period("วันนี้",startOfDay(),PosDatabase.now()));
-        addPeriodButton(row1,"สัปดาห์",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()));
-        lower.addView(row1,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);
-        addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));
-        addPeriodButton(row2,"ปี",v->period("ปี "+chartYear,yearStart(chartYear),yearEnd(chartYear)));
-        lower.addView(row2,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row3=new LinearLayout(this);row3.setOrientation(LinearLayout.HORIZONTAL);
-        addPeriodButton(row3,"เลือกปีกราฟ",v->chooseChartYear());
-        addPeriodButton(row3,"กำหนดช่วงวันที่",v->custom());
-        lower.addView(row3,new LinearLayout.LayoutParams(-1,-2));
-        ScrollView menuScroll=new ScrollView(this);LinearLayout extra=new LinearLayout(this);extra.setOrientation(LinearLayout.VERTICAL);
-        PosUi.button(this,extra,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
-        PosUi.button(this,extra,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
-        PosUi.button(this,extra,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
-        PosUi.button(this,extra,"ประวัติการทำรายการสำคัญ",v->auditLog());
-        menuScroll.addView(extra);lower.addView(menuScroll,new LinearLayout.LayoutParams(-1,0,1f));
-        LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.HORIZONTAL);
-        android.widget.Button back=new android.widget.Button(this);back.setText("👈 หน้าก่อนหน้า");back.setTextSize(15);back.setOnClickListener(v->finish());
-        footer.addView(back,new LinearLayout.LayoutParams(-1,PosUi.dp(this,42)));lower.addView(footer,new LinearLayout.LayoutParams(-1,PosUi.dp(this,44)));
-        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));PosUi.showRoot(this,screen);
+        root.addView(summaries,new LinearLayout.LayoutParams(-1,-2));
+        TextView chooseTitle=PosUi.text(this,"เลือกช่วงรายงาน",14,android.graphics.Color.rgb(35,80,48));root.addView(chooseTitle,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row1,"วัน",v->period("วันนี้",startOfDay(),PosDatabase.now()));addPeriodButton(row1,"สัปดาห์",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()));root.addView(row1,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));addPeriodButton(row2,"ปี",v->period("ปี "+chartYear,yearStart(chartYear),yearEnd(chartYear)));root.addView(row2,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row3=new LinearLayout(this);row3.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row3,"เลือกปีกราฟ",v->chooseChartYear());addPeriodButton(row3,"กำหนดช่วงวันที่",v->custom());root.addView(row3,new LinearLayout.LayoutParams(-1,-2));
     }
     private void addSummary(LinearLayout row,String label,long from,long to){
         long amount=netSales(from,to);LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(PosUi.dp(this,5),PosUi.dp(this,5),PosUi.dp(this,5),PosUi.dp(this,5));card.setBackgroundColor(android.graphics.Color.WHITE);
