@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 8;
+    private static final int DB_VERSION = 9;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -29,9 +29,8 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE products (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, barcode TEXT NOT NULL UNIQUE, name TEXT NOT NULL," +
                 "price_satang INTEGER NOT NULL DEFAULT 0 CHECK(price_satang>=0)," +
-                "cost_satang INTEGER NOT NULL DEFAULT 0 CHECK(cost_satang>=0)," +
-                "unit TEXT NOT NULL DEFAULT 'ชิ้น', stock INTEGER NOT NULL DEFAULT 0 CHECK(stock>=0)," +
-                "stock_limit INTEGER NOT NULL DEFAULT 0 CHECK(stock_limit>=0), active INTEGER NOT NULL DEFAULT 1," +
+                "stock INTEGER NOT NULL DEFAULT 0 CHECK(stock>=0)," +
+                "stock_limit INTEGER NOT NULL DEFAULT 10 CHECK(stock_limit>=0), active INTEGER NOT NULL DEFAULT 1," +
                 "created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_products_name ON products(name COLLATE NOCASE)");
         db.execSQL("CREATE INDEX idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
