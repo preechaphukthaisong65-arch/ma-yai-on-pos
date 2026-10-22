@@ -61,7 +61,23 @@ final class PosUi {
         });
     }
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
-        Locale th=new Locale("th","TH"); if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE) tts.setLanguage(th);
+        Locale th=new Locale("th","TH");
+        if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE){
+            tts.setLanguage(th);
+            tts.setSpeechRate(0.95f);
+            tts.setPitch(1.15f);
+            if(android.os.Build.VERSION.SDK_INT>=21){
+                try{
+                    java.util.Set<android.speech.tts.Voice> voices=tts.getVoices();
+                    if(voices!=null)for(android.speech.tts.Voice voice:voices){
+                        String name=voice.getName()==null?"":voice.getName().toLowerCase(Locale.ROOT);
+                        if("th".equals(voice.getLocale().getLanguage())&&(name.contains("female")||name.contains("woman")||name.contains("fem"))){
+                            tts.setVoice(voice);break;
+                        }
+                    }
+                }catch(Exception ignored){}
+            }
+        }
     }
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
