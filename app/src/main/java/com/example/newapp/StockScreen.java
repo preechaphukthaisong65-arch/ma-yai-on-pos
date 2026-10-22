@@ -94,7 +94,7 @@ public class StockScreen extends Activity {
             return true;
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();
-            PosUi.result(this,false,"บันทึกไม่สำเร็จ",error,null);
+            PosUi.result(this,false,"บันทึกลิมิตไม่สำเร็จ",error,null);
             return false;
         }
     }
