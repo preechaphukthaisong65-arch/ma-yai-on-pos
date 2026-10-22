@@ -24,8 +24,6 @@ final class StockAlertManager {
         Set<String> low=new HashSet<>();
         Cursor c=db.rawQuery("SELECT id FROM products WHERE active=1 AND stock<=stock_limit",null);
         while(c.moveToNext())low.add(c.getString(0));c.close();
-        Cursor state=db.query("app_meta",new String[]{"value"},"key='low_alert_ids'",null,null,null,null);
-        Set<String> previous=new HashSet<>();if(state.moveToFirst()){String s=state.getString(0);if(s!=null&&!s.isEmpty())for(String id:s.split(","))previous.add(id);}state.close();
         ContentValues cv=new ContentValues();StringBuilder value=new StringBuilder();for(String id:low){if(value.length()>0)value.append(',');value.append(id);}cv.put("value",value.toString());
         if(db.update("app_meta",cv,"key='low_alert_ids'",null)==0){cv.put("key","low_alert_ids");db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);}
         Cursor notifiedCursor=db.query("app_meta",new String[]{"value"},"key='low_alert_notified_ids'",null,null,null,null);
