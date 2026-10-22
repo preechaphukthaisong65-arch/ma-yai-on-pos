@@ -113,4 +113,6 @@ public class ManageStoreScreen extends Activity {
         if(saved){StockAlertManager.check(this);PosUi.result(this,true,(returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย",this::home);}
         else PosUi.result(this,false,"ทำรายการไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }
