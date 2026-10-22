@@ -45,7 +45,7 @@ public class ManageStoreScreen extends Activity {
             if(!c.moveToFirst()||c.getLong(0)!=old){c.close();throw new IllegalStateException("ราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนใหม่");}c.close();
             ContentValues p=new ContentValues();p.put("price_satang",next);p.put("updated_at",PosDatabase.now());
             if(db.update("products",p,"id=?",new String[]{String.valueOf(id)})!=1)throw new IllegalStateException("บันทึกราคาไม่สำเร็จ");
-            ContentValues registryPrice=new ContentValues();registryPrice.put("price_satang",next);if(db.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode})==0){ContentValues legacy=new ContentValues();legacy.put("barcode",barcode);legacy.put("name",name);legacy.put("price_satang",next);legacy.put("source","LEGACY");legacy.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,legacy);}
+            BarcodeRegistry.updatePrice(db,barcode,name,next,"LEGACY",PosDatabase.now());
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());db.insertOrThrow("price_history",null,h);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage();}
@@ -92,9 +92,7 @@ public class ManageStoreScreen extends Activity {
                     Cursor p=storedPid>0?db.query("products",new String[]{"id","stock"},"id=?",new String[]{String.valueOf(storedPid)},null,null,null):db.query("products",new String[]{"id","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null);
                     if(!p.moveToFirst()){p.close();throw new IllegalStateException("ไม่พบสินค้าในคลัง: "+name);}
                     long pid=p.getLong(0);int before=p.getInt(1);p.close();itemSubtotal+=lineTotal;
-                    ContentValues up=new ContentValues();up.put("stock",before+qty);up.put("updated_at",PosDatabase.now());
-                    if(db.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");
-                    ContentValues h=new ContentValues();h.put("product_id",pid);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type","RETURN_CANCEL");h.put("before_qty",before);h.put("after_qty",before+qty);h.put("difference",qty);h.put("reference",code);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);
+                    InventoryService.changeStock(db,pid,barcode,name,before,before+qty,"RETURN_CANCEL",code,PosDatabase.now());
                     ContentValues li=new ContentValues();li.put("bill_id",id);li.put("bill_code",code);li.put("event_type",returning?"RETURN":"CANCEL");li.put("barcode",barcode);li.put("product_name",name);li.put("quantity",-qty);li.put("unit_price_satang",unitPrice);li.put("line_total_satang",-lineTotal);li.put("created_at",PosDatabase.now());db.insertOrThrow("sales_ledger_items",null,li);
                 }
             }finally{items.close();}

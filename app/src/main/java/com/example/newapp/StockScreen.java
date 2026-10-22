@@ -90,12 +90,8 @@ public class StockScreen extends Activity {
         SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
         try{
             db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
-            int n=db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
-            if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-            ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
-            h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
-            db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();saved=true;
+            InventoryService.changeStock(db,id,barcode,name,before,after,type,null,PosDatabase.now());
+            db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();saved=false;}
         finally{
             if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
@@ -111,16 +107,13 @@ public class StockScreen extends Activity {
 
         EditText name=PosUi.input(this,root,"ชื่อสินค้า");
         EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
-        Cursor registry=helper.getReadableDatabase().query(
-                "barcode_registry",new String[]{"name","price_satang"},
-                "barcode=?",new String[]{barcode},null,null,null,"1");
-        if(registry.moveToFirst()){
-            name.setText(registry.getString(0));
-            price.setText(PosDatabase.money(registry.getLong(1)));
+        BarcodeRegistry.Entry registry=BarcodeRegistry.find(helper.getReadableDatabase(),barcode);
+        if(registry!=null){
+            name.setText(registry.name);
+            price.setText(PosDatabase.money(registry.priceSatang));
             name.setEnabled(false);
             price.setEnabled(false);
         }
-        registry.close();
 
         price.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
@@ -166,17 +159,9 @@ public class StockScreen extends Activity {
                 }
                 existingProduct.close();
 
-                Cursor existingRegistry=db.query("barcode_registry",
-                        new String[]{"name","price_satang"},"barcode=?",
-                        new String[]{barcode},null,null,null,"1");
-                boolean registryExists=existingRegistry.moveToFirst();
-                if(registryExists&&(!nm.equals(existingRegistry.getString(0))
-                        ||p!=existingRegistry.getLong(1))){
-                    existingRegistry.close();
-                    throw new IllegalStateException(
-                            "บาร์โค้ดนี้มีข้อมูลในคลังบาร์โค้ดไม่ตรงกัน กรุณาสแกนตรวจสอบก่อน");
-                }
-                existingRegistry.close();
+                BarcodeRegistry.Entry registryEntry=BarcodeRegistry.find(db,barcode);
+                boolean registryExists=registryEntry!=null;
+                BarcodeRegistry.ensureConsistent(db,barcode,nm,p);
 
                 ContentValues cv=new ContentValues();
                 cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);
@@ -185,18 +170,9 @@ public class StockScreen extends Activity {
                 cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
 
-                if(!registryExists){
-                    ContentValues br=new ContentValues();
-                    br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);
-                    br.put("source","FACTORY");br.put("created_at",PosDatabase.now());
-                    db.insertOrThrow("barcode_registry",null,br);
-                }
+                if(!registryExists)BarcodeRegistry.registerIfMissing(db,barcode,nm,p,"FACTORY",PosDatabase.now());
 
-                ContentValues h=new ContentValues();
-                h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);
-                h.put("change_type","INITIAL");h.put("before_qty",0);
-                h.put("after_qty",0);h.put("difference",0);h.put("created_at",PosDatabase.now());
-                db.insertOrThrow("stock_history",null,h);
+                InventoryService.changeStock(db,id,barcode,nm,0,0,"INITIAL",null,PosDatabase.now());
                 db.setTransactionSuccessful();
                 saved=true;
             }catch(Exception e){
