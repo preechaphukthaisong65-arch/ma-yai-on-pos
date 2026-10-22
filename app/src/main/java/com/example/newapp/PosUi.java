@@ -28,15 +28,13 @@ final class PosUi {
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         ScrollView scroll = new ScrollView(a);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.rgb(246,248,251));
+        int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
+        if (background != 0) scroll.setBackgroundResource(background);
         LinearLayout root = new LinearLayout(a); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(a,18),dp(a,16),dp(a,18),dp(a,24));
+        root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,24));
         root.setBackgroundColor(Color.TRANSPARENT);
-        TextView heading = text(a,title,24,Color.rgb(25,42,65));
-        heading.setGravity(Gravity.CENTER_VERTICAL);
-        heading.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        heading.setPadding(0,dp(a,8),0,dp(a,10));
+        if (background == 0) scroll.setBackgroundColor(Color.rgb(248,250,247));
+        TextView heading = text(a,title,24,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
@@ -44,28 +42,16 @@ final class PosUi {
         outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
-        TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
-        t.setPadding(0,dp(a,6),0,dp(a,6));
-        t.setLineSpacing(dp(a,2),1.0f);
-        return t;
+        TextView t=new TextView(a); t.setText(value); t.setTextSize(size*1.5f); t.setTextColor(color);
+        t.setPadding(0,dp(a,5),0,dp(a,5)); return t;
     }
     static Button button(Activity a, LinearLayout root, String label, View.OnClickListener listener) {
-        Button b=new Button(a); b.setText(label); b.setTextSize(16);
-        b.setTextColor(Color.WHITE); b.setAllCaps(false);
-        b.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        b.setMinHeight(dp(a,52)); b.setPadding(dp(a,16),dp(a,10),dp(a,16),dp(a,10));
-        GradientDrawable shape=new GradientDrawable();
-        shape.setColor(Color.rgb(25,140,131)); shape.setCornerRadius(dp(a,12));
-        b.setBackground(shape);
-        b.setElevation(dp(a,1));
-        b.setOnClickListener(listener);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(a,9); root.addView(b,lp); return b;
+        Button b=new Button(a); b.setText(label); b.setTextSize(21); b.setMinHeight(dp(a,56)); b.setPadding(dp(a,12),dp(a,8),dp(a,12),dp(a,8)); b.setOnClickListener(listener);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(a,6); root.addView(b,lp); return b;
     }
     static EditText input(Activity a, LinearLayout root,String hint) {
-        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint); e.setTextSize(18); e.setMinHeight(dp(a,56)); e.setPadding(dp(a,14),dp(a,10),dp(a,14),dp(a,10));
-        e.setTextColor(Color.rgb(25,42,65));
-        GradientDrawable field=new GradientDrawable(); field.setColor(Color.WHITE); field.setCornerRadius(dp(a,12)); field.setStroke(dp(a,1),Color.rgb(218,225,233)); e.setBackground(field); e.setHintTextColor(Color.rgb(125,137,151));
+        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint); e.setTextSize(24); e.setMinHeight(dp(a,60)); e.setPadding(dp(a,14),dp(a,10),dp(a,14),dp(a,10));
+        GradientDrawable field=new GradientDrawable(); field.setColor(Color.WHITE); field.setCornerRadius(dp(a,10)); field.setStroke(dp(a,1),Color.rgb(150,170,155)); e.setBackground(field); e.setHintTextColor(Color.rgb(105,115,108));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(a,10); root.addView(e,lp); return e;
     }
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
@@ -122,11 +108,8 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
         footer.setPadding(0,dp(a,8),0,0);
-        Button home=new Button(a); home.setText("⌂ หน้าหลัก"); home.setTextSize(14); home.setTextColor(Color.rgb(25,42,65)); home.setAllCaps(false); home.setSingleLine(true); home.setMinHeight(dp(a,44)); home.setPadding(dp(a,8),0,dp(a,8),0);
-        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(14); previous.setTextColor(Color.rgb(25,42,65)); previous.setAllCaps(false); previous.setSingleLine(true); previous.setMinHeight(dp(a,44)); previous.setPadding(dp(a,8),0,dp(a,8),0);
-        GradientDrawable footerButton=new GradientDrawable(); footerButton.setColor(Color.WHITE); footerButton.setCornerRadius(dp(a,12)); footerButton.setStroke(dp(a,1),Color.rgb(218,225,233));
-        home.setBackground(footerButton.getConstantState().newDrawable().mutate());
-        previous.setBackground(footerButton.getConstantState().newDrawable().mutate());
+        Button home=new Button(a); home.setText("⌂ หน้าหลัก"); home.setTextSize(15); home.setSingleLine(true); home.setMinHeight(dp(a,42)); home.setPadding(dp(a,4),0,dp(a,4),0);
+        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,4),0,dp(a,4),0);
         LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,dp(a,44),1f); hp.rightMargin=dp(a,8);
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(a,44),1f);
         footer.addView(home,hp); footer.addView(previous,bp);
