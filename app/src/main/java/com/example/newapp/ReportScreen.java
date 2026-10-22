@@ -49,10 +49,9 @@ public class ReportScreen extends Activity {
         PosUi.button(this,extra,"ประวัติการทำรายการสำคัญ",v->auditLog());
         menuScroll.addView(extra);lower.addView(menuScroll,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.HORIZONTAL);
-        android.widget.Button home=new android.widget.Button(this);home.setText("⌂ หน้าหลัก");home.setTextSize(15);home.setOnClickListener(v->{android.content.Intent i=new android.content.Intent(this,MainActivity.class);i.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP|android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);startActivity(i);finish();});
         android.widget.Button back=new android.widget.Button(this);back.setText("← ย้อนกลับ");back.setTextSize(15);back.setOnClickListener(v->finish());
-        footer.addView(home,new LinearLayout.LayoutParams(0,PosUi.dp(this,42),1f));footer.addView(back,new LinearLayout.LayoutParams(0,PosUi.dp(this,42),1f));lower.addView(footer,new LinearLayout.LayoutParams(-1,PosUi.dp(this,44)));
-        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));setContentView(screen);
+        footer.addView(back,new LinearLayout.LayoutParams(-1,PosUi.dp(this,42)));lower.addView(footer,new LinearLayout.LayoutParams(-1,PosUi.dp(this,44)));
+        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));PosUi.showRoot(this,screen);
     }
     private void addSummary(LinearLayout row,String label,long from,long to){
         long amount=netSales(from,to);LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(PosUi.dp(this,5),PosUi.dp(this,5),PosUi.dp(this,5),PosUi.dp(this,5));card.setBackgroundColor(android.graphics.Color.WHITE);
