@@ -136,10 +136,8 @@ final class PosUi {
         return b;
     }
 
-    static EditText input(Activity a, LinearLayout root,String hint) {
-        EditText e=new EditText(a);
+    static void styleInput(Activity a,EditText e) {
         e.setSingleLine(true);
-        e.setHint(hint);
         e.setTextSize(24f);
         e.setTextColor(Color.rgb(30,30,30));
         e.setHintTextColor(Color.rgb(110,110,110));
@@ -150,6 +148,12 @@ final class PosUi {
         e.setBackground(border);
         e.setPadding(dp(a,12),dp(a,10),dp(a,12),dp(a,10));
         e.setMinimumHeight(dp(a,56));
+    }
+
+    static EditText input(Activity a, LinearLayout root,String hint) {
+        EditText e=new EditText(a);
+        e.setHint(hint);
+        styleInput(a,e);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.bottomMargin=dp(a,8);
         root.addView(e,lp);
