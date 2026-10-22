@@ -15,6 +15,7 @@ public class HistoryScreen extends Activity {
         PosUi.button(this,root,"บิลที่ชำระแล้ว",v->listBills("PAID"));
         PosUi.button(this,root,"บิลค้างชำระ",v->listBills("UNPAID"));
         PosUi.button(this,root,"บัญชีลูกค้าเชื่อทั้งหมด",v->customers());
+        PosUi.button(this,root,"สรุปยอดขายสุทธิ / ยอดคืน / ยอดหนี้",v->summary());
         PosUi.back(this,root);
     }
     private void listBills(String status){
@@ -46,15 +47,37 @@ public class HistoryScreen extends Activity {
     }
     private void customers(){
         root=PosUi.page(this,"บัญชีลูกค้าเชื่อทั้งหมด");
-        Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.full_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
-        while(c.moveToNext()){long id=c.getLong(0);String customerName=c.getString(1);PosUi.button(this,root,customerName+" — "+PosDatabase.money(c.getLong(2))+" บาท",v->customerBills(id,customerName));}
-        c.close();PosUi.back(this,root);
+        java.util.ArrayList<ReportingService.CustomerDue> customers=ReportingService.unpaidCustomers(helper);
+        if(customers.isEmpty())PosUi.line(this,root,"ไม่มีลูกค้าที่มียอดค้างชำระ");
+        for(ReportingService.CustomerDue customer:customers){
+            PosUi.button(this,root,customer.name+" — "+PosDatabase.money(customer.dueSatang)+" บาท",
+                    v->customerBills(customer.id,customer.name));
+        }
+        PosUi.back(this,root);
     }
+
     private void customerBills(long customerId,String name){
         root=PosUi.page(this,name+" • บิลค้างชำระ");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at"},"customer_id=? AND status='UNPAID'",new String[]{String.valueOf(customerId)},null,null,"created_at ASC");
-        if(!c.moveToFirst())PosUi.line(this,root,"ไม่มีบิลค้างชำระ");
-        else do{PosUi.line(this,root,c.getString(0)+" • "+PosDatabase.money(c.getLong(1))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2))));}while(c.moveToNext());
-        c.close();PosUi.back(this,root);
+        java.util.ArrayList<ReportingService.BillDue> bills=ReportingService.unpaidBills(helper,customerId);
+        if(bills.isEmpty())PosUi.line(this,root,"ไม่มีบิลค้างชำระ");
+        for(ReportingService.BillDue bill:bills){
+            PosUi.line(this,root,bill.code+" • "+PosDatabase.money(bill.amountSatang)+" บาท • "+
+                    new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault())
+                            .format(new java.util.Date(bill.createdAt)));
+        }
+        PosUi.back(this,root);
     }
+
+    private void summary(){
+        ReportingService.Summary s=ReportingService.allTimeSummary(helper);
+        root=PosUi.page(this,"สรุปยอดขายและหนี้สิน");
+        PosUi.line(this,root,"ยอดขายสินค้าเดิม: "+PosDatabase.money(s.grossSalesSatang)+" บาท");
+        PosUi.line(this,root,"ยอดคืนสินค้า: "+PosDatabase.money(s.returnsSatang)+" บาท");
+        PosUi.line(this,root,"ยอดยกเลิกบิล: "+PosDatabase.money(s.cancellationsSatang)+" บาท");
+        PosUi.line(this,root,"ยอดค่าบริการสุทธิ: "+PosDatabase.money(s.netFeesSatang)+" บาท");
+        PosUi.line(this,root,"ยอดขายสุทธิ: "+PosDatabase.money(s.netSalesSatang)+" บาท");
+        PosUi.line(this,root,"ยอดหนี้คงค้างปัจจุบัน: "+PosDatabase.money(s.outstandingDebtSatang)+" บาท");
+        PosUi.back(this,root);
+    }
+
 }
