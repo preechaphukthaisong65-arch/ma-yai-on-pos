@@ -49,7 +49,7 @@ public class CreditAccountScreen extends Activity {
         if(!allIds.isEmpty()){
             PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,payableTotal(customerId,allIds)));
             PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
-                ArrayList<Long> chosen=new ArrayList<>(selected);
+                ArrayList<Long> chosen=new ArrayList<>(selected);java.util.Collections.sort(chosen);
                 if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
                 payAll(customerId,chosen,payableTotal(customerId,chosen));
             });
