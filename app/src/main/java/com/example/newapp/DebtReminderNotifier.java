@@ -7,7 +7,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Build;
 import java.text.SimpleDateFormat;
@@ -34,11 +33,11 @@ final class DebtReminderNotifier {
     private static ArrayList<Debt> overdue(Context context){
         Calendar cutoff=Calendar.getInstance();cutoff.add(Calendar.MONTH,-1);
         ArrayList<Debt> list=new ArrayList<>();
-        Cursor c=PosDatabase.get(context).getReadableDatabase().rawQuery(
-                "SELECT c.id,c.full_name,SUM(b.total_satang),MIN(b.created_at) FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id HAVING MIN(b.created_at)<? ORDER BY SUM(b.total_satang) DESC,MIN(b.created_at) ASC",
-                new String[]{String.valueOf(cutoff.getTimeInMillis())});
-        while(c.moveToNext())list.add(new Debt(c.getLong(0),c.getString(1),c.getLong(2),c.getLong(3)));
-        c.close();return list;
+        for(ReportingService.CustomerDue customer:ReportingService.overdueCustomers(
+                PosDatabase.get(context),cutoff.getTimeInMillis())){
+            list.add(new Debt(customer.id,customer.name,customer.dueSatang,customer.oldestAt));
+        }
+        return list;
     }
     static void sendWeekly(Context context){
         ArrayList<Debt> debts=overdue(context);
