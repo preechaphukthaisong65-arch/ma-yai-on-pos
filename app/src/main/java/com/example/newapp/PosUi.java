@@ -19,6 +19,12 @@ final class PosUi {
     private PosUi() {}
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
+        a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        a.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         ScrollView scroll = new ScrollView(a);
         int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
         if (background != 0) scroll.setBackgroundResource(background);
@@ -33,7 +39,8 @@ final class PosUi {
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
-        t.setPadding(0,dp(a,5),0,dp(a,5)); return t;
+        t.setPadding(dp(a,8),dp(a,5),dp(a,8),dp(a,5));
+        t.setBackgroundColor(Color.WHITE); return t;
     }
     static Button button(Activity a, LinearLayout root, String label, View.OnClickListener listener) {
         Button b=new Button(a); b.setText(label); b.setOnClickListener(listener);
@@ -41,6 +48,10 @@ final class PosUi {
     }
     static EditText input(Activity a, LinearLayout root,String hint) {
         EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint);
+        e.setTextColor(Color.rgb(30,30,30));
+        e.setHintTextColor(Color.rgb(110,110,110));
+        e.setBackgroundColor(Color.WHITE);
+        e.setPadding(dp(a,8),dp(a,4),dp(a,8),dp(a,4));
         root.addView(e,new LinearLayout.LayoutParams(-1,-2)); return e;
     }
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }

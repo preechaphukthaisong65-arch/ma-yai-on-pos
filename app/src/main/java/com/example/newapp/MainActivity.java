@@ -53,26 +53,40 @@ public class MainActivity extends Activity {
             frame.addView(logo, logoParams);
         }
 
+        // The upper 40% is reserved for notifications; the lower 60% is the menu.
+        // The logo is added to the FrameLayout first, so it stays behind both regions.
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setGravity(Gravity.CENTER);
+        page.setGravity(Gravity.FILL);
         page.setPadding(dp(8), dp(4), dp(8), dp(6));
         page.setBackgroundColor(Color.TRANSPARENT);
+
+        LinearLayout notificationArea = new LinearLayout(this);
+        notificationArea.setOrientation(LinearLayout.VERTICAL);
+        notificationArea.setGravity(Gravity.TOP);
+        notificationArea.setBackgroundColor(Color.TRANSPARENT);
 
         TextView ticker = new TextView(this);
         tickerView = ticker;
         ticker.setText(TICKER_BASE);
         ticker.setTextSize(14);
         ticker.setTextColor(Color.rgb(35, 55, 40));
-        // Light translucent white backing improves ticker/notification text contrast
-        // while allowing the shared home wallpaper to remain visible.
+        // Translucent notification strip lets the logo remain visible behind it.
         ticker.setBackgroundColor(Color.argb(218, 255, 255, 255));
         ticker.setSingleLine(true);
         ticker.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
         ticker.setMarqueeRepeatLimit(-1);
         ticker.setSelected(true);
-        ticker.setPadding(dp(4), dp(8), dp(4), dp(8));
-        page.addView(ticker);
+        ticker.setPadding(dp(8), dp(8), dp(8), dp(8));
+        ticker.setGravity(Gravity.CENTER_VERTICAL);
+        ticker.setBackgroundColor(Color.WHITE);
+        notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, -1));
+        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        LinearLayout menuArea = new LinearLayout(this);
+        menuArea.setOrientation(LinearLayout.VERTICAL);
+        menuArea.setGravity(Gravity.FILL);
+        menuArea.setBackgroundColor(Color.TRANSPARENT);
 
         LinearLayout r1 = row(), r2 = row(), r3 = row();
         addMenu(r1, "menu_sell", "ขายสินค้า", SellScreen.class);
@@ -81,11 +95,20 @@ public class MainActivity extends Activity {
         addMenu(r2, "menu_manage", "จัดการร้านค้า", ManageStoreScreen.class);
         addMenu(r3, "menu_barcode", "สร้างบาร์โค้ด", BarcodeScreen.class);
         addMenu(r3, "menu_report", "รายงานยอดขาย", ReportScreen.class);
-        page.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
-        page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
-        page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        frame.addView(page, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, 0, 1f);
+        rowParams.bottomMargin = dp(3);
+        menuArea.addView(r1, rowParams);
+        LinearLayout.LayoutParams row2Params = new LinearLayout.LayoutParams(-1, 0, 1f);
+        row2Params.bottomMargin = dp(3);
+        menuArea.addView(r2, row2Params);
+        menuArea.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
+        page.addView(menuArea, new LinearLayout.LayoutParams(-1, 0, 7f));
+
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int homePanelHeight = Math.round(screenHeight * 0.80f); // 10% notifications + 70% menu
+        FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, homePanelHeight, Gravity.BOTTOM);
+        frame.addView(page, pageParams);
         setContentView(frame);
         hideSystemBars();
     }
@@ -108,13 +131,7 @@ public class MainActivity extends Activity {
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setAdjustViewBounds(false);
         tile.addView(image, new LinearLayout.LayoutParams(-1, 0, 1f));
-        TextView caption = new TextView(this);
-        caption.setText(label);
-        caption.setTextColor(Color.rgb(35, 45, 55));
-        caption.setTextSize(14);
-        caption.setGravity(Gravity.CENTER);
-        caption.setMaxLines(2);
-        tile.addView(caption, new LinearLayout.LayoutParams(-1, -2));
+        // Icon-only menu tiles: no text captions.
         r.addView(tile, new LinearLayout.LayoutParams(0, -1, 1f));
         tile.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, target)));
     }
