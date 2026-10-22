@@ -39,8 +39,7 @@ public class SellScreen extends Activity {
             Calendar start=(Calendar)base.clone();int offset=i-(count-1);
             if(unit.equals("week"))start.add(Calendar.WEEK_OF_YEAR,offset);else if(unit.equals("month"))start.add(Calendar.MONTH,offset);else start.add(Calendar.YEAR,offset);
             Calendar end=(Calendar)start.clone();if(unit.equals("week"))end.add(Calendar.WEEK_OF_YEAR,1);else if(unit.equals("month"))end.add(Calendar.MONTH,1);else end.add(Calendar.YEAR,1);
-            Cursor q=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(start.getTimeInMillis()),String.valueOf(end.getTimeInMillis()-1)});
-            if(q.moveToFirst())values[i]=q.getLong(0);q.close();
+            values[i]=ReportingService.netSalesBetween(helper,start.getTimeInMillis(),end.getTimeInMillis());
             labels[i]=unit.equals("week")?new SimpleDateFormat("dd/MM",Locale.getDefault()).format(start.getTime()):unit.equals("month")?new SimpleDateFormat("MM/yy",Locale.getDefault()).format(start.getTime()):new SimpleDateFormat("yyyy",Locale.getDefault()).format(start.getTime());
         }
         SalesChartView chart=new SalesChartView(this);chart.setData(title,labels,values);root.addView(chart,new LinearLayout.LayoutParams(-1,PosUi.dp(this,180)));
