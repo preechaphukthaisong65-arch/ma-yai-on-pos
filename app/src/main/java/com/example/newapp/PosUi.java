@@ -174,7 +174,7 @@ final class PosUi {
     private static void styleInput(EditText e, Activity a) {
         int pad = a == null ? 18 : dp(a,12);
         e.setPadding(pad, pad, pad, pad);
-        e.setMinHeight(a == null ? 0 : dp(a,56));
+        if (a != null) e.setMinHeight(dp(a,56));
         e.setBackground(tintedRounded(Color.WHITE, Color.rgb(105,145,110), a == null ? 16 : dp(a,10)));
         e.setSelectAllOnFocus(false);
     }
@@ -212,7 +212,7 @@ final class PosUi {
         });
     }
 
-    static void transactionFeedback(Activity a, boolean success, String detail) {
+    static void transactionFeedback(Activity a, boolean success, String detail) { transactionFeedback(a, success, detail, null); }\n\n    static void transactionFeedback(Activity a, boolean success, String detail, Runnable after) {
         String title = success ? "บันทึกสำเร็จ" : "บันทึกไม่สำเร็จ";
         String spoken = success ? "บันทึกรายการสำเร็จค่ะ" : "บันทึกรายการไม่สำเร็จค่ะ";
         if (detail != null && !detail.trim().isEmpty()) spoken += " " + detail;
