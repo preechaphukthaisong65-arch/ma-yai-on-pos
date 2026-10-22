@@ -11,7 +11,7 @@ import android.widget.LinearLayout;
 public class HistoryScreen extends Activity {
     private PosDatabase helper; private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"ประวัติการขาย");
+    private void home(){PosUi.clearBackStack(this);root=PosUi.page(this,"ประวัติการขาย");
         PosUi.button(this,root,"บิลที่ชำระแล้ว",v->listBills("PAID"));
         PosUi.button(this,root,"บิลค้างชำระ",v->listBills("UNPAID"));
         PosUi.button(this,root,"บัญชีลูกค้าเชื่อทั้งหมด",v->customers());
