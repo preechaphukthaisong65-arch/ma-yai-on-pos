@@ -11,7 +11,6 @@ import android.widget.ImageView;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Button;
 
 public class MainActivity extends Activity {
     private TextView tickerView;
@@ -91,14 +90,6 @@ public class MainActivity extends Activity {
         // Keep 8% of the screen clear below the menu group, shifting the group upward.
         pageParams.bottomMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.08f);
         frame.addView(page, pageParams);
-        Button back = new Button(this);
-        back.setText("← ย้อนกลับ");
-        back.setTextSize(13);
-        back.setMinHeight(dp(36));
-        FrameLayout.LayoutParams backParams = new FrameLayout.LayoutParams(-2, dp(38), Gravity.BOTTOM | Gravity.END);
-        backParams.setMargins(0, 0, dp(8), dp(4));
-        frame.addView(back, backParams);
-        back.setOnClickListener(v -> finish());
         PosUi.showRoot(this,frame);
         hideSystemBars();
     }
