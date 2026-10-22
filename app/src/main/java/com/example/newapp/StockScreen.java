@@ -45,13 +45,13 @@ public class StockScreen extends Activity {
         ProductCatalogService.Product product=ProductCatalogService.findActiveByBarcode(helper,barcode);
         if(product==null){
             if("add".equals(mode)){newProduct(barcode);return;}
-            new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง")
+            PosUi.dialog(this).setMessage("ไม่พบสินค้าในคลัง")
                     .setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;
         }
         long id=product.id;String name=product.name,unit=product.unit;
         int stock=product.stock,limit=product.stockLimit;long price=product.priceSatang;
         if("detail".equals(mode)){
-            new AlertDialog.Builder(this).setTitle(name)
+            PosUi.dialog(this).setTitle(name)
                     .setMessage("บาร์โค้ด: "+barcode+"\nคงเหลือ: "+stock+" "+unit+"\nราคาขาย: "+PosDatabase.money(price)+" บาท")
                     .setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;
         }
