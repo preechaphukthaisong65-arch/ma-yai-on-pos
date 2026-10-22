@@ -36,6 +36,7 @@ public class CreditAccountScreen extends Activity {
         for(ReportingService.BillDue bill:bills){
             allIds.add(bill.id);selected.add(bill.id);dueTotal=Math.addExact(dueTotal,bill.amountSatang);
             CheckBox box=new CheckBox(this);
+            box.setTextSize(24f);
             box.setText(bill.code+" • "+PosDatabase.money(bill.amountSatang)+" บาท • "+
                     new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault())
                             .format(new java.util.Date(bill.createdAt)));
