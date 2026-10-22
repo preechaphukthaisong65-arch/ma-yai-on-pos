@@ -112,7 +112,7 @@ public class ManageStoreScreen extends Activity {
     private void processBill(long id,String code,boolean returning){
         try{
             ReturnCancellationService.commit(helper,id,code,returning,PosDatabase.now());
-            StockAlertManager.check(this);
+            try{StockAlertManager.check(this);}catch(Exception ignored){}
             PosUi.showResult(this,true,returning?"คืนสินค้าสำเร็จ":"ยกเลิกบิลสำเร็จ",
                     (returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย",()->home());
         }catch(Exception e){
