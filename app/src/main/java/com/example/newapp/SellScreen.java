@@ -147,7 +147,7 @@ public class SellScreen extends Activity {
         current.sort((a,b)->a.barcode.compareTo(b.barcode));
         String match=null;
         while(bills.moveToNext()){
-            if(credit&&(bills.isNull(2)||bills.getLong(2)!=customerId&&customerId>0))continue;
+            if(credit&&(customerId<=0||bills.isNull(2)||bills.getLong(2)!=customerId))continue;
             if(bills.getLong(3)!=cash||bills.getLong(4)!=change||bills.getLong(5)!=sub||bills.getLong(6)!=fee||bills.getLong(7)!=total)continue;
             long billId=bills.getLong(0);
             Cursor items=db.query("bill_items",new String[]{"barcode","product_name","unit","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(billId)},null,null,"barcode ASC");
