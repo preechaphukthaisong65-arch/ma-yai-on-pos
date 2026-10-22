@@ -2,9 +2,7 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ContentValues;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -22,20 +20,23 @@ public class BarcodeScreen extends Activity {
         root=PosUi.page(this,"สร้างบาร์โค้ดใหม่");EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
         PosUi.line(this,root,"ระบบกำหนดเลขบาร์โค้ดอัตโนมัติ ไม่สามารถเลือกเลขเองได้");
         PosUi.button(this,root,"สร้างและบันทึก",v->{try{
-            String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}long p=PosUi.satang(price);
-            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();String code=null;boolean reused=false;
-            try{
-                BarcodeRegistry.Entry found=BarcodeRegistry.findByName(db,n);
-                if(found!=null){code=found.barcode;p=found.priceSatang;price.setText(PosDatabase.money(p));reused=true;}
-                if(!reused){
-                    code=BarcodeRegistry.nextGenerated(db);
-                    BarcodeRegistry.registerIfMissing(db,code,n,p,"STORE",PosDatabase.now());
-                }
-                db.setTransactionSuccessful();
-            }finally{db.endTransaction();}
-            final String generatedCode=code;final long generatedPrice=p;final boolean wasReused=reused;
-            new AlertDialog.Builder(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ").setMessage("สินค้า: "+n+"\\nบาร์โค้ด: "+generatedCode+"\\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\\nใช้บาร์โค้ดเดิมจากคลัง":"")).setPositiveButton("ตกลง",(d,w)->home()).show();
-        }catch(Exception e){new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
+            String n=PosUi.str(name);
+            if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}
+            long p=PosUi.satang(price);
+            BarcodeRegistry.CreateResult result=BarcodeRegistry.createOrReuse(helper,n,p,PosDatabase.now());
+            final String generatedCode=result.entry.barcode;
+            final long generatedPrice=result.entry.priceSatang;
+            final String generatedName=result.entry.name;
+            final boolean wasReused=result.reused;
+            if(wasReused)price.setText(PosDatabase.money(generatedPrice));
+            new AlertDialog.Builder(this).setTitle(wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ")
+                    .setMessage("สินค้า: "+generatedName+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+
+                            PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""))
+                    .setPositiveButton("ตกลง",(d,w)->home()).show();
+        }catch(Exception e){
+            String error=e.getMessage()==null?"ข้อมูลบาร์โค้ดไม่ถูกต้อง":e.getMessage();
+            new AlertDialog.Builder(this).setMessage("สร้างไม่สำเร็จ: "+error).setPositiveButton("ตกลง",null).show();
+        }});
         PosUi.back(this,root);
     }
     private void registry(){
