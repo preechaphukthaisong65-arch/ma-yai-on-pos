@@ -19,8 +19,7 @@ import java.util.Locale;
 
 final class PosUi {
     private PosUi() {}
-    private static final int NAV_TAG_KEY = 0x504f5355;
-
+    
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
 
     static LinearLayout page(Activity a, String title) {
@@ -169,7 +168,7 @@ final class PosUi {
 
     private static final class ViewParentLookup {
         static void addNavigation(Activity a,LinearLayout root) {
-            if(root.getTag(NAV_TAG_KEY)!=null)return;
+            if(root.getTag()!=null)return;
             android.view.ViewParent p=root.getParent();
             if(!(p instanceof ScrollView))return;
             android.view.ViewParent outer=p.getParent();
@@ -211,7 +210,7 @@ final class PosUi {
 
             FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(-1,dp(a,48),Gravity.BOTTOM);
             frame.addView(nav,lp);
-            root.setTag(NAV_TAG_KEY,Boolean.TRUE);
+            root.setTag(Boolean.TRUE);
         }
     }
 }
