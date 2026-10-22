@@ -114,7 +114,7 @@ final class PosUi {
     private static Button navButton(Activity a, String label) {
         Button b = new Button(a);
         b.setText(label);
-        b.setTextSize(11);
+        b.setTextSize(12);
         b.setAllCaps(false);
         b.setMinHeight(dp(a,42));
         b.setPadding(dp(a,4), 0, dp(a,4), 0);
