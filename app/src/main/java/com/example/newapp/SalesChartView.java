@@ -15,20 +15,27 @@ final class SalesChartView extends View {
     public SalesChartView(Context context){super(context);setBackgroundColor(Color.WHITE);}
     void setData(String chartTitle,String[] chartLabels,long[] chartValues){title=chartTitle;labels=chartLabels;values=chartValues;invalidate();}
     @Override protected void onDraw(Canvas canvas){
-        super.onDraw(canvas);float density=getResources().getDisplayMetrics().density;float w=getWidth(),h=getHeight();
-        paint.setColor(Color.rgb(35,80,48));paint.setTextSize(22.5f*density);paint.setFakeBoldText(true);canvas.drawText(title,12*density,22*density,paint);paint.setFakeBoldText(false);
-        if(labels.length==0)return;
-        float left=12*density,right=w-12*density,top=36*density,bottom=h-28*density;
-        paint.setColor(Color.LTGRAY);canvas.drawLine(left,bottom,right,bottom,paint);
+        super.onDraw(canvas);float d=getResources().getDisplayMetrics().density;float w=getWidth(),h=getHeight();
+        paint.setColor(Color.rgb(35,80,48));paint.setTextSize(16*d);paint.setFakeBoldText(true);canvas.drawText(title,10*d,21*d,paint);paint.setFakeBoldText(false);
+        if(labels.length==0||w<=0||h<=0)return;
+        float left=52*d,right=w-10*d,top=38*d,bottom=h-30*d;if(right<=left||bottom<=top)return;
         long max=1;for(long v:values)if(v>max)max=v;
-        float slot=(right-left)/labels.length;float barW=Math.max(2*density,slot*.58f);
-        for(int i=0;i<labels.length;i++){
-            float bh=(bottom-top)*Math.max(0,values[i])/(float)max;float x=left+i*slot+(slot-barW)/2;
-            paint.setColor(Color.rgb(70,145,85));canvas.drawRect(x,bottom-bh,x+barW,bottom,paint);
-            paint.setColor(Color.DKGRAY);paint.setTextSize(13.5f*density);String label=labels[i];float tw=paint.measureText(label);
-            canvas.drawText(label,x+barW/2-tw/2,h-8*density,paint);
-            if(values[i]>0&&slot>38*density){String amount=compact(values[i]);paint.setTextSize(12*density);float aw=paint.measureText(amount);canvas.drawText(amount,x+barW/2-aw/2,Math.max(top+9*density,bottom-bh-3*density),paint);}
+        paint.setStrokeWidth(1*d);paint.setTextSize(10*d);
+        for(int i=0;i<=4;i++){
+            float y=bottom-(bottom-top)*i/4f;paint.setColor(Color.rgb(225,230,225));canvas.drawLine(left,y,right,y,paint);
+            long tick=max*i/4;paint.setColor(Color.DKGRAY);String label=compact(tick);float tw=paint.measureText(label);canvas.drawText(label,left-tw-5*d,y+3*d,paint);
         }
+        paint.setColor(Color.GRAY);canvas.drawLine(left,top,left,bottom,paint);canvas.drawLine(left,bottom,right,bottom,paint);
+        float slot=(right-left)/(Math.max(1,labels.length-1));float[] xs=new float[labels.length],ys=new float[labels.length];
+        for(int i=0;i<labels.length;i++){xs[i]=left+i*slot;ys[i]=bottom-(bottom-top)*Math.max(0,values[i])/(float)max;}
+        paint.setColor(Color.rgb(50,130,70));paint.setStrokeWidth(2.5f*d);paint.setStyle(Paint.Style.STROKE);
+        for(int i=1;i<labels.length;i++)canvas.drawLine(xs[i-1],ys[i-1],xs[i],ys[i],paint);
+        paint.setStyle(Paint.Style.FILL);
+        for(int i=0;i<labels.length;i++){
+            paint.setColor(Color.rgb(50,130,70));canvas.drawCircle(xs[i],ys[i],3*d,paint);
+            paint.setColor(Color.DKGRAY);paint.setTextSize(9*d);float tw=paint.measureText(labels[i]);canvas.drawText(labels[i],xs[i]-tw/2,bottom+16*d,paint);
+        }
+        paint.setTextSize(9*d);paint.setColor(Color.DKGRAY);canvas.save();canvas.rotate(-90,12*d,(top+bottom)/2);canvas.drawText("ยอดขาย (บาท)",12*d,(top+bottom)/2,paint);canvas.restore();
     }
     private String compact(long satang){double baht=satang/100.0;if(baht>=1000000)return String.format(Locale.US,"%.1fM",baht/1000000);if(baht>=1000)return String.format(Locale.US,"%.1fk",baht/1000);return String.format(Locale.US,"%.0f",baht);}
 }
