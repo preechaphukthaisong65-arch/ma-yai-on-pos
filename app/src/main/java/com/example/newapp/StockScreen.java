@@ -125,42 +125,28 @@ public class StockScreen extends Activity {
 
         price.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        EditText cost=PosUi.input(this,root,"ต้นทุน (บาท)");
-        cost.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
-                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");
         EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
         lim.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        EditText qty=PosUi.input(this,root,"จำนวนเริ่มต้น");
-        qty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
 
         PosUi.button(this,root,"บันทึกสินค้า",v->{
             String nm=PosUi.str(name), un=PosUi.str(unit);
             String priceText=PosUi.str(price).replace(",","");
-            String costText=PosUi.str(cost).replace(",","");
-            String limitText=PosUi.str(lim), qtyText=PosUi.str(qty);
+            String limitText=PosUi.str(lim);
 
             if(nm.isEmpty()){name.setError("กรอกชื่อสินค้า");name.requestFocus();return;}
             if(un.isEmpty()){unit.setError("กรอกหน่วยสินค้า เช่น ชิ้นหรือขวด");unit.requestFocus();return;}
             if(priceText.isEmpty()){price.setError("กรอกราคาขาย");price.requestFocus();return;}
-            if(costText.isEmpty()){cost.setError("กรอกต้นทุน");cost.requestFocus();return;}
             if(limitText.isEmpty()){lim.setError("กรอกลิมิตสต๊อก (ใส่ 0 ได้)");lim.requestFocus();return;}
-            if(qtyText.isEmpty()){qty.setError("กรอกจำนวนเริ่มต้น (ใส่ 0 ได้)");qty.requestFocus();return;}
 
-            final int q,l;
-            final long p,co;
-            try{
-                q=Integer.parseInt(qtyText);
-                if(q<0)throw new NumberFormatException();
-            }catch(NumberFormatException e){qty.setError("จำนวนเริ่มต้นต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");qty.requestFocus();return;}
+            final int l;
+            final long p;
             try{
                 l=Integer.parseInt(limitText);
                 if(l<0)throw new NumberFormatException();
             }catch(NumberFormatException e){lim.setError("ลิมิตสต๊อกต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");lim.requestFocus();return;}
             try{p=PosDatabase.toSatang(priceText);}
             catch(Exception e){price.setError("ราคาขายไม่ถูกต้อง เช่น 25 หรือ 25.50");price.requestFocus();return;}
-            try{co=PosDatabase.toSatang(costText);}
-            catch(Exception e){cost.setError("ต้นทุนไม่ถูกต้อง เช่น 15 หรือ 15.50");cost.requestFocus();return;}
 
             SQLiteDatabase db=null;
             boolean started=false,saved=false;
@@ -195,7 +181,7 @@ public class StockScreen extends Activity {
 
                 ContentValues cv=new ContentValues();
                 cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);
-                cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);
+                cv.put("cost_satang",0L);cv.put("unit",un);cv.put("stock",0);
                 cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());
                 cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
@@ -210,7 +196,7 @@ public class StockScreen extends Activity {
                 ContentValues h=new ContentValues();
                 h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);
                 h.put("change_type","INITIAL");h.put("before_qty",0);
-                h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());
+                h.put("after_qty",0);h.put("difference",0);h.put("created_at",PosDatabase.now());
                 db.insertOrThrow("stock_history",null,h);
                 db.setTransactionSuccessful();
                 saved=true;
