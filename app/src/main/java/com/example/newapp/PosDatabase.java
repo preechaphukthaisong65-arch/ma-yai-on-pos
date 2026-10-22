@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 9;
+    private static final int DB_VERSION = 10;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -50,7 +50,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_bills_paid_at ON bills(paid_at)");
         db.execSQL("CREATE INDEX idx_bills_archive_until ON bills(archive_until)");
         db.execSQL("CREATE TABLE bill_items (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL," +
-                "product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL, unit TEXT NOT NULL," +
+                "product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL," +
                 "quantity INTEGER NOT NULL CHECK(quantity>0), unit_price_satang INTEGER NOT NULL," +
                 "line_total_satang INTEGER NOT NULL, FOREIGN KEY(bill_id) REFERENCES bills(id) ON DELETE CASCADE," +
                 "FOREIGN KEY(product_id) REFERENCES products(id))");
@@ -148,6 +148,19 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
+        }
+        if (oldVersion < 10) {
+            db.execSQL("CREATE TABLE bill_items_new (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL," +
+                    "product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL," +
+                    "quantity INTEGER NOT NULL CHECK(quantity>0), unit_price_satang INTEGER NOT NULL," +
+                    "line_total_satang INTEGER NOT NULL, FOREIGN KEY(bill_id) REFERENCES bills(id) ON DELETE CASCADE," +
+                    "FOREIGN KEY(product_id) REFERENCES products(id))");
+            db.execSQL("INSERT INTO bill_items_new(id,bill_id,product_id,barcode,product_name,quantity,unit_price_satang,line_total_satang) " +
+                    "SELECT id,bill_id,product_id,barcode,product_name,quantity,unit_price_satang,line_total_satang FROM bill_items");
+            db.execSQL("DROP TABLE bill_items");
+            db.execSQL("ALTER TABLE bill_items_new RENAME TO bill_items");
+            db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
+            db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
         }
     }
 
