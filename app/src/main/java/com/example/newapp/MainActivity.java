@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
         ticker.setGravity(Gravity.CENTER_VERTICAL);
         ticker.setBackgroundColor(Color.WHITE);
         notificationArea.addView(ticker, new LinearLayout.LayoutParams(-1, -1));
-        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, 0, 1f));
+        page.addView(notificationArea, new LinearLayout.LayoutParams(-1, dp(42)));
 
         LinearLayout menuArea = new LinearLayout(this);
         menuArea.setOrientation(LinearLayout.VERTICAL);
