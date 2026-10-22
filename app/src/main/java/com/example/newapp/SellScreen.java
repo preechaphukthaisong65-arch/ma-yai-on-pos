@@ -62,11 +62,14 @@ public class SellScreen extends Activity {
         }
     }
     private void addScanned(String barcode){
-        Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","unit","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
-        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
-        long id=c.getLong(0);String name=c.getString(1),unit=c.getString(2);long price=c.getLong(3);int stock=c.getInt(4);c.close();
-        Item old=cart.get(id);if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
-        PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::showCart);
+        ProductCatalogService.Product product=ProductCatalogService.findActiveByBarcode(helper,barcode);
+        if(product==null){PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
+        Item old=cart.get(product.id);
+        if(old==null){
+            Item item=new Item(product.id,product.barcode,product.name,product.unit,product.priceSatang,product.stock);
+            cart.put(product.id,item);
+        }else old.qty++;
+        PosUi.speakThen(this,product.name+" "+cart.get(product.id).qty+" "+product.unit+"ค่ะ",this::showCart);
     }
     private long subtotal(){long s=0;for(Item i:cart.values())s+=i.price*i.qty;return s;}
     private void showCart(){
