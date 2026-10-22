@@ -16,7 +16,66 @@ public class CreditAccountScreen extends Activity {
     private PosDatabase helper;
     private LinearLayout root;
 
-    @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);if(getIntent().getBooleanExtra("arrears_search_mode",false))arrearsSearch();else home();}
+
+    private void arrearsSearch(){
+        root=PosUi.page(this,"ชำระบิลค้างชำระ");
+        PosUi.line(this,root,"กรอกชื่อและนามสกุลเพื่อค้นหาลูกค้าที่มียอดค้างชำระ");
+        EditText first=PosUi.input(this,root,"ชื่อ");
+        EditText last=PosUi.input(this,root,"นามสกุล");
+        PosUi.button(this,root,"ค้นหาลูกค้า",v->{
+            String f=PosUi.str(first),l=PosUi.str(last);
+            if(f.isEmpty()){first.setError("กรอกชื่อ");return;}
+            if(l.isEmpty()){last.setError("กรอกนามสกุล");return;}
+            showCustomerMatches(f,l);
+        });
+        PosUi.back(this,root);
+    }
+
+    private String normalizeName(String value){
+        return value==null?"":value.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+","").trim();
+    }
+
+    private boolean approximateNameMatch(String input,String stored){
+        String q=normalizeName(input),s=normalizeName(stored);
+        if(q.isEmpty()||s.isEmpty())return false;
+        if(s.contains(q)||q.contains(s))return true;
+        if(q.length()<3||s.length()<3)return false;
+        int limit=Math.max(1,Math.min(2,Math.max(q.length(),s.length())/4));
+        return editDistance(q,s,limit)<=limit;
+    }
+
+    private int editDistance(String a,String b,int stopAt){
+        if(Math.abs(a.length()-b.length())>stopAt)return stopAt+1;
+        int[] prev=new int[b.length()+1],curr=new int[b.length()+1];
+        for(int j=0;j<=b.length();j++)prev[j]=j;
+        for(int i=1;i<=a.length();i++){
+            curr[0]=i;int rowMin=curr[0];
+            for(int j=1;j<=b.length();j++){
+                curr[j]=Math.min(Math.min(curr[j-1]+1,prev[j]+1),prev[j-1]+(a.charAt(i-1)==b.charAt(j-1)?0:1));
+                rowMin=Math.min(rowMin,curr[j]);
+            }
+            if(rowMin>stopAt)return stopAt+1;
+            int[] swap=prev;prev=curr;curr=swap;
+        }
+        return prev[b.length()];
+    }
+
+    private void showCustomerMatches(String first,String last){
+        root=PosUi.page(this,"เลือกลูกค้า");
+        Cursor c=helper.getReadableDatabase().rawQuery(
+            "SELECT c.id,c.first_name,c.last_name,COUNT(b.id),COALESCE(SUM(b.total_satang),0) FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id,c.first_name,c.last_name ORDER BY c.first_name COLLATE NOCASE,c.last_name COLLATE NOCASE,c.id",null);
+        int found=0;
+        while(c.moveToNext()){
+            long id=c.getLong(0);String f=c.getString(1),l=c.getString(2);int count=c.getInt(3);long due=c.getLong(4);
+            if(!approximateNameMatch(first,f)||!approximateNameMatch(last,l))continue;
+            found++;String name=PosDatabase.customerName(f,l);
+            PosUi.button(this,root,"#"+id+" — "+name+"\nค้าง "+count+" บิล • "+PosDatabase.money(due)+" บาท",v->customerBills(id,name));
+        }
+        c.close();
+        if(found==0)PosUi.line(this,root,"ไม่พบลูกค้าที่ตรงกับชื่อใกล้เคียงและมียอดค้างชำระ กรุณาตรวจสอบการสะกด");
+        PosUi.back(this,root);
+    }
 
     private void home(){
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
@@ -135,12 +194,28 @@ public class CreditAccountScreen extends Activity {
             items.close();
         }
         spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
-        PosUi.speakThen(this,spoken.toString(),()->new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
-                .setMessage("รับเงินสด "+PosDatabase.money(total)+" บาท เพื่อชำระบิลที่เลือกหรือไม่?")
-                .setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(dialog,which)->recordPayment(customerId,ids,total)).show());
+        PosUi.speakThen(this,spoken.toString(),()->cashPaymentScreen(customerId,ids,total));
     }
 
-    private void recordPayment(long customerId,ArrayList<Long> ids,long total){
+    private void cashPaymentScreen(long customerId,ArrayList<Long> ids,long total){
+        root=PosUi.page(this,"รับชำระบิลค้างชำระ");
+        PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท");
+        EditText received=PosUi.input(this,root,"รับเงินสด (บาท)");
+        PosUi.button(this,root,"ยืนยันรับเงินสด",v->{
+            long cash;
+            try{cash=PosUi.satang(received);}catch(Exception e){received.setError("กรอกจำนวนเงินให้ถูกต้อง");return;}
+            if(cash<total){received.setError("เงินรับไม่พอ");return;}
+            long change;
+            try{change=Math.subtractExact(cash,total);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
+            new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
+                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\\nรับเงิน "+PosDatabase.money(cash)+" บาท\\nเงินทอน "+PosDatabase.money(change)+" บาท")
+                .setNegativeButton("กลับไปแก้ไข",null)
+                .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,total,cash,change)).show();
+        });
+        PosUi.back(this,root);
+    }
+
+    private void recordPayment(long customerId,ArrayList<Long> ids,long total,long cashReceived,long change){
         SQLiteDatabase db=null;boolean transactionStarted=false,paid=false;String error=null;
         StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\n");
         try{
@@ -156,7 +231,7 @@ public class CreditAccountScreen extends Activity {
                 if(db.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                 ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);
                 ContentValues audit=new ContentValues();audit.put("bill_id",id);audit.put("bill_code",code);audit.put("amount_satang",collected);audit.put("created_at",now);db.insertOrThrow("payment_history",null,audit);
-                PosDatabase.audit(db,"PAYMENT_RECEIVED","BILL",code,"amount_satang="+collected);
+                PosDatabase.audit(db,"PAYMENT_RECEIVED","BILL",code,"amount_satang="+collected+"; cash_received_satang="+cashReceived+"; change_satang="+change);
                 receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
                 if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",now);db.insertOrThrow("sales_ledger",null,adj);PosDatabase.audit(db,"CREDIT_FEE_WAIVED","BILL",code,"waived_fee_satang="+fee);}
             }
