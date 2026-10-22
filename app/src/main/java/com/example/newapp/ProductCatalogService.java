@@ -6,7 +6,29 @@ import android.database.sqlite.SQLiteDatabase;
 
 /** Shared product creation, duplicate checks, price changes and price history. */
 final class ProductCatalogService {
+    static final class Product {
+        final long id,priceSatang,costSatang;
+        final String barcode,name,unit;
+        final int stock,stockLimit,active;
+        Product(long id,String barcode,String name,String unit,long priceSatang,long costSatang,
+                int stock,int stockLimit,int active) {
+            this.id=id;this.barcode=barcode;this.name=name;this.unit=unit;this.priceSatang=priceSatang;
+            this.costSatang=costSatang;this.stock=stock;this.stockLimit=stockLimit;this.active=active;
+        }
+    }
     private ProductCatalogService() {}
+
+    static Product findActiveByBarcode(PosDatabase helper,String barcode) {
+        if(helper==null||barcode==null||barcode.trim().isEmpty())return null;
+        Cursor c=helper.getReadableDatabase().query("products",
+                new String[]{"id","barcode","name","unit","price_satang","cost_satang","stock","stock_limit","active"},
+                "barcode=? AND active=1",new String[]{barcode.trim()},null,null,null,"1");
+        try {
+            if(!c.moveToFirst())return null;
+            return new Product(c.getLong(0),c.getString(1),c.getString(2),c.getString(3),c.getLong(4),
+                    c.getLong(5),c.getInt(6),c.getInt(7),c.getInt(8));
+        } finally {c.close();}
+    }
 
     static long create(PosDatabase helper,String barcode,String name,long priceSatang,
                        String unit,int stockLimit,long now) {
