@@ -16,7 +16,7 @@ public class CreditAccountScreen extends Activity {
 
     @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);home();}
 
-    private void home(){
+    private void home(){PosUi.resetNavigation(this);
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         ArrayList<ReportingService.CustomerDue> customers=ReportingService.unpaidCustomers(helper);
         for(ReportingService.CustomerDue customer:customers){
