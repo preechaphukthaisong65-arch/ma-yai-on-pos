@@ -50,7 +50,7 @@ final class PosUi {
     static void speakThen(Activity a,String message,Runnable after) {
         final TextToSpeech[] holder = new TextToSpeech[1];
         holder[0] = new TextToSpeech(a,status -> {
-            if(status!=TextToSpeech.SUCCESS){a.runOnUiThread(after);return;}
+            if(status!=TextToSpeech.SUCCESS){if(holder[0]!=null)holder[0].shutdown();a.runOnUiThread(after);return;}
             ttsLangSafe(a,holder[0]);
             holder[0].setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener(){
                 @Override public void onStart(String id) {}
