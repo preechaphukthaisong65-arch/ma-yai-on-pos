@@ -54,7 +54,7 @@ public class SellScreen extends Activity {
         backParams.setMargins(0,0,PosUi.dp(this,8),PosUi.dp(this,8));
         screen.addView(back,backParams);
         back.setOnClickListener(v->finish());
-        setContentView(screen);
+        PosUi.showRoot(this,screen);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
     private android.widget.TextView circleButton(String label,int color,int diameter){
