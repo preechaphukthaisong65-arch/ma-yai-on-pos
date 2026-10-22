@@ -175,11 +175,7 @@ public class StockScreen extends Activity {
 
                 if(!registryExists)BarcodeRegistry.registerIfMissing(db,barcode,nm,p,"FACTORY",PosDatabase.now());
 
-                ContentValues h=new ContentValues();
-                h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);
-                h.put("change_type","INITIAL");h.put("before_qty",0);
-                h.put("after_qty",0);h.put("difference",0);h.put("created_at",PosDatabase.now());
-                db.insertOrThrow("stock_history",null,h);
+                InventoryService.changeStock(db,id,barcode,nm,0,0,"INITIAL",null,PosDatabase.now());
                 db.setTransactionSuccessful();
                 saved=true;
             }catch(Exception e){
