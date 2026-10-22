@@ -18,6 +18,7 @@ public class CreditAccountScreen extends Activity {
     @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);home();}
 
     private void home(){PosUi.clearBackStack(this);
+        if(getIntent().getBooleanExtra(EXTRA_SEARCH_MODE,false)){searchForm();return;}
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.full_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
         boolean found=false;
@@ -27,6 +28,38 @@ public class CreditAccountScreen extends Activity {
         }
         c.close();
         if(!found)PosUi.line(this,root,"ไม่มีลูกค้าที่มียอดค้างชำระ");
+        PosUi.back(this,root);
+    }
+
+    static final String EXTRA_SEARCH_MODE="search_outstanding_customer";
+
+    private void searchForm(){
+        root=PosUi.page(this,"ชำระบิลค้างชำระ");
+        PosUi.line(this,root,"กรอกชื่อและนามสกุลลูกค้า เพื่อค้นหาบิลที่ยังค้างชำระ");
+        android.widget.EditText firstName=PosUi.input(this,root,"ชื่อจริงลูกค้า");
+        android.widget.EditText lastName=PosUi.input(this,root,"นามสกุลลูกค้า");
+        PosUi.button(this,root,"ค้นหาบิลค้างชำระ",v->{
+            String first=PosUi.str(firstName),last=PosUi.str(lastName);
+            if(first.isEmpty()){firstName.setError("กรุณากรอกชื่อลูกค้า");return;}
+            if(last.isEmpty()){lastName.setError("กรุณากรอกนามสกุลลูกค้า");return;}
+            searchCustomers(first,last);
+        });
+        PosUi.back(this,root);
+    }
+
+    private void searchCustomers(String first,String last){
+        root=PosUi.page(this,"ผลค้นหาบิลค้างชำระ");
+        Cursor c=helper.getReadableDatabase().rawQuery(
+                "SELECT c.id,c.full_name,SUM(b.total_satang) due FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' AND c.full_name LIKE ? AND c.full_name LIKE ? GROUP BY c.id,c.full_name ORDER BY c.full_name ASC",
+                new String[]{"%"+first+"%","%"+last+"%"});
+        boolean found=false;
+        while(c.moveToNext()){
+            found=true;long id=c.getLong(0);String name=c.getString(1);long due=c.getLong(2);
+            PosUi.button(this,root,name+" — ยอดค้าง "+PosDatabase.money(due)+" บาท",v->customerBills(id,name));
+        }
+        c.close();
+        if(!found)PosUi.line(this,root,"ไม่พบบิลค้างชำระของชื่อลูกค้าที่ค้นหา");
+        PosUi.button(this,root,"ค้นหาใหม่",v->searchForm());
         PosUi.back(this,root);
     }
 
