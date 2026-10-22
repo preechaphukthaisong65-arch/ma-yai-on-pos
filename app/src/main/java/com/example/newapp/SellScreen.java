@@ -178,4 +178,5 @@ public class SellScreen extends Activity {
             PosUi.result(this,true,"บันทึกการขายสำเร็จ",message,()->home());
         }else PosUi.result(this,false,"บันทึกการขายไม่สำเร็จ",error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }
