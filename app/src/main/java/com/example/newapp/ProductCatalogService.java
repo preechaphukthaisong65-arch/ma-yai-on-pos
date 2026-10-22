@@ -59,6 +59,8 @@ final class ProductCatalogService {
             if(registered==null)BarcodeRegistry.registerIfMissing(db,barcode.trim(),name.trim(),
                     priceSatang,"FACTORY",now);
             InventoryService.changeStock(db,id,barcode.trim(),name.trim(),0,0,"INITIAL",null,now);
+            AuditService.record(db,"PRODUCT",String.valueOf(id),"PRODUCT_CREATED",
+                    "barcode="+barcode.trim()+";price="+priceSatang+";stockLimit="+stockLimit,now);
             db.setTransactionSuccessful();
             return id;
         } finally { db.endTransaction(); }
@@ -93,6 +95,8 @@ final class ProductCatalogService {
             history.put("product_name",name.trim());history.put("old_price_satang",expectedOldSatang);
             history.put("new_price_satang",newPriceSatang);history.put("created_at",now);
             db.insertOrThrow("price_history",null,history);
+            AuditService.record(db,"PRODUCT",String.valueOf(id),"PRICE_CHANGED",
+                    "barcode="+barcode.trim()+";oldPrice="+expectedOldSatang+";newPrice="+newPriceSatang,now);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -107,6 +111,8 @@ final class ProductCatalogService {
             if(db.update("products",values,"id=? AND stock_limit=?",
                     new String[]{String.valueOf(id),String.valueOf(expectedOld)})!=1)
                 throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+            AuditService.record(db,"PRODUCT",String.valueOf(id),"STOCK_LIMIT_CHANGED",
+                    "oldLimit="+expectedOld+";newLimit="+newLimit,now);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
