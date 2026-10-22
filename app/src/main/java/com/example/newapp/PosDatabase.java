@@ -123,7 +123,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         }
     }
 
-    public static long now() { return System.currentTimeMillis(); }
+    public static long now() { return AppClock.now(); }
     public static ContentValues values() { return new ContentValues(); }
     public static String money(long satang) {
         return String.format(java.util.Locale.US, "%.2f", satang / 100.0d);
