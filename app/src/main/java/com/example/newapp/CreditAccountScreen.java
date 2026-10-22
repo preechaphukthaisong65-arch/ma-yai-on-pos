@@ -17,7 +17,7 @@ public class CreditAccountScreen extends Activity {
 
     @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);home();}
 
-    private void home(){
+    private void home(){PosUi.clearBackStack(this);
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.full_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
         boolean found=false;
