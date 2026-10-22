@@ -67,6 +67,19 @@ final class BarcodeRegistry {
         db.insertOrThrow("barcode_registry", null, values);
     }
 
+    /** Keeps the registry price aligned with a product price change. */
+    static void updatePrice(SQLiteDatabase db, String barcode, String name,
+                            long priceSatang, String source, long createdAt) {
+        Entry existing = find(db, barcode);
+        if (existing == null) {
+            registerIfMissing(db, barcode, name, priceSatang, source, createdAt);
+            return;
+        }
+        ContentValues values = new ContentValues();
+        values.put("price_satang", priceSatang);
+        db.update("barcode_registry", values, "barcode=?", new String[]{barcode});
+    }
+
     /** Allocates a unique 12-digit code and advances the sequence in the same transaction. */
     static String nextGenerated(SQLiteDatabase db) {
         Cursor seqCursor = db.query("app_meta", new String[]{"value"},
