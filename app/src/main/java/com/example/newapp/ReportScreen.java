@@ -14,16 +14,70 @@ import java.util.Locale;
 public class ReportScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"รายงานยอดขาย");
-        PosUi.button(this,root,"ยอดขายวันนี้",v->period("วันนี้",startOfDay(),PosDatabase.now()));
-        PosUi.button(this,root,"ยอดขายสัปดาห์นี้",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()));
-        PosUi.button(this,root,"ยอดขายเดือนนี้",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));
-        PosUi.button(this,root,"กำหนดช่วงวันที่เอง",v->custom());
-        PosUi.button(this,root,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
-        PosUi.button(this,root,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
-        PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
-        PosUi.button(this,root,"ประวัติการทำรายการสำคัญ",v->auditLog());
-        PosUi.back(this,root);
+    private SalesChartView annualChart;
+    private int chartYear;
+    private void home(){
+        getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.rgb(248,250,247));
+        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);
+        screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
+        LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,5),PosUi.dp(this,8),PosUi.dp(this,4));lower.setBackgroundColor(android.graphics.Color.rgb(238,244,238));
+        TextView summaryTitle=PosUi.text(this,"สรุปยอดขาย • วันนี้ / สัปดาห์นี้ / เดือนนี้",14,android.graphics.Color.rgb(35,80,48));lower.addView(summaryTitle,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout summaries=new LinearLayout(this);summaries.setOrientation(LinearLayout.HORIZONTAL);
+        addSummary(summaries,"วันนี้",startOfDay(),PosDatabase.now());addSummary(summaries,"สัปดาห์นี้",startOfWeek(),PosDatabase.now());addSummary(summaries,"เดือนนี้",startOfMonth(),PosDatabase.now());
+        lower.addView(summaries,new LinearLayout.LayoutParams(-1,-2));
+        TextView chooseTitle=PosUi.text(this,"เลือกช่วงรายงาน",14,android.graphics.Color.rgb(35,80,48));lower.addView(chooseTitle,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);
+        addPeriodButton(row1,"วัน",v->period("วันนี้",startOfDay(),PosDatabase.now()));
+        addPeriodButton(row1,"สัปดาห์",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()));
+        lower.addView(row1,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);
+        addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));
+        addPeriodButton(row2,"ปี",v->period("ปี "+chartYear,yearStart(chartYear),yearEnd(chartYear)));
+        lower.addView(row2,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row3=new LinearLayout(this);row3.setOrientation(LinearLayout.HORIZONTAL);
+        addPeriodButton(row3,"เลือกปีกราฟ",v->chooseChartYear());
+        addPeriodButton(row3,"กำหนดช่วงวันที่",v->custom());
+        lower.addView(row3,new LinearLayout.LayoutParams(-1,-2));
+        ScrollView menuScroll=new ScrollView(this);LinearLayout extra=new LinearLayout(this);extra.setOrientation(LinearLayout.VERTICAL);
+        PosUi.button(this,extra,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
+        PosUi.button(this,extra,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
+        PosUi.button(this,extra,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
+        PosUi.button(this,extra,"ประวัติการทำรายการสำคัญ",v->auditLog());
+        menuScroll.addView(extra);lower.addView(menuScroll,new LinearLayout.LayoutParams(-1,0,1f));
+        LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.HORIZONTAL);
+        android.widget.Button home=new android.widget.Button(this);home.setText("⌂ หน้าหลัก");home.setTextSize(15);home.setOnClickListener(v->{android.content.Intent i=new android.content.Intent(this,MainActivity.class);i.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP|android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);startActivity(i);finish();});
+        android.widget.Button back=new android.widget.Button(this);back.setText("← ย้อนกลับ");back.setTextSize(15);back.setOnClickListener(v->finish());
+        footer.addView(home,new LinearLayout.LayoutParams(0,PosUi.dp(this,42),1f));footer.addView(back,new LinearLayout.LayoutParams(0,PosUi.dp(this,42),1f));lower.addView(footer,new LinearLayout.LayoutParams(-1,PosUi.dp(this,44)));
+        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));setContentView(screen);
+    }
+    private void addSummary(LinearLayout row,String label,long from,long to){
+        long amount=netSales(from,to);LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(PosUi.dp(this,5),PosUi.dp(this,5),PosUi.dp(this,5),PosUi.dp(this,5));card.setBackgroundColor(android.graphics.Color.WHITE);
+        TextView title=PosUi.text(this,label,12,android.graphics.Color.DKGRAY);title.setGravity(android.view.Gravity.CENTER);
+        TextView value=PosUi.text(this,PosDatabase.money(amount),12,android.graphics.Color.rgb(20,20,20));value.setGravity(android.view.Gravity.CENTER);value.setSingleLine(true);
+        card.addView(title,new LinearLayout.LayoutParams(-1,-2));card.addView(value,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1f);lp.setMargins(PosUi.dp(this,2),PosUi.dp(this,2),PosUi.dp(this,2),PosUi.dp(this,4));row.addView(card,lp);
+    }
+    private void addPeriodButton(LinearLayout row,String label,android.view.View.OnClickListener action){
+        android.widget.Button b=new android.widget.Button(this);b.setText(label);b.setTextSize(16);b.setMinHeight(PosUi.dp(this,42));b.setPadding(PosUi.dp(this,3),0,PosUi.dp(this,3),0);b.setOnClickListener(action);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,PosUi.dp(this,44),1f);lp.setMargins(PosUi.dp(this,2),PosUi.dp(this,1),PosUi.dp(this,2),PosUi.dp(this,1));row.addView(b,lp);
+    }
+    private long netSales(long from,long to){
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});
+        long total=0;if(c.moveToFirst())total=c.getLong(0);c.close();return total;
+    }
+    private long yearStart(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
+    private long yearEnd(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
+    private void updateAnnualChart(int year){
+        chartYear=year;String[] labels={"ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."};long[] values=new long[12];
+        Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
+        for(int i=0;i<12;i++){long from=c.getTimeInMillis();c.add(Calendar.MONTH,1);long to=c.getTimeInMillis()-1;values[i]=netSales(from,to);}
+        annualChart.setData("กราฟยอดขายสุทธิรายเดือน • "+year,labels,values);
+    }
+    private void chooseChartYear(){
+        EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine(true);input.setText(String.valueOf(chartYear));input.setSelectAllOnFocus(true);
+        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี ค.ศ. เช่น 2026").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2000||year>2100)throw new IllegalArgumentException();updateAnnualChart(year);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี ค.ศ. ระหว่าง 2000–2100").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
     }
     private void auditLog(){
         root=PosUi.page(this,"ประวัติการทำรายการสำคัญ");
