@@ -19,8 +19,11 @@ final class PosUi {
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
         ScrollView scroll = new ScrollView(a);
+        int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
+        if (background != 0) scroll.setBackgroundResource(background);
         LinearLayout root = new LinearLayout(a); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,24)); root.setBackgroundColor(Color.rgb(248,250,247));
+        root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,24));
+        if (background != 0) root.setBackgroundResource(background); else root.setBackgroundColor(Color.rgb(248,250,247));
         TextView heading = text(a,title,24,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
