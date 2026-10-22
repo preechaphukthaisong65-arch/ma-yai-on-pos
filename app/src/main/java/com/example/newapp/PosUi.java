@@ -38,7 +38,6 @@ final class PosUi {
         ScrollView scroll = new ScrollView(a);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
-        scroll.setPadding(0,0,0,dp(a,54));
         if (background != 0) scroll.setBackgroundColor(Color.TRANSPARENT);
         LinearLayout root = new LinearLayout(a);
         root.setOrientation(LinearLayout.VERTICAL);
