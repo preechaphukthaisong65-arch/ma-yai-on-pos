@@ -43,26 +43,42 @@ public class StockScreen extends Activity {
     }
     private void handleScan(String barcode){
         if("countHistory".equals(mode)){showStockHistory(barcode);return;}
-        SQLiteDatabase db=helper.getReadableDatabase();
-        Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
-        if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else if("countHistory".equals(mode)){showStockHistory(barcode);return;}else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
-        long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));String unit=c.getString(c.getColumnIndexOrThrow("unit"));
-        int stock=c.getInt(c.getColumnIndexOrThrow("stock"));int limit=c.getInt(c.getColumnIndexOrThrow("stock_limit"));long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
-        c.close();
-        if("detail".equals(mode)){new AlertDialog.Builder(this).setTitle(name).setMessage("บาร์โค้ด: "+barcode+"\nคงเหลือ: "+stock+" "+unit+"\nราคาขาย: "+PosDatabase.money(price)+" บาท").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;}
+        ProductCatalogService.Product product=ProductCatalogService.findActiveByBarcode(helper,barcode);
+        if(product==null){
+            if("add".equals(mode)){newProduct(barcode);return;}
+            new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง")
+                    .setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;
+        }
+        long id=product.id;String name=product.name,unit=product.unit;
+        int stock=product.stock,limit=product.stockLimit;long price=product.priceSatang;
+        if("detail".equals(mode)){
+            new AlertDialog.Builder(this).setTitle(name)
+                    .setMessage("บาร์โค้ด: "+barcode+"\nคงเหลือ: "+stock+" "+unit+"\nราคาขาย: "+PosDatabase.money(price)+" บาท")
+                    .setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;
+        }
         root=PosUi.page(this,name);
-        PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock+" "+unit);
+        PosUi.line(this,root,"บาร์โค้ด: "+barcode);PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock+" "+unit);
         if("count".equals(mode)){
             EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
-            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();if(saveStock(id,barcode,name,stock,qty,"COUNT"))home();}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
-        } else if("limit".equals(mode)){
+            PosUi.button(this,root,"บันทึกผลนับ",v->{try{
+                int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();
+                if(saveStock(id,barcode,name,stock,qty,"COUNT"))home();
+            }catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+        }else if("limit".equals(mode)){
             EditText lim=PosUi.input(this,root,"ลิมิตสต๊อกปัจจุบัน "+limit);
-            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();if(saveLimit(id,limit,q))home();}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
-        } else if("add".equals(mode)){
-            PosUi.speak(this,name+"ค่ะ"); EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
-            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();if(saveStock(id,barcode,name,stock,stock+q,"RECEIVE"))home();}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
+            PosUi.button(this,root,"บันทึกลิมิต",v->{try{
+                int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();
+                if(saveLimit(id,limit,q))home();
+            }catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+        }else if("add".equals(mode)){
+            PosUi.speak(this,name+"ค่ะ");EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
+            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{
+                int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();
+                int after=Math.addExact(stock,q);
+                if(saveStock(id,barcode,name,stock,after,"RECEIVE"))home();
+            }catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0 และไม่เกินขอบเขต");}});
         }
-        PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
+        PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain());PosUi.back(this,root);
     }
     private void showStockHistory(String barcode){
         root=PosUi.page(this,"ประวัติสต๊อก");
