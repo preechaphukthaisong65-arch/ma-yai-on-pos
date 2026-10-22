@@ -124,4 +124,6 @@ public class CreditAccountScreen extends Activity {
         Cursor c=db.query("bills",new String[]{"created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
         long created=c.moveToFirst()?c.getLong(0):0;c.close();return created;
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }
