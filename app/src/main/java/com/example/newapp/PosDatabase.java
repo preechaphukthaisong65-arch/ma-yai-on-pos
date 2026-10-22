@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import java.util.ArrayList;
 
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
@@ -128,18 +129,23 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE customers ADD COLUMN first_name TEXT NOT NULL DEFAULT ''");
             db.execSQL("ALTER TABLE customers ADD COLUMN last_name TEXT NOT NULL DEFAULT ''");
             Cursor legacy = db.query("customers", new String[]{"id","full_name"}, null, null, null, null, null);
+            ArrayList<Long> customerIds = new ArrayList<>();
+            ArrayList<String> legacyNames = new ArrayList<>();
             while (legacy.moveToNext()) {
-                long id = legacy.getLong(0);
-                String oldName = legacy.getString(1) == null ? "" : legacy.getString(1).trim();
+                customerIds.add(legacy.getLong(0));
+                legacyNames.add(legacy.getString(1) == null ? "" : legacy.getString(1).trim());
+            }
+            legacy.close();
+            for (int i = 0; i < customerIds.size(); i++) {
+                String oldName = legacyNames.get(i);
                 int split = oldName.indexOf(' ');
                 String first = split > 0 ? oldName.substring(0, split).trim() : oldName;
                 String last = split > 0 ? oldName.substring(split + 1).trim() : "";
                 ContentValues profile = new ContentValues();
                 profile.put("first_name", first);
                 profile.put("last_name", last);
-                db.update("customers", profile, "id=?", new String[]{String.valueOf(id)});
+                db.update("customers", profile, "id=?", new String[]{String.valueOf(customerIds.get(i))});
             }
-            legacy.close();
             db.execSQL("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
