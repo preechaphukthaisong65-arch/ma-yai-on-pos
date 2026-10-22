@@ -48,7 +48,7 @@ public class StockScreen extends Activity {
         SQLiteDatabase db=helper.getReadableDatabase();
         Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
         if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else if("countHistory".equals(mode)){showStockHistory(barcode);return;}else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
-        long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));String unit=c.getString(c.getColumnIndexOrThrow("unit"));
+        long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));String unit="ชิ้น";
         int stock=c.getInt(c.getColumnIndexOrThrow("stock"));int limit=c.getInt(c.getColumnIndexOrThrow("stock_limit"));long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
         c.close();
         if("detail".equals(mode)){new AlertDialog.Builder(this).setTitle(name).setMessage("บาร์โค้ด: "+barcode+"\nคงเหลือ: "+stock+" "+unit+"\nราคาขาย: "+PosDatabase.money(price)+" บาท").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();return;}
@@ -116,22 +116,22 @@ public class StockScreen extends Activity {
         if(registry.moveToFirst()){name.setText(registry.getString(0));price.setText(PosDatabase.money(registry.getLong(1)));name.setEnabled(false);price.setEnabled(false);}
         registry.close();
         PosUi.line(this,root,"หน่วยเริ่มต้น: ชิ้น");
-        PosUi.line(this,root,"ลิมิตสต๊อกตั้งต้น: ไม่กำหนด");
+        PosUi.line(this,root,"ลิมิตสต๊อกเริ่มต้น: 10 ชิ้น (แก้ไขได้ที่ปุ่ม ตั้งค่าลิมิตสต๊อก)");
         EditText qty=PosUi.input(this,root,"จำนวนสินค้าเริ่มต้น");
         PosUi.button(this,root,"บันทึกสินค้า",v->{try{
             String nm=PosUi.str(name);if(nm.isEmpty())throw new IllegalArgumentException("กรุณากรอกชื่อสินค้า");
             int q=Integer.parseInt(PosUi.str(qty));long p=PosUi.satang(price);if(q<=0)throw new IllegalArgumentException("จำนวนสินค้าเริ่มต้นต้องมากกว่า 0");
-            long co=0;String un="ชิ้น";int l=0;
+            int l=10;
             SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
                 Cursor existingRegistry=db.query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null);
                 boolean registryExists=existingRegistry.moveToFirst();
                 if(registryExists&&(!nm.equals(existingRegistry.getString(0))||p!=existingRegistry.getLong(1))){existingRegistry.close();throw new IllegalStateException("บาร์โค้ดนี้มีข้อมูลในคลังบาร์โค้ดไม่ตรงกัน กรุณาสแกนตรวจสอบก่อน");}
                 existingRegistry.close();
-                ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
+                ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
                 ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);
-                PosDatabase.audit(db,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; price_satang="+p+"; stock="+q+"; unit=ชิ้น; cost_satang=0; stock_limit=0");
+                PosDatabase.audit(db,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; price_satang="+p+"; stock="+q+"; stock_limit=10");
                 db.setTransactionSuccessful();
             }finally{db.endTransaction();}StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
         }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
