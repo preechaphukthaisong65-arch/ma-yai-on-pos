@@ -2,7 +2,6 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
@@ -102,96 +101,38 @@ public class StockScreen extends Activity {
         root=PosUi.page(this,"เพิ่มสินค้าใหม่");
         PosUi.line(this,root,"บาร์โค้ด: "+barcode);
         PosUi.speak(this,"สินค้าใหม่ค่ะ");
-
         EditText name=PosUi.input(this,root,"ชื่อสินค้า");
         EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
         BarcodeRegistry.Entry registry=BarcodeRegistry.find(helper.getReadableDatabase(),barcode);
         if(registry!=null){
-            name.setText(registry.name);
-            price.setText(PosDatabase.money(registry.priceSatang));
-            name.setEnabled(false);
-            price.setEnabled(false);
+            name.setText(registry.name);price.setText(PosDatabase.money(registry.priceSatang));
+            name.setEnabled(false);price.setEnabled(false);
         }
-
-        price.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
-                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        price.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");
         EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
         lim.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-
         PosUi.button(this,root,"บันทึกสินค้า",v->{
-            String nm=PosUi.str(name), un=PosUi.str(unit);
+            String nm=PosUi.str(name),un=PosUi.str(unit);
             String priceText=PosUi.str(price).replace(",","");
             String limitText=PosUi.str(lim);
-
             if(nm.isEmpty()){name.setError("กรอกชื่อสินค้า");name.requestFocus();return;}
             if(un.isEmpty()){unit.setError("กรอกหน่วยสินค้า เช่น ชิ้นหรือขวด");unit.requestFocus();return;}
             if(priceText.isEmpty()){price.setError("กรอกราคาขาย");price.requestFocus();return;}
             if(limitText.isEmpty()){lim.setError("กรอกลิมิตสต๊อก (ใส่ 0 ได้)");lim.requestFocus();return;}
-
-            final int l;
-            final long p;
-            try{
-                l=Integer.parseInt(limitText);
-                if(l<0)throw new NumberFormatException();
-            }catch(NumberFormatException e){lim.setError("ลิมิตสต๊อกต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");lim.requestFocus();return;}
-            try{p=PosDatabase.toSatang(priceText);}
+            final int limit;
+            final long priceSatang;
+            try{limit=Integer.parseInt(limitText);if(limit<0)throw new NumberFormatException();}
+            catch(NumberFormatException e){lim.setError("ลิมิตสต๊อกต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");lim.requestFocus();return;}
+            try{priceSatang=PosDatabase.toSatang(priceText);}
             catch(Exception e){price.setError("ราคาขายไม่ถูกต้อง เช่น 25 หรือ 25.50");price.requestFocus();return;}
-
-            SQLiteDatabase db=null;
-            boolean started=false,saved=false;
-            String error=null;
             try{
-                db=helper.getWritableDatabase();
-                db.beginTransaction();
-                started=true;
-
-                Cursor existingProduct=db.query("products",new String[]{"active"},
-                        "barcode=?",new String[]{barcode},null,null,null,"1");
-                if(existingProduct.moveToFirst()){
-                    int active=existingProduct.getInt(0);
-                    existingProduct.close();
-                    throw new IllegalStateException(active==1
-                            ?"สินค้านี้มีอยู่ในคลังแล้ว กรุณาใช้เมนูเพิ่มสินค้าเข้าสต๊อก"
-                            :"บาร์โค้ดนี้เป็นสินค้าที่ปิดใช้งานอยู่ กรุณาตรวจสอบรายการเดิมก่อนเพิ่มใหม่");
-                }
-                existingProduct.close();
-
-                BarcodeRegistry.Entry registryEntry=BarcodeRegistry.find(db,barcode);
-                boolean registryExists=registryEntry!=null;
-                BarcodeRegistry.ensureConsistent(db,barcode,nm,p);
-
-                ContentValues cv=new ContentValues();
-                cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);
-                cv.put("cost_satang",0L);cv.put("unit",un);cv.put("stock",0);
-                cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());
-                cv.put("updated_at",PosDatabase.now());
-                long id=db.insertOrThrow("products",null,cv);
-
-                if(!registryExists)BarcodeRegistry.registerIfMissing(db,barcode,nm,p,"FACTORY",PosDatabase.now());
-
-                InventoryService.changeStock(db,id,barcode,nm,0,0,"INITIAL",null,PosDatabase.now());
-                db.setTransactionSuccessful();
-                saved=true;
+                ProductCatalogService.create(helper,barcode,nm,priceSatang,un,limit,PosDatabase.now());
+                StockAlertManager.check(this);home();
             }catch(Exception e){
-                error=e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage();
-                saved=false;
-            }finally{
-                if(db!=null&&started){
-                    try{db.endTransaction();}
-                    catch(Exception e){saved=false;error="ยืนยันการบันทึกไม่สำเร็จ: "
-                            +(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}
-                }
-            }
-            if(saved){
-                StockAlertManager.check(this);
-                home();
-            }else{
-                new AlertDialog.Builder(this)
-                        .setTitle("บันทึกสินค้าไม่สำเร็จ")
-                        .setMessage(error==null?"กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง":error)
-                        .setPositiveButton("ตกลง",null)
-                        .show();
+                String error=e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage();
+                new AlertDialog.Builder(this).setTitle("บันทึกสินค้าไม่สำเร็จ").setMessage(error)
+                        .setPositiveButton("ตกลง",null).show();
             }
         });
         PosUi.back(this,root);
