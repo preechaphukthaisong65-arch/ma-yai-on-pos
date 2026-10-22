@@ -105,7 +105,7 @@ public class CreditAccountScreen extends Activity {
             Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
             if(c.moveToFirst()){
                 String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);
-                total+=("CREDIT".equals(type)&&now>=created&&now-created<=86400000L)?subtotal:amount;
+                total=Math.addExact(total,("CREDIT".equals(type)&&now>=created&&now-created<=86400000L)?subtotal:amount);
             }
             c.close();
         }
