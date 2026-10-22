@@ -168,4 +168,6 @@ public class SellScreen extends Activity {
             PosUi.result(this,true,"เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }
