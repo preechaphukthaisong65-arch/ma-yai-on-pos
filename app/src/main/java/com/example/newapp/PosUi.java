@@ -21,10 +21,11 @@ import java.util.WeakHashMap;
 final class PosUi {
     private PosUi() {}
     private static final WeakHashMap<Activity, ArrayDeque<View>> PAGE_HISTORY = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, Boolean> SKIP_NEXT_HISTORY = new WeakHashMap<>();
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
 
     static void resetNavigation(Activity a) {
-        synchronized (PAGE_HISTORY) { PAGE_HISTORY.remove(a); }
+        synchronized (PAGE_HISTORY) { PAGE_HISTORY.remove(a); SKIP_NEXT_HISTORY.put(a,Boolean.TRUE); }
     }
 
     static LinearLayout page(Activity a, String title) {
@@ -36,7 +37,11 @@ final class PosUi {
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
         ViewGroup content = a.findViewById(android.R.id.content);
-        if (content != null && content.getChildCount() > 0) {
+        boolean skipHistory;
+        synchronized (PAGE_HISTORY) {
+            skipHistory = Boolean.TRUE.equals(SKIP_NEXT_HISTORY.remove(a));
+        }
+        if (!skipHistory && content != null && content.getChildCount() > 0) {
             View previous = content.getChildAt(0);
             synchronized (PAGE_HISTORY) {
                 ArrayDeque<View> history = PAGE_HISTORY.get(a);
