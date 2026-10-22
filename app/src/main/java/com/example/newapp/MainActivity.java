@@ -85,7 +85,7 @@ public class MainActivity extends Activity {
         page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
         FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, Math.round(getResources().getDisplayMetrics().heightPixels * 0.65f),
+                FrameLayout.LayoutParams.MATCH_PARENT, Math.round(getResources().getDisplayMetrics().heightPixels * 0.73f),
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         frame.addView(page, pageParams);
         setContentView(frame);
