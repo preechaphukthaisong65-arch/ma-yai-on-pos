@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.widget.EditText;
 import android.os.Bundle;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
@@ -19,14 +20,55 @@ public class CreditAccountScreen extends Activity {
 
     private void home(){
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
-        Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.full_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
+        PosUi.button(this,root,"จัดการข้อมูลลูกค้า",v->customerDirectory());
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.first_name,c.last_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
         boolean found=false;
         while(c.moveToNext()){
-            found=true;long id=c.getLong(0);String name=c.getString(1);long due=c.getLong(2);
+            found=true;long id=c.getLong(0);String name=PosDatabase.customerName(c.getString(1),c.getString(2));long due=c.getLong(3);
             PosUi.button(this,root,name+" — "+PosDatabase.money(due)+" บาท",v->customerBills(id,name));
         }
         c.close();
         if(!found)PosUi.line(this,root,"ไม่มีลูกค้าที่มียอดค้างชำระ");
+        PosUi.back(this,root);
+    }
+
+    private void customerDirectory(){
+        root=PosUi.page(this,"จัดการข้อมูลลูกค้า");
+        Cursor c=helper.getReadableDatabase().query("customers",new String[]{"id","first_name","last_name"},null,null,null,null,"first_name COLLATE NOCASE ASC,last_name COLLATE NOCASE ASC,id ASC");
+        boolean found=false;
+        while(c.moveToNext()){
+            found=true;long id=c.getLong(0);String first=c.getString(1),last=c.getString(2);
+            String name=PosDatabase.customerName(first,last);
+            if(name.isEmpty())name="ข้อมูลชื่อยังไม่ครบ";
+            PosUi.button(this,root,"#"+id+" — "+name,v->editCustomer(id));
+        }
+        c.close();
+        if(!found)PosUi.line(this,root,"ยังไม่มีข้อมูลลูกค้า");
+        PosUi.back(this,root);
+    }
+
+    private void editCustomer(long customerId){
+        Cursor c=helper.getReadableDatabase().query("customers",new String[]{"first_name","last_name"},"id=?",new String[]{String.valueOf(customerId)},null,null,null);
+        if(!c.moveToFirst()){c.close();PosUi.result(this,false,"ไม่พบรหัสลูกค้า",this::customerDirectory);return;}
+        String oldFirst=c.getString(0),oldLast=c.getString(1);c.close();
+        root=PosUi.page(this,"แก้ไขข้อมูลลูกค้า #"+customerId);
+        EditText first=PosUi.input(this,root,"ชื่อ");first.setText(oldFirst==null?"":oldFirst);
+        EditText last=PosUi.input(this,root,"นามสกุล");last.setText(oldLast==null?"":oldLast);
+        PosUi.button(this,root,"บันทึกข้อมูลลูกค้า",v->{
+            String f=first.getText().toString().trim(),l=last.getText().toString().trim();
+            if(f.isEmpty()){first.setError("กรอกชื่อ");return;}
+            if(l.isEmpty()){last.setError("กรอกนามสกุล");return;}
+            SQLiteDatabase db=null;boolean started=false,saved=false;String error=null;
+            try{
+                db=helper.getWritableDatabase();db.beginTransaction();started=true;
+                ContentValues values=new ContentValues();values.put("first_name",f);values.put("last_name",l);
+                if(db.update("customers",values,"id=?",new String[]{String.valueOf(customerId)})!=1)throw new IllegalStateException("บันทึกข้อมูลลูกค้าไม่สำเร็จ");
+                PosDatabase.audit(db,"CUSTOMER_PROFILE_UPDATED","CUSTOMER",String.valueOf(customerId),"name_before="+PosDatabase.customerName(oldFirst,oldLast)+"; name_after="+PosDatabase.customerName(f,l));
+                db.setTransactionSuccessful();saved=true;
+            }catch(Exception e){error=e.getMessage();}
+            finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันการบันทึกไม่สำเร็จ";}}}
+            PosUi.result(this,saved,saved?"บันทึกข้อมูลลูกค้าเรียบร้อย":(error==null?"บันทึกข้อมูลลูกค้าไม่สำเร็จ":error),saved?this::customerDirectory:null);
+        });
         PosUi.back(this,root);
     }
 
