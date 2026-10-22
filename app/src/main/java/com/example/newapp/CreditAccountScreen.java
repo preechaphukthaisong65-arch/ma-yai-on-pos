@@ -116,8 +116,8 @@ public class CreditAccountScreen extends Activity {
             db.setTransactionSuccessful();paid=true;
         }catch(Exception e){error=e.getMessage()==null?"รับชำระไม่สำเร็จ":e.getMessage();paid=false;}
         finally{if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){paid=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
-        if(paid)new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ").setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt).setPositiveButton("ตกลง",(dialog,which)->home()).show();
-        else new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error)).setPositiveButton("ตกลง",null).show();
+        if(paid)PosUi.result(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt,this::home);
+        else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 
     private long getBillTime(SQLiteDatabase db,long id){
