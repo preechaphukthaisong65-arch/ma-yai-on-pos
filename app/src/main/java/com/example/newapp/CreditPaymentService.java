@@ -4,7 +4,7 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -170,7 +170,7 @@ final class CreditPaymentService {
 
     private static Set<Long> validateIds(List<Long> billIds) {
         if (billIds == null || billIds.isEmpty()) throw new IllegalArgumentException("เลือกอย่างน้อยหนึ่งบิล");
-        Set<Long> unique = new HashSet<>();
+        Set<Long> unique = new LinkedHashSet<>();
         for (Long id : billIds) {
             if (id == null || id <= 0 || !unique.add(id)) {
                 throw new IllegalArgumentException("รายการบิลไม่ถูกต้องหรือมีบิลซ้ำ");
