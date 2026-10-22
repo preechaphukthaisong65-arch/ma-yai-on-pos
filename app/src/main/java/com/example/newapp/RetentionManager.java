@@ -12,8 +12,8 @@ final class RetentionManager {
         SQLiteDatabase db=null;boolean transactionStarted=false;
         long now=PosDatabase.now();
         long detailCutoff=now-30L*86400000L;
-        Calendar operationsCalendar=Calendar.getInstance();operationsCalendar.setTimeInMillis(now);operationsCalendar.add(Calendar.MONTH,-3);long operationsCutoff=operationsCalendar.getTimeInMillis();
-        Calendar calendar=Calendar.getInstance();calendar.setTimeInMillis(now);calendar.add(Calendar.MONTH,-15);
+        Calendar operationsCalendar=AppClock.calendar();operationsCalendar.setTimeInMillis(now);operationsCalendar.add(Calendar.MONTH,-3);long operationsCutoff=operationsCalendar.getTimeInMillis();
+        Calendar calendar=AppClock.calendar();calendar.setTimeInMillis(now);calendar.add(Calendar.MONTH,-15);
         long ledgerCutoff=calendar.getTimeInMillis();
         try{
             db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
