@@ -113,7 +113,7 @@ public class SellScreen extends Activity {
         if(saleInProgress||duplicatePromptOpen)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         String duplicate;
-        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){new AlertDialog.Builder(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
+        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){PosUi.result(this,false,"ตรวจสอบก่อนบันทึกไม่สำเร็จ","ระบบตรวจสอบบิลซ้ำไม่ได้ จึงยังไม่บันทึกการขาย",null);return;}
         if(duplicate!=null){
             duplicatePromptOpen=true;
             new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ")
