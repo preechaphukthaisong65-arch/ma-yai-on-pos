@@ -84,8 +84,16 @@ final class PosUi {
     static EditText input(Activity a, LinearLayout root,String hint) {
         EditText e=new EditText(a);
         e.setSingleLine(true);
-        e.setTextSize(27);
         e.setHint(hint);
+        styleInput(a,e);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(a,10);
+        root.addView(e,lp);
+        return e;
+    }
+
+    static void styleInput(Activity a, EditText e) {
+        e.setTextSize(27);
         e.setTextColor(Color.rgb(30,30,30));
         e.setHintTextColor(Color.rgb(100,100,100));
         GradientDrawable field = new GradientDrawable();
@@ -95,10 +103,6 @@ final class PosUi {
         e.setBackground(field);
         e.setPadding(dp(a,14),dp(a,12),dp(a,14),dp(a,12));
         e.setMinHeight(dp(a,60));
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(a,10);
-        root.addView(e,lp);
-        return e;
     }
 
     static void line(Activity a,LinearLayout root,String value) {
@@ -131,7 +135,7 @@ final class PosUi {
     static AlertDialog.Builder dialog(Activity a) { return new StyledDialogBuilder(a); }
 
     static void result(Activity a, boolean success, String title, String message, Runnable after) {
-        String spoken=(success?"บันทึกสำเร็จ ":"บันทึกไม่สำเร็จ ")+message;
+        String spoken=(success?"ทำรายการสำเร็จ ":"ทำรายการไม่สำเร็จ ")+message;
         AlertDialog d=dialog(a).setTitle(title).setMessage(message)
                 .setPositiveButton("ตกลง",(dialog,which)->{if(after!=null)after.run();})
                 .create();
@@ -141,9 +145,9 @@ final class PosUi {
     }
 
     private static void styleDialog(AlertDialog d) {
-        Activity a=(Activity)d.getContext();
+        android.content.Context context=d.getContext();
         TextView message=d.findViewById(android.R.id.message);
-        if(message!=null){message.setTextSize(24);message.setPadding(dp(a,20),dp(a,12),dp(a,20),dp(a,12));}
+        if(message!=null){message.setTextSize(24);message.setPadding(dpContext(context,20),dpContext(context,12),dpContext(context,20),dpContext(context,12));}
         int titleId=d.getContext().getResources().getIdentifier("alertTitle","id","android");
         TextView title=titleId==0?null:d.findViewById(titleId);
         if(title!=null)title.setTextSize(30);
@@ -153,6 +157,10 @@ final class PosUi {
         if(positive!=null)positive.setTextSize(21);
         if(negative!=null)negative.setTextSize(21);
         if(neutral!=null)neutral.setTextSize(21);
+    }
+
+    private static int dpContext(android.content.Context context,int n) {
+        return (int)(n*context.getResources().getDisplayMetrics().density+0.5f);
     }
 
     private static final class StyledDialogBuilder extends AlertDialog.Builder {
