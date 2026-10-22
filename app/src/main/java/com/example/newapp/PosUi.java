@@ -19,6 +19,7 @@ import java.util.WeakHashMap;
 
 final class PosUi {
     private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
+    private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
     private PosUi() {}
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
@@ -39,7 +40,7 @@ final class PosUi {
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
         LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
-        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); return root;
+        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
@@ -114,17 +115,15 @@ final class PosUi {
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
     static void back(Activity a,LinearLayout root) {
+        if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
+        BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
         LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
         footer.setPadding(0,dp(a,8),0,0);
-        Button home=new Button(a); home.setText("⌂ หน้าหลัก"); home.setTextSize(15); home.setSingleLine(true); home.setMinHeight(dp(a,42)); home.setPadding(dp(a,4),0,dp(a,4),0);
-        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,4),0,dp(a,4),0);
-        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,dp(a,44),1f); hp.rightMargin=dp(a,8);
-        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(a,44),1f);
-        footer.addView(home,hp); footer.addView(previous,bp);
+        Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,8),0,dp(a,8),0);
+        footer.addView(previous,new LinearLayout.LayoutParams(-1,dp(a,44)));
         LinearLayout container=PAGE_CONTAINERS.get(root);
-        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,48)));
+        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
         else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
-        home.setOnClickListener(v->{Intent i=new Intent(a,MainActivity.class);i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);a.startActivity(i);a.finish();});
         previous.setOnClickListener(v->a.finish());
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
