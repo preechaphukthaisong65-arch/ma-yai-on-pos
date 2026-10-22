@@ -134,7 +134,7 @@ final class PosUi {
     static AlertDialog.Builder dialog(Activity a) { return new StyledDialogBuilder(a); }
 
     static void result(Activity a, boolean success, String title, String message, Runnable after) {
-        String spoken=(success?"ทำรายการสำเร็จ ":"ทำรายการไม่สำเร็จ ")+message;
+        String spoken=(success?"ทำรายการสำเร็จค่ะ ":"ทำรายการไม่สำเร็จค่ะ ")+title;
         AlertDialog d=dialog(a).setTitle(title).setMessage(message)
                 .setPositiveButton("ตกลง",(dialog,which)->{if(after!=null)after.run();})
                 .create();
