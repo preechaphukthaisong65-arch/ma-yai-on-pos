@@ -28,11 +28,8 @@ public class BarcodeScreen extends Activity {
                 Cursor found=db.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
                 if(found.moveToFirst()){code=found.getString(0);p=found.getLong(1);price.setText(PosDatabase.money(p));reused=true;}found.close();
                 if(!reused){
-                    long seq=100000000000L;Cursor c=db.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
-                    while(seq<=999999999999L){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=db.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});boolean used=exists.moveToFirst();exists.close();if(!used){code=candidate;break;}seq++;}
-                    if(code==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
-                    ContentValues reg=new ContentValues();reg.put("barcode",code);reg.put("name",n);reg.put("price_satang",p);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,reg);
-                    ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));db.update("app_meta",meta,"key='barcode_sequence'",null);
+                    code=BarcodeRegistry.nextGenerated(db);
+                    BarcodeRegistry.registerIfMissing(db,code,n,p,"STORE",PosDatabase.now());
                 }
                 db.setTransactionSuccessful();
             }finally{db.endTransaction();}
