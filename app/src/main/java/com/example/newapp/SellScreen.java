@@ -152,36 +152,25 @@ public class SellScreen extends Activity {
         if(saleInProgress)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         saleInProgress=true;
-        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null,code=null;
-        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=sub+fee;
+        SalesTransactionService.Result result=null;
+        String error=null;
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            code="B"+now;int suffix=1;
-            while(true){Cursor existing=db.query("bills",new String[]{"id"},"bill_code=?",new String[]{code},null,null,null,"1");boolean used=existing.moveToFirst();existing.close();if(!used)break;code="B"+now+"-"+(suffix++);}
-            Long customerId=null;
-            if(credit){
-                Cursor c=db.query("customers",new String[]{"id"},"full_name=?",new String[]{customerName},null,null,null);
-                if(c.moveToFirst())customerId=c.getLong(0);c.close();
-                if(customerId==null){ContentValues cv=new ContentValues();cv.put("full_name",customerName);cv.put("created_at",now);customerId=db.insertOrThrow("customers",null,cv);}
-            }
-            ContentValues bill=new ContentValues();bill.put("bill_code",code);if(customerId!=null)bill.put("customer_id",customerId);bill.put("sale_type",credit?"CREDIT":"CASH");bill.put("status",credit?"UNPAID":"PAID");bill.put("subtotal_satang",sub);bill.put("fee_satang",fee);bill.put("total_satang",total);bill.put("cash_received_satang",cash);bill.put("change_satang",credit?0:cash-total);bill.put("created_at",now);if(!credit)bill.put("paid_at",now);
-            long billId=db.insertOrThrow("bills",null,bill);
+            java.util.ArrayList<SalesTransactionService.Line> lines=new java.util.ArrayList<>();
             for(Item i:cart.values()){
-                if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
-                InventoryService.changeStock(db,i.id,i.barcode,i.name,i.stock,i.stock-i.qty,"SALE",code,now);
-                ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("unit",i.unit);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",i.price*i.qty);db.insertOrThrow("bill_items",null,it);
-                ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",code);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",i.price*i.qty);li.put("created_at",now);db.insertOrThrow("sales_ledger_items",null,li);
+                lines.add(new SalesTransactionService.Line(i.id,i.barcode,i.name,i.unit,i.qty,i.stock,i.price));
             }
-            ContentValues ledger=new ContentValues();ledger.put("bill_id",billId);ledger.put("bill_code",code);ledger.put("sale_type",credit?"CREDIT":"CASH");ledger.put("event_type","SALE");ledger.put("subtotal_satang",sub);ledger.put("fee_satang",fee);ledger.put("total_satang",total);ledger.put("created_at",now);db.insertOrThrow("sales_ledger",null,ledger);
-            db.setTransactionSuccessful();saved=true;
-        }catch(Exception e){error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();saved=false;}
-        finally{
-            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
+            result=SalesTransactionService.commit(helper,lines,credit,customerName,cash,PosDatabase.now());
+        }catch(Exception e){
+            error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();
+        }finally{
             saleInProgress=false;
         }
-        if(saved){
+        if(result!=null){
             cart.clear();StockAlertManager.check(this);
-            new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage("เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท")).setPositiveButton("ตกลง",(d,w)->home()).show();
+            String message="เลขที่บิล "+result.billCode+"\nยอดสินค้า "+PosDatabase.money(result.subtotalSatang)+" บาท\n"+
+                    (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
+                            "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
+            new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
         }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
     }
 }
