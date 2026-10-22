@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 4;
+    private static final int DB_VERSION = 7;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -33,8 +33,10 @@ public final class PosDatabase extends SQLiteOpenHelper {
                 "stock_limit INTEGER NOT NULL DEFAULT 0 CHECK(stock_limit>=0), active INTEGER NOT NULL DEFAULT 1," +
                 "created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_products_name ON products(name COLLATE NOCASE)");
+        db.execSQL("CREATE INDEX idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
         db.execSQL("CREATE TABLE barcode_registry (barcode TEXT PRIMARY KEY, name TEXT NOT NULL," +
                 "price_satang INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL, created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
         db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL UNIQUE COLLATE NOCASE, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE bills (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_code TEXT NOT NULL UNIQUE," +
                 "customer_id INTEGER, sale_type TEXT NOT NULL CHECK(sale_type IN ('CASH','CREDIT'))," +
@@ -53,6 +55,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
                 "line_total_satang INTEGER NOT NULL, FOREIGN KEY(bill_id) REFERENCES bills(id) ON DELETE CASCADE," +
                 "FOREIGN KEY(product_id) REFERENCES products(id))");
         db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
+        db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
         db.execSQL("CREATE TABLE stock_history (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER," +
                 "barcode TEXT NOT NULL, product_name TEXT NOT NULL, change_type TEXT NOT NULL," +
                 "before_qty INTEGER NOT NULL, after_qty INTEGER NOT NULL, difference INTEGER NOT NULL," +
@@ -64,6 +67,8 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_price_history_barcode ON price_history(barcode,created_at)");
         db.execSQL("CREATE TABLE payments (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL UNIQUE," +
                 "amount_satang INTEGER NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(bill_id) REFERENCES bills(id))");
+        db.execSQL("CREATE TABLE payment_history (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL UNIQUE, bill_code TEXT NOT NULL, amount_satang INTEGER NOT NULL, created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX idx_payment_history_created ON payment_history(created_at)");
         db.execSQL("CREATE TABLE sales_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL," +
                 "bill_code TEXT NOT NULL, sale_type TEXT NOT NULL, event_type TEXT NOT NULL," +
                 "subtotal_satang INTEGER NOT NULL, fee_satang INTEGER NOT NULL, total_satang INTEGER NOT NULL," +
@@ -72,6 +77,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE sales_ledger_items (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL, bill_code TEXT NOT NULL, event_type TEXT NOT NULL, barcode TEXT NOT NULL, product_name TEXT NOT NULL, quantity INTEGER NOT NULL, unit_price_satang INTEGER NOT NULL, line_total_satang INTEGER NOT NULL, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_ledger_items_created ON sales_ledger_items(created_at)");
         db.execSQL("CREATE INDEX idx_ledger_items_product ON sales_ledger_items(barcode,created_at)");
+        db.execSQL("CREATE INDEX idx_ledger_items_bill_id ON sales_ledger_items(bill_id,event_type)");
         db.execSQL("CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
         db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','100000000000')");
     }
@@ -99,6 +105,21 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_ledger_items_product ON sales_ledger_items(barcode,created_at)");
             db.execSQL("INSERT INTO sales_ledger_items(bill_id,bill_code,event_type,barcode,product_name,quantity,unit_price_satang,line_total_satang,created_at) SELECT bi.bill_id,b.bill_code,'SALE',bi.barcode,bi.product_name,bi.quantity,bi.unit_price_satang,bi.line_total_satang,b.created_at FROM bill_items bi JOIN bills b ON b.id=bi.bill_id WHERE EXISTS (SELECT 1 FROM sales_ledger l WHERE l.bill_id=b.id AND l.event_type='SALE')");
             db.execSQL("INSERT INTO sales_ledger_items(bill_id,bill_code,event_type,barcode,product_name,quantity,unit_price_satang,line_total_satang,created_at) SELECT bi.bill_id,b.bill_code,l.event_type,bi.barcode,bi.product_name,-bi.quantity,bi.unit_price_satang,-bi.line_total_satang,l.created_at FROM bill_items bi JOIN bills b ON b.id=bi.bill_id JOIN sales_ledger l ON l.bill_id=b.id AND l.event_type IN ('CANCEL','RETURN')");
+        }
+        if (oldVersion < 5) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS payment_history (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_id INTEGER NOT NULL UNIQUE, bill_code TEXT NOT NULL, amount_satang INTEGER NOT NULL, created_at INTEGER NOT NULL)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_payment_history_created ON payment_history(created_at)");
+            db.execSQL("INSERT OR IGNORE INTO payment_history(bill_id,bill_code,amount_satang,created_at) SELECT p.bill_id,b.bill_code,p.amount_satang,p.created_at FROM payments p JOIN bills b ON b.id=p.bill_id");
+        }
+        if (oldVersion < 6) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_bill_items_bill_id ON bill_items(bill_id)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_ledger_items_bill_id ON sales_ledger_items(bill_id,event_type)");
+        }
+        if (oldVersion < 7) {
+            db.execSQL("INSERT OR IGNORE INTO barcode_registry(barcode,name,price_satang,source,created_at) SELECT barcode,name,price_satang,'LEGACY',created_at FROM products");
+            db.execSQL("UPDATE barcode_registry SET price_satang=(SELECT p.price_satang FROM products p WHERE p.barcode=barcode_registry.barcode) WHERE EXISTS (SELECT 1 FROM products p WHERE p.barcode=barcode_registry.barcode)");
         }
     }
 

@@ -18,8 +18,9 @@ final class StoreNotificationManager {
         SQLiteDatabase db=PosDatabase.get(context).getWritableDatabase();
         putMeta(db,"home_notice",message);putMeta(db,"home_notice_time",String.valueOf(PosDatabase.now()));
         NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if(manager==null||(Build.VERSION.SDK_INT>=24&&!manager.areNotificationsEnabled()))return;
+        if(manager==null)return;
         if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel(CHANNEL,"แจ้งเตือนการจัดการร้านค้า",NotificationManager.IMPORTANCE_DEFAULT));
+        if(Build.VERSION.SDK_INT>=24&&!manager.areNotificationsEnabled())return;
         Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,CHANNEL):new Notification.Builder(context);
         builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แก้ไขราคาสินค้าสำเร็จ").setContentText(message).setStyle(new Notification.BigTextStyle().bigText(message)).setAutoCancel(true);
         manager.notify(PRICE_NOTICE_ID,builder.build());

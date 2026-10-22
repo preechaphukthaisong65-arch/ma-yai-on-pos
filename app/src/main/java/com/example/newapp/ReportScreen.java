@@ -22,32 +22,13 @@ public class ReportScreen extends Activity {
         PosUi.button(this,root,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
         PosUi.button(this,root,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
-        addChart("ยอดขายรายวัน • 7 วันล่าสุด","day");
-        addChart("ยอดขายรายสัปดาห์ • 4 สัปดาห์ล่าสุด","week");
-        addChart("ยอดขายรายปี • 12 เดือนล่าสุด","month");
         PosUi.back(this,root);
-    }
-    private void addChart(String title,String unit){
-        int count=unit.equals("day")?7:unit.equals("week")?4:12;
-        String[] labels=new String[count];long[] values=new long[count];Calendar base=Calendar.getInstance();
-        if(unit.equals("day")){base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);}
-        else if(unit.equals("week")){base.setFirstDayOfWeek(Calendar.MONDAY);base.set(Calendar.DAY_OF_WEEK,Calendar.MONDAY);base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);}
-        else{base.set(Calendar.DAY_OF_MONTH,1);base.set(Calendar.HOUR_OF_DAY,0);base.set(Calendar.MINUTE,0);base.set(Calendar.SECOND,0);base.set(Calendar.MILLISECOND,0);}
-        for(int i=0;i<count;i++){
-            Calendar start=(Calendar)base.clone();int offset=i-(count-1);
-            if(unit.equals("day"))start.add(Calendar.DAY_OF_MONTH,offset);else if(unit.equals("week"))start.add(Calendar.WEEK_OF_YEAR,offset);else start.add(Calendar.MONTH,offset);
-            Calendar end=(Calendar)start.clone();if(unit.equals("day"))end.add(Calendar.DAY_OF_MONTH,1);else if(unit.equals("week"))end.add(Calendar.WEEK_OF_YEAR,1);else end.add(Calendar.MONTH,1);long from=start.getTimeInMillis(),to=end.getTimeInMillis()-1;
-            String sql="SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')";
-            Cursor q=helper.getReadableDatabase().rawQuery(sql,new String[]{String.valueOf(from),String.valueOf(to)});if(q.moveToFirst())values[i]=q.getLong(0);q.close();
-            labels[i]=unit.equals("day")?new SimpleDateFormat("dd/MM",Locale.getDefault()).format(start.getTime()):unit.equals("week")?"ส"+(i+1):new SimpleDateFormat("MM/yy",Locale.getDefault()).format(start.getTime());
-        }
-        SalesChartView chart=new SalesChartView(this);chart.setData(title,labels,values);root.addView(chart,new LinearLayout.LayoutParams(-1,PosUi.dp(this,180)));
     }
     private void returnedCancelled(){
         root=PosUi.page(this,"รายการบิลคืนสินค้า / ยกเลิก");
-        Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"bill_code","event_type","subtotal_satang","fee_satang","total_satang","created_at"},"event_type IN ('RETURN','CANCEL')",null,null,null,"created_at DESC");
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT bill_code,event_type,subtotal_satang,fee_satang,total_satang,created_at,sale_type,CASE WHEN event_type IN ('RETURN','CANCEL') AND sale_type='CREDIT' AND fee_satang=0 AND NOT EXISTS (SELECT 1 FROM sales_ledger w WHERE w.bill_id=sales_ledger.bill_id AND w.event_type='CREDIT_FEE_WAIVED') THEN COALESCE((SELECT s.fee_satang FROM sales_ledger s WHERE s.bill_id=sales_ledger.bill_id AND s.event_type='SALE'),0) ELSE fee_satang END AS display_fee FROM sales_ledger WHERE event_type IN ('RETURN','CANCEL') ORDER BY created_at DESC",null);
         if(!c.moveToFirst())PosUi.line(this,root,"ยังไม่มีบิลคืนสินค้าหรือยกเลิก");
-        else do{String event=c.getString(1);PosUi.line(this,root,c.getString(0)+" • "+(event.equals("RETURN")?"คืนสินค้า":"ยกเลิก")+" • ยอดสินค้า "+PosDatabase.money(Math.abs(c.getLong(2)))+" บาท • ค่าบริการ "+PosDatabase.money(Math.abs(c.getLong(3)))+" บาท • "+new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(5))));}while(c.moveToNext());
+        else do{String event=c.getString(1);long shownFee=c.getLong(7),ledgerFee=c.getLong(3);String feeText="";if("CREDIT".equals(c.getString(6))&&shownFee!=0){feeText=ledgerFee<0?" • ยกเลิกค่าบริการ "+PosDatabase.money(Math.abs(shownFee))+" บาท":" • ค่าบริการที่ไม่คืน "+PosDatabase.money(Math.abs(shownFee))+" บาท";}PosUi.line(this,root,c.getString(0)+" • "+(event.equals("RETURN")?"คืนสินค้า":"ยกเลิก")+" • ยอดสินค้า "+PosDatabase.money(Math.abs(c.getLong(2)))+" บาท"+feeText+" • "+new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(5))));}while(c.moveToNext());
         c.close();PosUi.back(this,root);
     }
     private long startOfDay(){Calendar c=Calendar.getInstance();c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
@@ -58,15 +39,31 @@ public class ReportScreen extends Activity {
     private void period(String label,long from,long to){
         root=PosUi.page(this,"รายงานยอดขาย • "+label);SQLiteDatabase db=helper.getReadableDatabase();
         Cursor gross=db.rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(gross.moveToFirst())PosUi.line(this,root,"ยอดขายก่อนคืน/ยกเลิก: "+PosDatabase.money(gross.getLong(0))+" บาท");gross.close();
-        Cursor c=db.rawQuery("SELECT COALESCE(SUM(subtotal_satang),0),COALESCE(SUM(fee_satang),0),COALESCE(SUM(total_satang),0),COUNT(*) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
-        if(c.moveToFirst()){PosUi.line(this,root,"ยอดสินค้า (สุทธิ): "+PosDatabase.money(c.getLong(0))+" บาท");PosUi.line(this,root,"ค่าบริการสุทธิ: "+PosDatabase.money(c.getLong(1))+" บาท");PosUi.line(this,root,"ยอดขายสุทธิ: "+PosDatabase.money(c.getLong(2))+" บาท");PosUi.line(this,root,"จำนวนรายการบัญชี: "+c.getInt(3));}c.close();
-        Cursor qty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});if(qty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าสุทธิ: "+qty.getLong(0)+" ชิ้น");qty.close();
+        Cursor c=db.rawQuery("SELECT COALESCE(SUM(subtotal_satang),0),COALESCE(SUM(fee_satang),0),COALESCE(SUM(total_satang),0),COUNT(*),SUM(CASE WHEN sale_type='CREDIT' THEN 1 ELSE 0 END) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
+        if(c.moveToFirst()){PosUi.line(this,root,"ยอดสินค้า (สุทธิ): "+PosDatabase.money(c.getLong(0))+" บาท");if(c.getInt(4)>0)PosUi.line(this,root,"ค่าบริการสุทธิ (เฉพาะขายเชื่อ): "+PosDatabase.money(c.getLong(1))+" บาท");PosUi.line(this,root,"ยอดขายสุทธิ: "+PosDatabase.money(c.getLong(2))+" บาท");PosUi.line(this,root,"จำนวนรายการบัญชี: "+c.getInt(3));}c.close();
+        Cursor soldQty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(soldQty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าที่ขาย: "+soldQty.getLong(0)+" ชิ้น");soldQty.close();
+        Cursor netQty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});if(netQty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าสุทธิหลังคืน/ยกเลิก: "+netQty.getLong(0)+" ชิ้น");netQty.close();
         Cursor cash=db.rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND sale_type='CASH' AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(cash.moveToFirst())PosUi.line(this,root,"ยอดขายเงินสดก่อนคืน/ยกเลิก: "+PosDatabase.money(cash.getLong(0))+" บาท");cash.close();
         PosUi.back(this,root);
     }
     private void topProducts(boolean best){
-        root=PosUi.page(this,best?"สินค้าขายดี 20 อันดับ":"สินค้าขายน้อย 20 อันดับ");long from=PosDatabase.now()-30L*86400000L;
-        String sql="SELECT i.product_name, SUM(i.quantity) qty FROM sales_ledger_items i WHERE i.bill_id IN (SELECT bill_id FROM sales_ledger_items WHERE event_type='SALE' AND created_at>=?) AND i.event_type IN ('SALE','CANCEL','RETURN') GROUP BY i.barcode,i.product_name ORDER BY qty "+(best?"DESC":"ASC")+",i.product_name LIMIT 20";
-        Cursor c=helper.getReadableDatabase().rawQuery(sql,new String[]{String.valueOf(from)});int i=1;while(c.moveToNext())PosUi.line(this,root,i+++". "+c.getString(0)+" — "+c.getLong(1)+" ชิ้น");if(i==1)PosUi.line(this,root,"ยังไม่มีข้อมูลการขายในช่วงนี้");c.close();PosUi.back(this,root);
+        root=PosUi.page(this,best?"สินค้าขายดี 20 อันดับ":"สินค้าขายน้อย 20 อันดับ");
+        long now=PosDatabase.now(),from=now-30L*86400000L;
+        String eligible="WITH eligible AS (SELECT DISTINCT bill_id FROM sales_ledger_items WHERE event_type='SALE' AND created_at>=? AND created_at<=?), qty AS (SELECT barcode, SUM(quantity) AS qty FROM sales_ledger_items WHERE bill_id IN (SELECT bill_id FROM eligible) AND event_type IN ('SALE','CANCEL','RETURN') GROUP BY barcode) ";
+        String sql;
+        if(best){
+            sql=eligible+"SELECT i.product_name, SUM(i.quantity) AS qty FROM sales_ledger_items i WHERE i.bill_id IN (SELECT bill_id FROM eligible) AND i.event_type IN ('SALE','CANCEL','RETURN') GROUP BY i.barcode,i.product_name HAVING SUM(i.quantity)>0 ORDER BY qty DESC,i.product_name COLLATE NOCASE ASC LIMIT 20";
+        }else{
+            sql=eligible+"SELECT p.name, MAX(0,COALESCE(q.qty,0)) AS qty FROM products p LEFT JOIN qty q ON q.barcode=p.barcode WHERE p.active=1 ORDER BY qty ASC,p.name COLLATE NOCASE ASC LIMIT 20";
+        }
+        Cursor c=helper.getReadableDatabase().rawQuery(sql,new String[]{String.valueOf(from),String.valueOf(now)});
+        int i=1;
+        while(c.moveToNext()){
+            long qty=c.getLong(1);
+            String note=!best&&qty==0?" • ไม่มีประวัติขายสุทธิใน 30 วัน":"";
+            PosUi.line(this,root,i+++". "+c.getString(0)+" — "+qty+" ชิ้น"+note);
+        }
+        if(i==1)PosUi.line(this,root,best?"ยังไม่มีสินค้าที่มียอดขายสุทธิในช่วงนี้":"ยังไม่มีสินค้าในคลัง");
+        c.close();PosUi.back(this,root);
     }
 }

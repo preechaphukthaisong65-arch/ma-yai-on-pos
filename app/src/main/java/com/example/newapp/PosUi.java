@@ -39,20 +39,18 @@ final class PosUi {
         root.addView(e,new LinearLayout.LayoutParams(-1,-2)); return e;
     }
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
-    static void scan(Activity a) {
+    static void scan(Activity a) { scan(a,"สแกนบาร์โค้ดสินค้า"); }
+    static void scan(Activity a,String prompt) {
         IntentIntegrator scan=new IntentIntegrator(a);
-        scan.setPrompt("สแกนบาร์โค้ดสินค้า"); scan.setBeepEnabled(false);
+        scan.setPrompt(prompt); scan.setBeepEnabled(false);
         scan.setOrientationLocked(true); scan.setDesiredBarcodeFormats(IntentIntegrator.ONE_D_CODE_TYPES);
         scan.initiateScan();
     }
-    static void speak(Activity a,String message) {
-        final TextToSpeech[] holder = new TextToSpeech[1];
-        holder[0]=new TextToSpeech(a,status->{if(status==TextToSpeech.SUCCESS){ttsLangSafe(a,holder[0]); holder[0].speak(message,TextToSpeech.QUEUE_FLUSH,null,"pos-tts");}});
-    }
+    static void speak(Activity a,String message) { speakThen(a,message,()->{}); }
     static void speakThen(Activity a,String message,Runnable after) {
         final TextToSpeech[] holder = new TextToSpeech[1];
         holder[0] = new TextToSpeech(a,status -> {
-            if(status!=TextToSpeech.SUCCESS){a.runOnUiThread(after);return;}
+            if(status!=TextToSpeech.SUCCESS){if(holder[0]!=null)holder[0].shutdown();a.runOnUiThread(after);return;}
             ttsLangSafe(a,holder[0]);
             holder[0].setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener(){
                 @Override public void onStart(String id) {}
@@ -63,7 +61,23 @@ final class PosUi {
         });
     }
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
-        Locale th=new Locale("th","TH"); if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE) tts.setLanguage(th);
+        Locale th=new Locale("th","TH");
+        if(tts.isLanguageAvailable(th)>=TextToSpeech.LANG_AVAILABLE){
+            tts.setLanguage(th);
+            tts.setSpeechRate(0.95f);
+            tts.setPitch(1.15f);
+            if(android.os.Build.VERSION.SDK_INT>=21){
+                try{
+                    java.util.Set<android.speech.tts.Voice> voices=tts.getVoices();
+                    if(voices!=null)for(android.speech.tts.Voice voice:voices){
+                        String name=voice.getName()==null?"":voice.getName().toLowerCase(Locale.ROOT);
+                        if("th".equals(voice.getLocale().getLanguage())&&(name.contains("female")||name.contains("woman")||name.contains("fem"))){
+                            tts.setVoice(voice);break;
+                        }
+                    }
+                }catch(Exception ignored){}
+            }
+        }
     }
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }

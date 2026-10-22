@@ -56,13 +56,13 @@ public class StockScreen extends Activity {
         PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock+" "+unit);
         if("count".equals(mode)){
             EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
-            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,qty,"COUNT");home();}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();if(saveStock(id,barcode,name,stock,qty,"COUNT"))home();}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("limit".equals(mode)){
             EditText lim=PosUi.input(this,root,"ลิมิตสต๊อกปัจจุบัน "+limit);
-            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();ContentValues cv=new ContentValues();cv.put("stock_limit",q);cv.put("updated_at",PosDatabase.now());helper.getWritableDatabase().update("products",cv,"id=?",new String[]{String.valueOf(id)});home();}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();if(saveLimit(id,limit,q))home();}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("add".equals(mode)){
             PosUi.speak(this,name+"ค่ะ"); EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
-            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,stock+q,"RECEIVE");home();}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
+            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();if(saveStock(id,barcode,name,stock,stock+q,"RECEIVE"))home();}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
         }
         PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
     }
@@ -73,15 +73,37 @@ public class StockScreen extends Activity {
         else do{String ref=c.getString(6)==null?"":" • "+c.getString(6);PosUi.line(this,root,c.getString(0)+" • "+c.getString(1)+" • "+c.getInt(2)+" → "+c.getInt(3)+" ("+(c.getInt(4)>0?"+":"")+c.getInt(4)+")"+ref+" • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(5))));}while(c.moveToNext());
         c.close();PosUi.button(this,root,"สแกนบาร์โค้ดอื่น",v->scanAgain());PosUi.back(this,root);
     }
-    private void saveStock(long id,String barcode,String name,int before,int after,String type){
-        SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
+    private boolean saveLimit(long id,int oldLimit,int newLimit){
+        SQLiteDatabase db=null;boolean started=false,saved=false;String error=null;
+        try{
+            db=helper.getWritableDatabase();db.beginTransaction();started=true;
+            ContentValues cv=new ContentValues();cv.put("stock_limit",newLimit);cv.put("updated_at",PosDatabase.now());
+            if(db.update("products",cv,"id=? AND stock_limit=?",new String[]{String.valueOf(id),String.valueOf(oldLimit)})!=1)throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+            db.setTransactionSuccessful();saved=true;
+        }catch(Exception e){error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();}
+        finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ";}}}
+        if(saved)StockAlertManager.check(this);
+        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกลิมิตไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+        return saved;
+    }
+
+    private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
+        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
+        try{
+            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
             ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
             int n=db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
             if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
             h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
-            db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
-        }catch(Exception e){new AlertDialog.Builder(this).setMessage(e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
+            db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();saved=true;
+        }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();saved=false;}
+        finally{
+            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
+        }
+        if(saved)StockAlertManager.check(this);
+        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกสต๊อกไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+        return saved;
     }
     private void newProduct(String barcode){
         root=PosUi.page(this,"เพิ่มสินค้าใหม่");
@@ -96,11 +118,15 @@ public class StockScreen extends Activity {
             String nm=PosUi.str(name),un=PosUi.str(unit);if(nm.isEmpty()||un.isEmpty())throw new IllegalArgumentException();
             int q=Integer.parseInt(PosUi.str(qty)),l=Integer.parseInt(PosUi.str(lim));long p=PosUi.satang(price),co=PosUi.satang(cost);if(q<0||l<0)throw new IllegalArgumentException();
             SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
+                Cursor existingRegistry=db.query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null);
+                boolean registryExists=existingRegistry.moveToFirst();
+                if(registryExists&&(!nm.equals(existingRegistry.getString(0))||p!=existingRegistry.getLong(1))){existingRegistry.close();throw new IllegalStateException("บาร์โค้ดนี้มีข้อมูลในคลังบาร์โค้ดไม่ตรงกัน กรุณาสแกนตรวจสอบก่อน");}
+                existingRegistry.close();
                 ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
-                ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertWithOnConflict("barcode_registry",null,br,SQLiteDatabase.CONFLICT_IGNORE);
+                if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
                 ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
-            }finally{db.endTransaction();}home();
+            }finally{db.endTransaction();}StockAlertManager.check(this);home();
         }catch(Exception e){new AlertDialog.Builder(this).setMessage("บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
         PosUi.back(this,root);
     }

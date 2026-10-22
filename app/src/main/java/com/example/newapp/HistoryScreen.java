@@ -7,7 +7,6 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.LinearLayout;
-import java.util.ArrayList;
 
 public class HistoryScreen extends Activity {
     private PosDatabase helper; private LinearLayout root;
@@ -20,16 +19,30 @@ public class HistoryScreen extends Activity {
     }
     private void listBills(String status){
         root=PosUi.page(this,status.equals("PAID")?"บิลที่ชำระแล้ว":"บิลค้างชำระ");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id"},"status=?",new String[]{status},null,null,"created_at DESC");
-        while(c.moveToNext()){final long id=c.getLong(3);PosUi.button(this,root,c.getString(0)+" • "+PosDatabase.money(c.getLong(1))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2))),v->details(id));}
+        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang"},"status=?",new String[]{status},null,null,"created_at DESC");
+        while(c.moveToNext()){
+            final long id=c.getLong(3);long amount=c.getLong(1);String type=c.getString(4);String amountLabel="ยอดบิล";
+            if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id)){amount=c.getLong(5);amountLabel="รับจริง";}
+            PosUi.button(this,root,c.getString(0)+" • "+amountLabel+" "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2))),v->details(id));
+        }
         c.close();PosUi.back(this,root);
     }
     private void details(long id){
         root=PosUi.page(this,"รายละเอียดบิล");
         Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","sale_type","status","subtotal_satang","fee_satang","total_satang","created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-        if(c.moveToFirst()){PosUi.line(this,root,"เลขที่บิล: "+c.getString(0));PosUi.line(this,root,"ประเภท: "+c.getString(1));PosUi.line(this,root,"สถานะ: "+c.getString(2));PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(c.getLong(3)));if(c.getLong(4)>0)PosUi.line(this,root,"ค่าบริการ: "+PosDatabase.money(c.getLong(4)));PosUi.line(this,root,"รวม: "+PosDatabase.money(c.getLong(5)));}c.close();
+        if(c.moveToFirst()){
+            String code=c.getString(0),type=c.getString(1),status=c.getString(2);long subtotal=c.getLong(3),fee=c.getLong(4),total=c.getLong(5);boolean waived="CREDIT".equals(type)&&"PAID".equals(status)&&feeWaived(id);
+            PosUi.line(this,root,"เลขที่บิล: "+code);PosUi.line(this,root,"ประเภท: "+type);PosUi.line(this,root,"สถานะ: "+status);PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(subtotal)+" บาท");
+            if("CREDIT".equals(type)&&fee>0)PosUi.line(this,root,"ค่าบริการเดิม: "+PosDatabase.money(fee)+" บาท"+(waived?" (ยกเว้นแล้วเมื่อชำระภายใน 24 ชั่วโมง)":""));
+            PosUi.line(this,root,"ยอดบิลเดิม: "+PosDatabase.money(total)+" บาท");
+            if(waived)PosUi.line(this,root,"ยอดรับเงินจริง: "+PosDatabase.money(subtotal)+" บาท");
+        }c.close();
         Cursor it=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
         while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" "+it.getInt(1)+" "+it.getString(2)+" × "+PosDatabase.money(it.getLong(3))+" = "+PosDatabase.money(it.getLong(4)));it.close();PosUi.back(this,root);
+    }
+    private boolean feeWaived(long billId){
+        Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(billId)},null,null,null,"1");
+        boolean found=c.moveToFirst();c.close();return found;
     }
     private void customers(){
         root=PosUi.page(this,"บัญชีลูกค้าเชื่อทั้งหมด");
@@ -39,58 +52,9 @@ public class HistoryScreen extends Activity {
     }
     private void customerBills(long customerId,String name){
         root=PosUi.page(this,name+" • บิลค้างชำระ");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"id","bill_code","total_satang","created_at"},"customer_id=? AND status='UNPAID'",new String[]{String.valueOf(customerId)},null,null,"created_at ASC");
-        ArrayList<Long> allIds=new ArrayList<>();final java.util.HashSet<Long> selected=new java.util.HashSet<>();final java.util.HashMap<Long,Long> amounts=new java.util.HashMap<>();long total=0;
-        while(c.moveToNext()){
-            long id=c.getLong(0),amount=c.getLong(2);allIds.add(id);selected.add(id);amounts.put(id,amount);total+=amount;
-            android.widget.CheckBox box=new android.widget.CheckBox(this);
-            box.setText(c.getString(1)+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(3))));
-            box.setChecked(true);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
-            root.addView(box,new LinearLayout.LayoutParams(-1,-2));
-        }
-        c.close();PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
-        if(!allIds.isEmpty()){
-            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,payableTotal(allIds)));
-            PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
-                ArrayList<Long> chosen=new ArrayList<>(selected);long selectedTotal=payableTotal(chosen);
-                if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
-                payAll(customerId,chosen,selectedTotal);
-            });
-        }
-        PosUi.back(this,root);
+        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at"},"customer_id=? AND status='UNPAID'",new String[]{String.valueOf(customerId)},null,null,"created_at ASC");
+        if(!c.moveToFirst())PosUi.line(this,root,"ไม่มีบิลค้างชำระ");
+        else do{PosUi.line(this,root,c.getString(0)+" • "+PosDatabase.money(c.getLong(1))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2))));}while(c.moveToNext());
+        c.close();PosUi.back(this,root);
     }
-    private long payableTotal(ArrayList<Long> ids){
-        long total=0,now=PosDatabase.now();SQLiteDatabase db=helper.getReadableDatabase();
-        for(long id:ids){Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-            if(c.moveToFirst()){String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);total+=("CREDIT".equals(type)&&now-created<=86400000L)?subtotal:amount;}c.close();}
-        return total;
-    }
-    private void payAll(long customerId,ArrayList<Long> ids,long total){
-        StringBuilder spoken=new StringBuilder();
-        SQLiteDatabase readDb=helper.getReadableDatabase();
-        for(long id:ids){
-            Cursor bill=readDb.query("bills",new String[]{"bill_code","subtotal_satang","fee_satang","total_satang"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-            if(bill.moveToFirst()){spoken.append("บิล ").append(bill.getString(0)).append(" ");spoken.append("ยอดสินค้า ").append(PosDatabase.money(bill.getLong(1))).append(" บาท ");if(bill.getLong(2)>0)spoken.append("ค่าบริการ ").append(PosDatabase.money(bill.getLong(2))).append(" บาท ");spoken.append("ยอดตามบิล ").append(PosDatabase.money(bill.getLong(3))).append(" บาท ");}bill.close();
-            Cursor items=readDb.query("bill_items",new String[]{"product_name","quantity","unit","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-            while(items.moveToNext())spoken.append(items.getString(0)).append(" ").append(items.getInt(1)).append(" ").append(items.getString(2)).append(" ราคา ").append(PosDatabase.money(items.getLong(3))).append(" บาท ");
-            items.close();
-        }
-        spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
-        PosUi.speakThen(this,spoken.toString(),()->{
-        new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้").setMessage("รับเงินสด "+PosDatabase.money(total)+" บาท เพื่อชำระบิลทั้งหมดหรือไม่?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->{
-            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{long now=PosDatabase.now();StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\\n");
-                for(long id:ids){Cursor c=db.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","status"},"id=? AND customer_id=?",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
-                    String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
-                    ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);db.update("bills",p,"id=? AND status='UNPAID'",new String[]{String.valueOf(id)});
-                    boolean waiveFee="CREDIT".equals(type)&&now-getBillTime(db,id)<=86400000L;
-                    long collected=waiveFee?sub:amount;
-                    ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\\n");
-                    // Within 24 hours, collect merchandise subtotal only; the original sale ledger is adjusted by the waived fee.
-                    if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",getBillTime(db,id));db.insertOrThrow("sales_ledger",null,adj);}
-                }db.setTransactionSuccessful();new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ").setMessage("บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt).setPositiveButton("ตกลง",(x,y)->home()).show();
-            }catch(Exception e){new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+e.getMessage()).setPositiveButton("ตกลง",null).show();}finally{db.endTransaction();}
-        }).show();
-        });
-    }
-    private long getBillTime(SQLiteDatabase db,long id){Cursor c=db.query("bills",new String[]{"created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);long t=c.moveToFirst()?c.getLong(0):0;c.close();return t;}
 }
