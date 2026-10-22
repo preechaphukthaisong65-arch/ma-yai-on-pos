@@ -107,16 +107,13 @@ public class StockScreen extends Activity {
 
         EditText name=PosUi.input(this,root,"ชื่อสินค้า");
         EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
-        Cursor registry=helper.getReadableDatabase().query(
-                "barcode_registry",new String[]{"name","price_satang"},
-                "barcode=?",new String[]{barcode},null,null,null,"1");
-        if(registry.moveToFirst()){
-            name.setText(registry.getString(0));
-            price.setText(PosDatabase.money(registry.getLong(1)));
+        BarcodeRegistry.Entry registry=BarcodeRegistry.find(helper.getReadableDatabase(),barcode);
+        if(registry!=null){
+            name.setText(registry.name);
+            price.setText(PosDatabase.money(registry.priceSatang));
             name.setEnabled(false);
             price.setEnabled(false);
         }
-        registry.close();
 
         price.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
