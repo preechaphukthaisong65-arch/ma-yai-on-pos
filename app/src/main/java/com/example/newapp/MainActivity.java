@@ -9,7 +9,6 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
@@ -28,11 +27,10 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         hideSystemBars();
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(12), dp(8), dp(12), dp(16));
+        page.setGravity(Gravity.CENTER);
+        page.setPadding(dp(8), dp(4), dp(8), dp(6));
         int bg = getResources().getIdentifier("app_background", "drawable", getPackageName());
         if (bg != 0) page.setBackgroundResource(bg);
 
@@ -40,10 +38,12 @@ public class MainActivity extends Activity {
         if (logoId != 0) {
             ImageView logo = new ImageView(this);
             logo.setImageResource(logoId);
-            logo.setAdjustViewBounds(true);
+            logo.setAdjustViewBounds(false);
             logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.bottomMargin = dp(6);
+            int screenDp = getResources().getDisplayMetrics().heightPixels / Math.max(1, (int)getResources().getDisplayMetrics().density);
+            int logoHeight = Math.min(130, Math.max(64, screenDp / 5));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(logoHeight));
+            lp.bottomMargin = dp(2);
             page.addView(logo, lp);
         }
 
@@ -66,9 +66,12 @@ public class MainActivity extends Activity {
         addMenu(r2, "menu_manage", "จัดการร้านค้า", ManageStoreScreen.class);
         addMenu(r3, "menu_barcode", "สร้างบาร์โค้ด", BarcodeScreen.class);
         addMenu(r3, "menu_report", "รายงานยอดขาย", ReportScreen.class);
-        page.addView(r1); space(page); page.addView(r2); space(page); page.addView(r3);
-        scroll.addView(page);
-        setContentView(scroll);
+        page.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
+        page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
+        page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
+        int backgroundId = getResources().getIdentifier("app_background", "drawable", getPackageName());
+        if (backgroundId != 0) page.setBackgroundResource(backgroundId);
+        setContentView(page);
         hideSystemBars();
     }
 
@@ -88,8 +91,8 @@ public class MainActivity extends Activity {
         int id = getResources().getIdentifier(imageName, "drawable", getPackageName());
         if (id != 0) image.setImageResource(id);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setAdjustViewBounds(true);
-        tile.addView(image, new LinearLayout.LayoutParams(-1, dp(145)));
+        image.setAdjustViewBounds(false);
+        tile.addView(image, new LinearLayout.LayoutParams(-1, 0, 1f));
         TextView caption = new TextView(this);
         caption.setText(label);
         caption.setTextColor(Color.rgb(35, 45, 55));
@@ -97,12 +100,12 @@ public class MainActivity extends Activity {
         caption.setGravity(Gravity.CENTER);
         caption.setMaxLines(2);
         tile.addView(caption, new LinearLayout.LayoutParams(-1, -2));
-        r.addView(tile, new LinearLayout.LayoutParams(0, -2, 1f));
+        r.addView(tile, new LinearLayout.LayoutParams(0, -1, 1f));
         tile.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, target)));
     }
 
     private void space(LinearLayout parent) {
-        parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(8)));
+        parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(3)));
     }
 
     @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); DebtReminderScheduler.scheduleIfMissing(this); boolean low=StockAlertManager.check(this); boolean overdue=DebtReminderNotifier.hasOverdue(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;String debtSummary=DebtReminderNotifier.homeSummary(this);if(!debtSummary.isEmpty())message+="     •     "+debtSummary;tickerView.setText(message);tickerView.setOnClickListener(overdue?v->DebtReminderNotifier.showOverdue(this):null);} }
