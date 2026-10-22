@@ -105,6 +105,7 @@ public class ManageStoreScreen extends Activity {
             long ledgerFee="CREDIT".equals(type)?("PAID".equals(status)?0:-fee):0;
             long ledgerSubtotal=-sub;long ledgerTotal=ledgerSubtotal+ledgerFee;
             ContentValues l=new ContentValues();l.put("bill_id",id);l.put("bill_code",code);l.put("sale_type",type);l.put("event_type",returning?"RETURN":"CANCEL");l.put("subtotal_satang",ledgerSubtotal);l.put("fee_satang",ledgerFee);l.put("total_satang",ledgerTotal);l.put("created_at",PosDatabase.now());db.insertOrThrow("sales_ledger",null,l);
+            PosDatabase.audit(db,returning?"RETURN":"CANCEL","BILL",code,"subtotal_satang="+ledgerSubtotal+"; fee_satang="+ledgerFee+"; total_satang="+ledgerTotal);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage()==null?"ทำรายการไม่สำเร็จ":e.getMessage();saved=false;}
         finally{
