@@ -212,14 +212,16 @@ final class PosUi {
         });
     }
 
-    static void transactionFeedback(Activity a, boolean success, String detail) { transactionFeedback(a, success, detail, null); }\n\n    static void transactionFeedback(Activity a, boolean success, String detail, Runnable after) {
+    static void transactionFeedback(Activity a, boolean success, String detail) { transactionFeedback(a, success, detail, null); }
+
+    static void transactionFeedback(Activity a, boolean success, String detail, Runnable after) {
         String title = success ? "บันทึกสำเร็จ" : "บันทึกไม่สำเร็จ";
         String spoken = success ? "บันทึกรายการสำเร็จค่ะ" : "บันทึกรายการไม่สำเร็จค่ะ";
         if (detail != null && !detail.trim().isEmpty()) spoken += " " + detail;
         AlertDialog dialog = new AlertDialog.Builder(a)
                 .setTitle(title)
                 .setMessage(detail == null || detail.trim().isEmpty() ? title : detail)
-                .setPositiveButton("ตกลง", null)
+                 .setPositiveButton("ตกลง", (d,w) -> { if (after != null) after.run(); })
                 .create();
         dialog.setOnShowListener(d -> speak(a, spoken));
         dialog.show();
