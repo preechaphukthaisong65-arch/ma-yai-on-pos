@@ -18,38 +18,40 @@ public class CreditAccountScreen extends Activity {
 
     private void home(){
         root=PosUi.page(this,"บัญชีลูกค้าสินเชื่อ");
-        Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.full_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
-        boolean found=false;
-        while(c.moveToNext()){
-            found=true;long id=c.getLong(0);String name=c.getString(1);long due=c.getLong(2);
-            PosUi.button(this,root,name+" — "+PosDatabase.money(due)+" บาท",v->customerBills(id,name));
+        ArrayList<ReportingService.CustomerDue> customers=ReportingService.unpaidCustomers(helper);
+        for(ReportingService.CustomerDue customer:customers){
+            PosUi.button(this,root,customer.name+" — "+PosDatabase.money(customer.dueSatang)+" บาท",
+                    v->customerBills(customer.id,customer.name));
         }
-        c.close();
-        if(!found)PosUi.line(this,root,"ไม่มีลูกค้าที่มียอดค้างชำระ");
+        if(customers.isEmpty())PosUi.line(this,root,"ไม่มีลูกค้าที่มียอดค้างชำระ");
         PosUi.back(this,root);
     }
 
     private void customerBills(long customerId,String name){
         root=PosUi.page(this,name+" • บัญชีลูกหนี้");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"id","bill_code","total_satang","created_at"},"customer_id=? AND status='UNPAID'",new String[]{String.valueOf(customerId)},null,null,"created_at ASC");
+        ArrayList<ReportingService.BillDue> bills=ReportingService.unpaidBills(helper,customerId);
         ArrayList<Long> allIds=new ArrayList<>();
         HashSet<Long> selected=new HashSet<>();
         long dueTotal=0;
-        while(c.moveToNext()){
-            long id=c.getLong(0),amount=c.getLong(2);String code=c.getString(1);long created=c.getLong(3);
-            allIds.add(id);selected.add(id);dueTotal+=amount;
+        for(ReportingService.BillDue bill:bills){
+            allIds.add(bill.id);selected.add(bill.id);dueTotal=Math.addExact(dueTotal,bill.amountSatang);
             CheckBox box=new CheckBox(this);
-            box.setText(code+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(created)));
-            box.setChecked(true);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
+            box.setText(bill.code+" • "+PosDatabase.money(bill.amountSatang)+" บาท • "+
+                    new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault())
+                            .format(new java.util.Date(bill.createdAt)));
+            box.setChecked(true);
+            box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(bill.id);else selected.remove(bill.id);});
             root.addView(box,new LinearLayout.LayoutParams(-1,-2));
         }
-        c.close();
         PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(dueTotal)+" บาท");
         if(!allIds.isEmpty()){
             PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds));
             PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
                 ArrayList<Long> chosen=new ArrayList<>(selected);java.util.Collections.sort(chosen);
-                if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
+                if(chosen.isEmpty()){
+                    new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();
+                    return;
+                }
                 payAll(customerId,chosen);
             });
         }else PosUi.line(this,root,"ไม่มีบิลค้างชำระ");
