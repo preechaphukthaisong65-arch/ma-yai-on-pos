@@ -177,7 +177,7 @@ public class SellScreen extends Activity {
                         (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
                                 "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
             }
-            PosUi.dialog(this).setTitle("บันทึกการขายสำเร็จ").setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
-        }else PosUi.dialog(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,true,"บันทึกการขายสำเร็จ",message,()->home());
+        }else PosUi.result(this,false,"บันทึกไม่สำเร็จ",error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }
