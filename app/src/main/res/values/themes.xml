@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="TextAppearance.MaYaiOnPOS.Small" parent="@android:style/TextAppearance.Material">
+        <item name="android:textSize">21sp</item>
+    </style>
+    <style name="TextAppearance.MaYaiOnPOS.Medium" parent="@android:style/TextAppearance.Material">
+        <item name="android:textSize">24sp</item>
+    </style>
+    <style name="TextAppearance.MaYaiOnPOS.Large" parent="@android:style/TextAppearance.Material">
+        <item name="android:textSize">33sp</item>
+    </style>
+    <style name="TextAppearance.MaYaiOnPOS.Button" parent="@android:style/TextAppearance.Material">
+        <item name="android:textSize">21sp</item>
+    </style>
     <style name="Theme.MaYaiOnPOS" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
+        <item name="android:textAppearanceSmall">@style/TextAppearance.MaYaiOnPOS.Small</item>
+        <item name="android:textAppearanceMedium">@style/TextAppearance.MaYaiOnPOS.Medium</item>
+        <item name="android:textAppearanceLarge">@style/TextAppearance.MaYaiOnPOS.Large</item>
+        <item name="android:textAppearanceButton">@style/TextAppearance.MaYaiOnPOS.Button</item>
         <item name="android:colorAccent">#2D5A37</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowLightStatusBar">true</item>
