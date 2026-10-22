@@ -73,4 +73,5 @@ public class HistoryScreen extends Activity {
         PosUi.back(this,root);
     }
 
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }
