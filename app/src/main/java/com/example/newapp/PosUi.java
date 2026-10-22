@@ -2,6 +2,7 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -227,6 +228,40 @@ final class PosUi {
                 .create();
         dialog.setOnShowListener(d -> speak(a, spoken));
         dialog.show();
+        styleDialog(dialog);
+    }
+
+    static AlertDialog.Builder dialog(Activity a) { return new StyledDialogBuilder(a); }
+
+    private static void styleDialog(AlertDialog d) {
+        android.content.Context context = d.getContext();
+        TextView message = d.findViewById(android.R.id.message);
+        if (message != null) {
+            message.setTextSize(24);
+            message.setPadding(dpContext(context,20),dpContext(context,12),dpContext(context,20),dpContext(context,12));
+        }
+        int titleId = context.getResources().getIdentifier("alertTitle","id","android");
+        TextView title = titleId == 0 ? null : d.findViewById(titleId);
+        if (title != null) title.setTextSize(30);
+        Button positive = d.getButton(DialogInterface.BUTTON_POSITIVE);
+        Button negative = d.getButton(DialogInterface.BUTTON_NEGATIVE);
+        Button neutral = d.getButton(DialogInterface.BUTTON_NEUTRAL);
+        if (positive != null) positive.setTextSize(21);
+        if (negative != null) negative.setTextSize(21);
+        if (neutral != null) neutral.setTextSize(21);
+    }
+
+    private static int dpContext(android.content.Context context,int n) {
+        return (int)(n*context.getResources().getDisplayMetrics().density+0.5f);
+    }
+
+    private static final class StyledDialogBuilder extends AlertDialog.Builder {
+        StyledDialogBuilder(Activity a) { super(a); }
+        @Override public AlertDialog show() {
+            AlertDialog d = super.show();
+            styleDialog(d);
+            return d;
+        }
     }
 
     private static void ttsLangSafe(Activity a, TextToSpeech tts) {
