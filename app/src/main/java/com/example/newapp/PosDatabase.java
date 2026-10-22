@@ -134,8 +134,9 @@ public final class PosDatabase extends SQLiteOpenHelper {
         return d.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
     }
     public static long creditFee(long subtotalSatang) {
-        // 5% in satang, rounded upward to the next satang.
-        return (subtotalSatang + 19L) / 20L;
+        if (subtotalSatang < 0) throw new IllegalArgumentException("ยอดสินค้าไม่ถูกต้อง");
+        // 5% in satang, rounded upward without overflowing on subtotal + 19.
+        return subtotalSatang / 20L + (subtotalSatang % 20L == 0L ? 0L : 1L);
     }
     public Cursor findProduct(SQLiteDatabase db, String barcode) {
         return db.query("products", null, "barcode=? AND active=1", new String[]{barcode}, null, null, null, "1");
