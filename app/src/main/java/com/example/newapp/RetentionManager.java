@@ -25,6 +25,7 @@ final class RetentionManager {
             db.delete("payment_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
             db.delete("sales_ledger_items","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
             db.delete("sales_ledger","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
+            db.delete("audit_log","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
             db.setTransactionSuccessful();
         }catch(android.database.sqlite.SQLiteException ignored){
             // Keep the app usable if storage is full; transaction rollback prevents partial cleanup.

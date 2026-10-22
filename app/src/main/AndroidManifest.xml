@@ -29,6 +29,7 @@
         <activity android:name=".ManageStoreScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".BarcodeScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".ReportScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".BackupScreen" android:screenOrientation="portrait" android:exported="false" />
         <receiver android:name=".DebtReminderReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
             <intent-filter>

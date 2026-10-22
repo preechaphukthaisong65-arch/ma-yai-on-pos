@@ -4,12 +4,17 @@ on:
   push:
     branches:
       - feature/central-product-catalog-service
+      - feature/central-reporting-integrity
   pull_request:
     branches:
       - main
 
 permissions:
   contents: read
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   assemble-debug:
@@ -19,13 +24,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
@@ -35,5 +42,16 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Run unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: maeyai-on-pos-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

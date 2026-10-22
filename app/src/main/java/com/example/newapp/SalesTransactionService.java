@@ -90,21 +90,7 @@ final class SalesTransactionService {
         try {
             billCode = nextBillCode(db, timestamp);
             Long customerId = null;
-            if (credit) {
-                Cursor c = db.query("customers", new String[]{"id"}, "full_name=?",
-                        new String[]{customerName.trim()}, null, null, null, "1");
-                try {
-                    if (c.moveToFirst()) customerId = c.getLong(0);
-                } finally {
-                    c.close();
-                }
-                if (customerId == null) {
-                    ContentValues customer = new ContentValues();
-                    customer.put("full_name", customerName.trim());
-                    customer.put("created_at", timestamp);
-                    customerId = db.insertOrThrow("customers", null, customer);
-                }
-            }
+            if (credit) customerId = CustomerService.findOrCreate(db, customerName, timestamp);
 
             ContentValues bill = new ContentValues();
             bill.put("bill_code", billCode);
@@ -121,6 +107,19 @@ final class SalesTransactionService {
             billId = db.insertOrThrow("bills", null, bill);
 
             for (Line line : lines) {
+                Cursor current = db.query("products",
+                        new String[]{"barcode","name","unit","price_satang","stock","active"},
+                        "id=?", new String[]{String.valueOf(line.productId)}, null, null, null, "1");
+                try {
+                    if (!current.moveToFirst()) throw new IllegalStateException("ไม่พบสินค้าในคลัง: " + line.name);
+                    if (current.getInt(5) != 1 || !line.barcode.equals(current.getString(0)) ||
+                            !line.name.equals(current.getString(1)) || !line.unit.equals(current.getString(2)) ||
+                            line.unitPriceSatang != current.getLong(3) || line.expectedStock != current.getInt(4)) {
+                        throw new IllegalStateException("ข้อมูลหรือราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนสินค้าใหม่: " + line.name);
+                    }
+                } finally {
+                    current.close();
+                }
                 InventoryService.changeStock(db, line.productId, line.barcode, line.name,
                         line.expectedStock, line.expectedStock - line.quantity, "SALE", billCode, timestamp);
 
@@ -158,6 +157,8 @@ final class SalesTransactionService {
             ledger.put("total_satang", total);
             ledger.put("created_at", timestamp);
             db.insertOrThrow("sales_ledger", null, ledger);
+            AuditService.record(db,"BILL",billCode,"SALE_CREATED",
+                    "type="+(credit?"CREDIT":"CASH")+";subtotal="+subtotal+";fee="+fee+";lines="+lines.size(),timestamp);
 
             db.setTransactionSuccessful();
         } finally {

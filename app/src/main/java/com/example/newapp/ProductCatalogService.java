@@ -6,7 +6,29 @@ import android.database.sqlite.SQLiteDatabase;
 
 /** Shared product creation, duplicate checks, price changes and price history. */
 final class ProductCatalogService {
+    static final class Product {
+        final long id,priceSatang,costSatang;
+        final String barcode,name,unit;
+        final int stock,stockLimit,active;
+        Product(long id,String barcode,String name,String unit,long priceSatang,long costSatang,
+                int stock,int stockLimit,int active) {
+            this.id=id;this.barcode=barcode;this.name=name;this.unit=unit;this.priceSatang=priceSatang;
+            this.costSatang=costSatang;this.stock=stock;this.stockLimit=stockLimit;this.active=active;
+        }
+    }
     private ProductCatalogService() {}
+
+    static Product findActiveByBarcode(PosDatabase helper,String barcode) {
+        if(helper==null||barcode==null||barcode.trim().isEmpty())return null;
+        Cursor c=helper.getReadableDatabase().query("products",
+                new String[]{"id","barcode","name","unit","price_satang","cost_satang","stock","stock_limit","active"},
+                "barcode=? AND active=1",new String[]{barcode.trim()},null,null,null,"1");
+        try {
+            if(!c.moveToFirst())return null;
+            return new Product(c.getLong(0),c.getString(1),c.getString(2),c.getString(3),c.getLong(4),
+                    c.getLong(5),c.getInt(6),c.getInt(7),c.getInt(8));
+        } finally {c.close();}
+    }
 
     static long create(PosDatabase helper,String barcode,String name,long priceSatang,
                        String unit,int stockLimit,long now) {
@@ -37,6 +59,8 @@ final class ProductCatalogService {
             if(registered==null)BarcodeRegistry.registerIfMissing(db,barcode.trim(),name.trim(),
                     priceSatang,"FACTORY",now);
             InventoryService.changeStock(db,id,barcode.trim(),name.trim(),0,0,"INITIAL",null,now);
+            AuditService.record(db,"PRODUCT",String.valueOf(id),"PRODUCT_CREATED",
+                    "barcode="+barcode.trim()+";price="+priceSatang+";stockLimit="+stockLimit,now);
             db.setTransactionSuccessful();
             return id;
         } finally { db.endTransaction(); }
@@ -59,6 +83,9 @@ final class ProductCatalogService {
                     throw new IllegalStateException("ข้อมูลสินค้าหรือราคาเปลี่ยนแล้ว กรุณาสแกนใหม่");
             } finally { current.close(); }
 
+            BarcodeRegistry.Entry registry=BarcodeRegistry.find(db,barcode.trim());
+            if(registry!=null&&!name.equals(registry.name))
+                throw new IllegalStateException("ชื่อสินค้าในคลังบาร์โค้ดไม่ตรงกับสินค้า กรุณาตรวจสอบข้อมูลก่อนเปลี่ยนราคา");
             ContentValues update=new ContentValues();update.put("price_satang",newPriceSatang);update.put("updated_at",now);
             if(db.update("products",update,"id=? AND price_satang=?",
                     new String[]{String.valueOf(id),String.valueOf(expectedOldSatang)})!=1)
@@ -68,6 +95,8 @@ final class ProductCatalogService {
             history.put("product_name",name.trim());history.put("old_price_satang",expectedOldSatang);
             history.put("new_price_satang",newPriceSatang);history.put("created_at",now);
             db.insertOrThrow("price_history",null,history);
+            AuditService.record(db,"PRODUCT",String.valueOf(id),"PRICE_CHANGED",
+                    "barcode="+barcode.trim()+";oldPrice="+expectedOldSatang+";newPrice="+newPriceSatang,now);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -82,6 +111,8 @@ final class ProductCatalogService {
             if(db.update("products",values,"id=? AND stock_limit=?",
                     new String[]{String.valueOf(id),String.valueOf(expectedOld)})!=1)
                 throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+            AuditService.record(db,"PRODUCT",String.valueOf(id),"STOCK_LIMIT_CHANGED",
+                    "oldLimit="+expectedOld+";newLimit="+newLimit,now);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }

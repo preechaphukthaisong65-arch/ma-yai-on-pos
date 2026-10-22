@@ -39,8 +39,7 @@ public class SellScreen extends Activity {
             Calendar start=(Calendar)base.clone();int offset=i-(count-1);
             if(unit.equals("week"))start.add(Calendar.WEEK_OF_YEAR,offset);else if(unit.equals("month"))start.add(Calendar.MONTH,offset);else start.add(Calendar.YEAR,offset);
             Calendar end=(Calendar)start.clone();if(unit.equals("week"))end.add(Calendar.WEEK_OF_YEAR,1);else if(unit.equals("month"))end.add(Calendar.MONTH,1);else end.add(Calendar.YEAR,1);
-            Cursor q=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(start.getTimeInMillis()),String.valueOf(end.getTimeInMillis()-1)});
-            if(q.moveToFirst())values[i]=q.getLong(0);q.close();
+            values[i]=ReportingService.netSalesBetween(helper,start.getTimeInMillis(),end.getTimeInMillis());
             labels[i]=unit.equals("week")?new SimpleDateFormat("dd/MM",Locale.getDefault()).format(start.getTime()):unit.equals("month")?new SimpleDateFormat("MM/yy",Locale.getDefault()).format(start.getTime()):new SimpleDateFormat("yyyy",Locale.getDefault()).format(start.getTime());
         }
         SalesChartView chart=new SalesChartView(this);chart.setData(title,labels,values);root.addView(chart,new LinearLayout.LayoutParams(-1,PosUi.dp(this,180)));
@@ -63,11 +62,14 @@ public class SellScreen extends Activity {
         }
     }
     private void addScanned(String barcode){
-        Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","unit","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
-        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
-        long id=c.getLong(0);String name=c.getString(1),unit=c.getString(2);long price=c.getLong(3);int stock=c.getInt(4);c.close();
-        Item old=cart.get(id);if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
-        PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::showCart);
+        ProductCatalogService.Product product=ProductCatalogService.findActiveByBarcode(helper,barcode);
+        if(product==null){PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showCart);return;}
+        Item old=cart.get(product.id);
+        if(old==null){
+            Item item=new Item(product.id,product.barcode,product.name,product.unit,product.priceSatang,product.stock);
+            cart.put(product.id,item);
+        }else old.qty++;
+        PosUi.speakThen(this,product.name+" "+cart.get(product.id).qty+" "+product.unit+"ค่ะ",this::showCart);
     }
     private long subtotal(){long s=0;for(Item i:cart.values())s+=i.price*i.qty;return s;}
     private void showCart(){
@@ -97,9 +99,7 @@ public class SellScreen extends Activity {
         root=PosUi.page(this,"ขายเชื่อ");
         PosUi.line(this,root,"เลือกลูกค้าเดิมจากคำแนะนำ หรือกรอกชื่อเต็มเพื่อสร้างลูกค้าใหม่");
         AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);
-        java.util.ArrayList<String> customerNames=new java.util.ArrayList<>();
-        Cursor names=helper.getReadableDatabase().query("customers",new String[]{"full_name"},null,null,null,null,"full_name COLLATE NOCASE ASC");
-        while(names.moveToNext())customerNames.add(names.getString(0));names.close();
+        java.util.ArrayList<String> customerNames=CustomerService.listNames(helper);
         customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
         root.addView(customer,new LinearLayout.LayoutParams(-1,-2));
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
@@ -167,9 +167,14 @@ public class SellScreen extends Activity {
         }
         if(result!=null){
             cart.clear();StockAlertManager.check(this);
-            String message="เลขที่บิล "+result.billCode+"\nยอดสินค้า "+PosDatabase.money(result.subtotalSatang)+" บาท\n"+
-                    (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
-                            "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
+            String message;
+            try{
+                message=ReceiptService.formatBill(ReceiptService.load(helper,result.billId));
+            }catch(Exception receiptError){
+                message="เลขที่บิล "+result.billCode+"\nยอดสินค้า "+PosDatabase.money(result.subtotalSatang)+" บาท\n"+
+                        (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
+                                "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
+            }
             new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
         }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
     }
