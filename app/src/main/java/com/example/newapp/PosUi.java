@@ -71,7 +71,7 @@ final class PosUi {
             if (view instanceof TextView) {
                 TextView t = (TextView)view;
                 t.setTextSize(TypedValue.COMPLEX_UNIT_PX, t.getTextSize() * TEXT_SCALE);
-                if (view instanceof EditText) styleInput((EditText)view, null);
+                if (view instanceof EditText) ((EditText)view).setBackground(tintedRounded(Color.WHITE, Color.rgb(105,145,110), 16));
                 if (view instanceof Button) {
                     view.setMinimumHeight(Math.max(view.getMinimumHeight(), 52));
                     t.setIncludeFontPadding(true);
