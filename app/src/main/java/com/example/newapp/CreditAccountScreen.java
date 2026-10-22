@@ -151,6 +151,7 @@ public class CreditAccountScreen extends Activity {
                 if(db.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                 ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);
                 ContentValues audit=new ContentValues();audit.put("bill_id",id);audit.put("bill_code",code);audit.put("amount_satang",collected);audit.put("created_at",now);db.insertOrThrow("payment_history",null,audit);
+                PosDatabase.audit(db,"PAYMENT_RECEIVED","BILL",code,"amount_satang="+collected);
                 receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
                 if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",now);db.insertOrThrow("sales_ledger",null,adj);}
             }
