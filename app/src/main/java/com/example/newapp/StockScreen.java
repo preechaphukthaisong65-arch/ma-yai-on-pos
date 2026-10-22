@@ -89,7 +89,7 @@ public class StockScreen extends Activity {
     private boolean saveLimit(long id,int oldLimit,int newLimit){
         try{
             ProductCatalogService.updateStockLimit(helper,id,oldLimit,newLimit,PosDatabase.now());
-            StockAlertManager.check(this);
+            try{StockAlertManager.check(this);}catch(Exception ignored){}
             PosUi.showResult(this,true,"บันทึกลิมิตสำเร็จ","บันทึกลิมิตสต๊อกเรียบร้อย",()->home());
             return true;
         }catch(Exception e){
@@ -102,7 +102,7 @@ public class StockScreen extends Activity {
     private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
         try{
             InventoryService.changeStock(helper,id,barcode,name,before,after,type,null,PosDatabase.now());
-            StockAlertManager.check(this);
+            try{StockAlertManager.check(this);}catch(Exception ignored){}
             PosUi.showResult(this,true,"บันทึกสต๊อกสำเร็จ", "ปรับปรุงจำนวนสินค้าเรียบร้อย",()->home());
             return true;
         }catch(Exception e){
@@ -142,7 +142,7 @@ public class StockScreen extends Activity {
             catch(Exception e){price.setError("ราคาขายไม่ถูกต้อง เช่น 25 หรือ 25.50");price.requestFocus();return;}
             try{
                 ProductCatalogService.create(helper,barcode,nm,priceSatang,un,limit,PosDatabase.now());
-                StockAlertManager.check(this);
+                try{StockAlertManager.check(this);}catch(Exception ignored){}
                 PosUi.showResult(this,true,"บันทึกสินค้าสำเร็จ","เพิ่มสินค้า "+nm+" เรียบร้อย",()->home());
             }catch(Exception e){
                 String error=e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage();
