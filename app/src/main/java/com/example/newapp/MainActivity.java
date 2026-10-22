@@ -92,8 +92,6 @@ public class MainActivity extends Activity {
         if (id != 0) image.setImageResource(id);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setAdjustViewBounds(false);
-        int screenDp = getResources().getDisplayMetrics().heightPixels / Math.max(1, (int)getResources().getDisplayMetrics().density);
-        int logoDp = Math.min(130, Math.max(64, screenDp / 5));
         tile.addView(image, new LinearLayout.LayoutParams(-1, 0, 1f));
         TextView caption = new TextView(this);
         caption.setText(label);
