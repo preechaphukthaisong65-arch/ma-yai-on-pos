@@ -96,12 +96,10 @@ public class CreditAccountScreen extends Activity {
         try{
             CreditPaymentService.Result result=CreditPaymentService.commit(helper,customerId,ids,total,PosDatabase.now());
             String receipt=ReceiptService.formatPayment(result);
-            new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ")
-                    .setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt)
-                    .setPositiveButton("ตกลง",(dialog,which)->home()).show();
+            PosUi.transactionFeedback(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt,()->home());
         }catch(Exception e){
-            new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+
-                    (e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage())).setPositiveButton("ตกลง",null).show();
+            PosUi.transactionFeedback(this,false,"รับชำระไม่สำเร็จ: "+
+                    (e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage()));
         }
     }
 }
