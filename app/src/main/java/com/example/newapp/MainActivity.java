@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setGravity(Gravity.CENTER);
+        page.setGravity(Gravity.BOTTOM);
         page.setPadding(dp(8), dp(4), dp(8), dp(6));
         page.setBackgroundColor(Color.TRANSPARENT);
 
@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
         ticker.setMarqueeRepeatLimit(-1);
         ticker.setSelected(true);
         ticker.setPadding(dp(4), dp(2), dp(4), dp(2));
-        page.addView(ticker);
+        page.addView(ticker, new LinearLayout.LayoutParams(-1, dp(38)));
 
         LinearLayout r1 = row(), r2 = row(), r3 = row();
         addMenu(r1, "menu_sell", "ขายสินค้า", SellScreen.class);
@@ -84,8 +84,10 @@ public class MainActivity extends Activity {
         page.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f)); space(page);
         page.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        frame.addView(page, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, Math.round(getResources().getDisplayMetrics().heightPixels * 0.65f),
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        frame.addView(page, pageParams);
         setContentView(frame);
         hideSystemBars();
     }
@@ -108,13 +110,6 @@ public class MainActivity extends Activity {
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setAdjustViewBounds(false);
         tile.addView(image, new LinearLayout.LayoutParams(-1, 0, 1f));
-        TextView caption = new TextView(this);
-        caption.setText(label);
-        caption.setTextColor(Color.rgb(35, 45, 55));
-        caption.setTextSize(21);
-        caption.setGravity(Gravity.CENTER);
-        caption.setMaxLines(2);
-        tile.addView(caption, new LinearLayout.LayoutParams(-1, -2));
         r.addView(tile, new LinearLayout.LayoutParams(0, -1, 1f));
         tile.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, target)));
     }
