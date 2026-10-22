@@ -100,8 +100,7 @@ public class CreditAccountScreen extends Activity {
                     .setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt)
                     .setPositiveButton("ตกลง",(dialog,which)->home()).show();
         }catch(Exception e){
-            new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+
-                    (e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage())).setPositiveButton("ตกลง",null).show();
+            PosUi.showResult(this,false,"รับชำระไม่สำเร็จ",e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage(),null);
         }
     }
 }
