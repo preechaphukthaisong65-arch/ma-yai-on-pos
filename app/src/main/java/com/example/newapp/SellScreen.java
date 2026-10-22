@@ -25,8 +25,34 @@ public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
-        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));
+    private void home(){
+        getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        android.widget.LinearLayout sections=new android.widget.LinearLayout(this);
+        sections.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int bg=getResources().getIdentifier("app_background","drawable",getPackageName());
+        if(bg!=0)sections.setBackgroundResource(bg);else sections.setBackgroundColor(android.graphics.Color.WHITE);
+        android.widget.FrameLayout top=new android.widget.FrameLayout(this),bottom=new android.widget.FrameLayout(this);
+        sections.addView(top,new android.widget.LinearLayout.LayoutParams(-1,0,1f));
+        sections.addView(bottom,new android.widget.LinearLayout.LayoutParams(-1,0,1f));
+        int diameter=Math.round(getResources().getDisplayMetrics().heightPixels*0.25f);
+        android.widget.TextView sell=circleButton("ขายสินค้า",android.graphics.Color.rgb(36,160,80),diameter);
+        android.widget.TextView arrears=circleButton("ชำระบิลค้างชำระ",android.graphics.Color.rgb(35,105,210),diameter);
+        android.widget.FrameLayout.LayoutParams sp=new android.widget.FrameLayout.LayoutParams(diameter,diameter,android.view.Gravity.CENTER);
+        android.widget.FrameLayout.LayoutParams ap=new android.widget.FrameLayout.LayoutParams(diameter,diameter,android.view.Gravity.CENTER);
+        top.addView(sell,sp);bottom.addView(arrears,ap);
+        sell.setOnClickListener(v->showScanScreen());
+        arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra("arrears_search_mode",true);startActivity(i);});
+        setContentView(sections);
+        getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+    }
+    private android.widget.TextView circleButton(String label,int color,int diameter){
+        android.widget.TextView button=new android.widget.TextView(this);
+        button.setText(label);button.setTextColor(android.graphics.Color.WHITE);button.setTextSize(16);button.setTypeface(null,android.graphics.Typeface.BOLD);
+        button.setGravity(android.view.Gravity.CENTER);button.setPadding(PosUi.dp(this,12),PosUi.dp(this,8),PosUi.dp(this,12),PosUi.dp(this,8));
+        android.graphics.drawable.GradientDrawable shape=new android.graphics.drawable.GradientDrawable();shape.setShape(android.graphics.drawable.GradientDrawable.OVAL);shape.setColor(color);
+        shape.setStroke(PosUi.dp(this,2),android.graphics.Color.WHITE);button.setBackground(shape);button.setElevation(PosUi.dp(this,5));
+        button.setClickable(true);button.setFocusable(true);return button;
     }
     private void scan(){
         // Keep the cart screen as the return destination after each barcode scan.
