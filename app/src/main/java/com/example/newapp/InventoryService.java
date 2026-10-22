@@ -40,5 +40,7 @@ final class InventoryService {
         if (reference != null && !reference.trim().isEmpty()) history.put("reference", reference);
         history.put("created_at", timestamp);
         db.insertOrThrow("stock_history", null, history);
+        AuditService.record(db,"PRODUCT",String.valueOf(productId),"STOCK_"+changeType,
+                "barcode="+barcode+";before="+expectedBefore+";after="+after+";reference="+(reference==null?"":reference),timestamp);
     }
 }
