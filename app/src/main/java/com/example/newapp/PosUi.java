@@ -63,7 +63,7 @@ final class PosUi {
         lp.bottomMargin=dp(a,9); root.addView(b,lp); return b;
     }
     static EditText input(Activity a, LinearLayout root,String hint) {
-        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint); e.setTextSize(24); e.setMinHeight(dp(a,60)); e.setPadding(dp(a,14),dp(a,10),dp(a,14),dp(a,10));
+        EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint); e.setTextSize(18); e.setMinHeight(dp(a,56)); e.setPadding(dp(a,14),dp(a,10),dp(a,14),dp(a,10));
         e.setTextColor(Color.rgb(25,42,65));
         GradientDrawable field=new GradientDrawable(); field.setColor(Color.WHITE); field.setCornerRadius(dp(a,12)); field.setStroke(dp(a,1),Color.rgb(218,225,233)); e.setBackground(field); e.setHintTextColor(Color.rgb(125,137,151));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(a,10); root.addView(e,lp); return e;
