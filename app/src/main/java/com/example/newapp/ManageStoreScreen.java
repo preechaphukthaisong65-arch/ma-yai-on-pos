@@ -48,6 +48,7 @@ public class ManageStoreScreen extends Activity {
             if(db.update("products",p,"id=?",new String[]{String.valueOf(id)})!=1)throw new IllegalStateException("บันทึกราคาไม่สำเร็จ");
             ContentValues registryPrice=new ContentValues();registryPrice.put("price_satang",next);if(db.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode})==0){ContentValues legacy=new ContentValues();legacy.put("barcode",barcode);legacy.put("name",name);legacy.put("price_satang",next);legacy.put("source","LEGACY");legacy.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,legacy);}
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());db.insertOrThrow("price_history",null,h);
+            PosDatabase.audit(db,"PRICE_CHANGED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; old_price_satang="+old+"; new_price_satang="+next);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage();}
         finally{if(db!=null&&transactionStarted&&db.inTransaction()){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
