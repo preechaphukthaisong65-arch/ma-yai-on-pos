@@ -49,7 +49,7 @@ public class ReportScreen extends Activity {
         PosUi.button(this,extra,"ประวัติการทำรายการสำคัญ",v->auditLog());
         menuScroll.addView(extra);lower.addView(menuScroll,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.HORIZONTAL);
-        android.widget.Button back=new android.widget.Button(this);back.setText("← ย้อนกลับ");back.setTextSize(15);back.setOnClickListener(v->finish());
+        android.widget.Button back=new android.widget.Button(this);back.setText("👈 หน้าก่อนหน้า");back.setTextSize(15);back.setOnClickListener(v->finish());
         footer.addView(back,new LinearLayout.LayoutParams(-1,PosUi.dp(this,42)));lower.addView(footer,new LinearLayout.LayoutParams(-1,PosUi.dp(this,44)));
         screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));PosUi.showRoot(this,screen);
     }
