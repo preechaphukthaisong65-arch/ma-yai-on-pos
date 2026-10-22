@@ -94,7 +94,7 @@ public class StockScreen extends Activity {
             return true;
         }catch(Exception e){
             String error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();
-            PosUi.dialog(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            PosUi.result(this,false,"บันทึกไม่สำเร็จ",error,null);
             return false;
         }
     }
@@ -146,8 +146,7 @@ public class StockScreen extends Activity {
                 PosUi.result(this,true,"บันทึกสินค้าสำเร็จ","บันทึกสินค้า "+nm+" เรียบร้อย",()->home());
             }catch(Exception e){
                 String error=e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage();
-                PosUi.dialog(this).setTitle("บันทึกสินค้าไม่สำเร็จ").setMessage(error)
-                        .setPositiveButton("ตกลง",null).show();
+                PosUi.result(this,false,"บันทึกสินค้าไม่สำเร็จ",error,null);
             }
         });
         PosUi.back(this,root);
