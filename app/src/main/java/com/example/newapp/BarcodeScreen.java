@@ -31,7 +31,7 @@ public class BarcodeScreen extends Activity {
             if(wasReused)price.setText(PosDatabase.money(generatedPrice));
             PosUi.showResult(this,true,wasReused?"พบบาร์โค้ดเดิม":"สร้างบาร์โค้ดสำเร็จ",
                     "สินค้า: "+generatedName+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+
-                            PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""),()->home());;
+                            PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""),()->home());
         }catch(Exception e){
             String error=e.getMessage()==null?"ข้อมูลบาร์โค้ดไม่ถูกต้อง":e.getMessage();
             PosUi.showResult(this,false,"สร้างบาร์โค้ดไม่สำเร็จ",error,null);
