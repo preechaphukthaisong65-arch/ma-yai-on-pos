@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 10;
+    private static final int DB_VERSION = 11;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -22,6 +22,13 @@ public final class PosDatabase extends SQLiteOpenHelper {
 
     @Override public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
+        // Keep FK checks disabled only while SQLiteOpenHelper creates/upgrades the schema.
+        // onOpen re-enables them before the app can use the database.
+        db.setForeignKeyConstraintsEnabled(false);
+    }
+
+    @Override public void onOpen(SQLiteDatabase db) {
+        super.onOpen(db);
         db.setForeignKeyConstraintsEnabled(true);
     }
 
@@ -161,6 +168,41 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE bill_items_new RENAME TO bill_items");
             db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
             db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
+        }
+
+        if (oldVersion < 11) {
+            // Permanently remove experimental cost-price and unit-of-measure columns
+            // from databases created by earlier app versions, while preserving products
+            // and all foreign-key IDs used by sales and stock history.
+            if (hasAnyColumn(db, "products", new String[]{
+                    "cost", "cost_price", "cost_satang", "cost_price_satang",
+                    "unit", "unit_name", "unit_of_measure", "measurement_unit"})) {
+                db.execSQL("CREATE TABLE products_new (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, barcode TEXT NOT NULL UNIQUE, name TEXT NOT NULL," +
+                        "price_satang INTEGER NOT NULL DEFAULT 0 CHECK(price_satang>=0)," +
+                        "stock INTEGER NOT NULL DEFAULT 0 CHECK(stock>=0)," +
+                        "stock_limit INTEGER NOT NULL DEFAULT 10 CHECK(stock_limit>=0), active INTEGER NOT NULL DEFAULT 1," +
+                        "created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
+                db.execSQL("INSERT INTO products_new(id,barcode,name,price_satang,stock,stock_limit,active,created_at,updated_at) " +
+                        "SELECT id,barcode,name,price_satang,stock,stock_limit,active,created_at,updated_at FROM products");
+                db.execSQL("DROP TABLE products");
+                db.execSQL("ALTER TABLE products_new RENAME TO products");
+            }
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
+        }
+    }
+
+    private static boolean hasAnyColumn(SQLiteDatabase db, String table, String[] names) {
+        Cursor columns = db.rawQuery("PRAGMA table_info(" + table + ")", null);
+        try {
+            while (columns.moveToNext()) {
+                String existing = columns.getString(1);
+                for (String name : names) if (name.equalsIgnoreCase(existing)) return true;
+            }
+            return false;
+        } finally {
+            columns.close();
         }
     }
 
