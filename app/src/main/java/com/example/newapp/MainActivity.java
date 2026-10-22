@@ -87,6 +87,8 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams pageParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, Math.round(getResources().getDisplayMetrics().heightPixels * 0.65f),
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        // Keep 8% of the screen clear below the menu group, shifting the group upward.
+        pageParams.bottomMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.08f);
         frame.addView(page, pageParams);
         setContentView(frame);
         hideSystemBars();
