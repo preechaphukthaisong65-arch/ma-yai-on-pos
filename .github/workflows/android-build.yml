@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - feature/central-product-catalog-service
-      - feature/central-reporting-integrity
+      - feature/central-reporting-integrity\n      - feature/ui-accessibility-feedback
   pull_request:
     branches:
       - main
