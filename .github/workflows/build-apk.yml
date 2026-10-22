@@ -13,6 +13,7 @@ on:
       - feat/server-atomic-sales
       - fix/server-committed-local-sync
       - work/complete-pos-no-backup
+      - fix/offline-pos-integrity-2026-10
   pull_request:
     branches:
       - main
