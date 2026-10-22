@@ -199,7 +199,7 @@ public class SellScreen extends Activity {
             saleInProgress=false;
         }
         if(saved){
-            cart.clear();
+            cart.clear();StockAlertManager.check(this);
             new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage("เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท")).setPositiveButton("ตกลง",(d,w)->home()).show();
         }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
     }
