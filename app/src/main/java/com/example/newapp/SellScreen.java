@@ -47,7 +47,7 @@ public class SellScreen extends Activity {
         FrameLayout screen=new FrameLayout(this);
         screen.addView(sections,new FrameLayout.LayoutParams(-1,-1));
         Button back=new Button(this);
-        back.setText("← ย้อนกลับ");
+        back.setText("👈 หน้าก่อนหน้า");
         back.setTextSize(14);
         back.setMinHeight(PosUi.dp(this,42));
         FrameLayout.LayoutParams backParams=new FrameLayout.LayoutParams(-2,PosUi.dp(this,44),android.view.Gravity.BOTTOM|android.view.Gravity.END);
