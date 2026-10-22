@@ -1,4 +1,5 @@
 name: Build MaeyaiOn POS APK
+# Rebuild trigger: verify restored Build #826 application source; no app-code changes.
 
 on:
   workflow_dispatch:
