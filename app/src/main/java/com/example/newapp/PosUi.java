@@ -42,6 +42,7 @@ final class PosUi {
 
         int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
         LinearLayout frame = new LinearLayout(a);
+        frame.setTag("pos-ui-frame");
         frame.setOrientation(LinearLayout.VERTICAL);
         if (background == 0) frame.setBackgroundColor(Color.rgb(248,250,247));
         else frame.setBackgroundResource(background);
@@ -100,7 +101,8 @@ final class PosUi {
         Button home = navButton(a, "← หน้าหลัก");
         home.setContentDescription("กลับหน้าหลัก");
         home.setOnClickListener(v -> {
-            PAGE_HISTORY.remove(a);\n            Intent intent = new Intent(a, MainActivity.class);
+            PAGE_HISTORY.remove(a);
+            Intent intent = new Intent(a, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             a.startActivity(intent);
             a.finish();
