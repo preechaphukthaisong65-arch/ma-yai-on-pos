@@ -3,7 +3,6 @@ package com.example.newapp;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -100,18 +99,15 @@ public class StockScreen extends Activity {
     }
 
     private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
-        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            InventoryService.changeStock(db,id,barcode,name,before,after,type,null,PosDatabase.now());
-            db.setTransactionSuccessful();saved=true;
-        }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();saved=false;}
-        finally{
-            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
+            InventoryService.changeStock(helper,id,barcode,name,before,after,type,null,PosDatabase.now());
+            StockAlertManager.check(this);
+            return true;
+        }catch(Exception e){
+            String error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();
+            new AlertDialog.Builder(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            return false;
         }
-        if(saved)StockAlertManager.check(this);
-        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกสต๊อกไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
-        return saved;
     }
     private void newProduct(String barcode){
         root=PosUi.page(this,"เพิ่มสินค้าใหม่");
