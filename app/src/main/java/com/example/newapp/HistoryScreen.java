@@ -38,7 +38,7 @@ public class HistoryScreen extends Activity {
             if(waived)PosUi.line(this,root,"ยอดรับเงินจริง: "+PosDatabase.money(subtotal)+" บาท");
         }c.close();
         Cursor it=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-        while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" "+it.getInt(1)+" ชิ้น × "+PosDatabase.money(it.getLong(2))+" = "+PosDatabase.money(it.getLong(3)));it.close();PosUi.back(this,root);
+        while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" จำนวน "+it.getInt(1)+" × "+PosDatabase.money(it.getLong(2))+" = "+PosDatabase.money(it.getLong(3)));it.close();PosUi.back(this,root);
     }
     private boolean feeWaived(long billId){
         Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(billId)},null,null,null,"1");
