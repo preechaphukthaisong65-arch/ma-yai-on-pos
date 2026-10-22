@@ -132,27 +132,34 @@ final class PosUi {
 
     static void result(Activity a, boolean success, String title, String message, Runnable after) {
         String spoken=(success?"บันทึกสำเร็จ ":"บันทึกไม่สำเร็จ ")+message;
-        dialog(a).setTitle(title).setMessage(message)
+        AlertDialog d=dialog(a).setTitle(title).setMessage(message)
                 .setPositiveButton("ตกลง",(dialog,which)->{if(after!=null)after.run();})
-                .setOnShowListener(d->speak(a,spoken))
-                .show();
+                .create();
+        d.setOnShowListener(shown->speak(a,spoken));
+        d.show();
+        styleDialog(d);
+    }
+
+    private static void styleDialog(AlertDialog d) {
+        Activity a=(Activity)d.getContext();
+        TextView message=d.findViewById(android.R.id.message);
+        if(message!=null){message.setTextSize(24);message.setPadding(dp(a,20),dp(a,12),dp(a,20),dp(a,12));}
+        int titleId=d.getContext().getResources().getIdentifier("alertTitle","id","android");
+        TextView title=titleId==0?null:d.findViewById(titleId);
+        if(title!=null)title.setTextSize(30);
+        Button positive=d.getButton(DialogInterface.BUTTON_POSITIVE);
+        Button negative=d.getButton(DialogInterface.BUTTON_NEGATIVE);
+        Button neutral=d.getButton(DialogInterface.BUTTON_NEUTRAL);
+        if(positive!=null)positive.setTextSize(21);
+        if(negative!=null)negative.setTextSize(21);
+        if(neutral!=null)neutral.setTextSize(21);
     }
 
     private static final class StyledDialogBuilder extends AlertDialog.Builder {
         StyledDialogBuilder(Activity a) { super(a); }
         @Override public AlertDialog show() {
             AlertDialog d=super.show();
-            TextView message=d.findViewById(android.R.id.message);
-            if(message!=null){message.setTextSize(24);message.setPadding(dp((Activity)d.getContext(),20),dp((Activity)d.getContext(),12),dp((Activity)d.getContext(),20),dp((Activity)d.getContext(),12));}
-            int titleId=d.getContext().getResources().getIdentifier("alertTitle","id","android");
-            TextView title=titleId==0?null:d.findViewById(titleId);
-            if(title!=null)title.setTextSize(30);
-            Button positive=d.getButton(DialogInterface.BUTTON_POSITIVE);
-            Button negative=d.getButton(DialogInterface.BUTTON_NEGATIVE);
-            Button neutral=d.getButton(DialogInterface.BUTTON_NEUTRAL);
-            if(positive!=null)positive.setTextSize(21);
-            if(negative!=null)negative.setTextSize(21);
-            if(neutral!=null)neutral.setTextSize(21);
+            styleDialog(d);
             return d;
         }
     }
