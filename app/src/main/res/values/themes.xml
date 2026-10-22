@@ -10,6 +10,8 @@
 
     <style name="Theme.ScannerCapture" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:colorAccent">#2D5A37</item>
     </style>
 </resources>
