@@ -150,6 +150,8 @@ final class PosUi {
             int titleId=a.getResources().getIdentifier("alertTitle","id","android");
             TextView titleView=dialog.findViewById(titleId);
             if(titleView!=null)titleView.setTextSize(25f);
+            Button positive=dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if(positive!=null)positive.setTextSize(21f);
             speak(a,success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ");
         });
         dialog.show();
