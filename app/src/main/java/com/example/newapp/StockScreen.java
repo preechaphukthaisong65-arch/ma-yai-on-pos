@@ -18,7 +18,7 @@ public class StockScreen extends Activity {
         root=PosUi.page(this,"คลังสินค้า");
         PosUi.button(this,root,"สินค้าทั้งหมด",v->showAll());
         PosUi.button(this,root,"นับสต๊อกสินค้า",v->countMenu());
-        PosUi.button(this,root,"ตั้งค่าลิมิตสต๊อก",v->{mode="limit";scanAgain();});
+        PosUi.button(this,root,"ลิมิตสต๊อก",v->{mode="limit";scanAgain();});
         PosUi.button(this,root,"เพิ่มสินค้าเข้าสต๊อก",v->{mode="add";scanAgain();});
         PosUi.back(this,root);
     }
