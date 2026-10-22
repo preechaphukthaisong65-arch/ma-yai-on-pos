@@ -47,7 +47,7 @@ public class HistoryScreen extends Activity {
     private void customers(){
         root=PosUi.page(this,"บัญชีลูกค้าเชื่อทั้งหมด");
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.first_name,c.last_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
-        while(c.moveToNext()){long id=c.getLong(0);String customerName=PosDatabase.customerName(c.getString(1),c.getString(2));if(customerName.isEmpty())customerName="ข้อมูลลูกค้าไม่ครบ";PosUi.button(this,root,customerName+" — "+PosDatabase.money(c.getLong(3))+" บาท",v->customerBills(id,customerName));}
+        while(c.moveToNext()){long id=c.getLong(0);String rawName=PosDatabase.customerName(c.getString(1),c.getString(2));final String customerName=rawName.isEmpty()?"ข้อมูลลูกค้าไม่ครบ":rawName;PosUi.button(this,root,customerName+" — "+PosDatabase.money(c.getLong(3))+" บาท",v->customerBills(id,customerName));}
         c.close();PosUi.back(this,root);
     }
     private void customerBills(long customerId,String name){
