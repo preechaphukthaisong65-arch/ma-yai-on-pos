@@ -33,7 +33,8 @@ final class PosUi {
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
-        t.setPadding(0,dp(a,5),0,dp(a,5)); return t;
+        t.setPadding(dp(a,8),dp(a,5),dp(a,8),dp(a,5));
+        t.setBackgroundColor(Color.WHITE); return t;
     }
     static Button button(Activity a, LinearLayout root, String label, View.OnClickListener listener) {
         Button b=new Button(a); b.setText(label); b.setOnClickListener(listener);
@@ -41,6 +42,10 @@ final class PosUi {
     }
     static EditText input(Activity a, LinearLayout root,String hint) {
         EditText e=new EditText(a); e.setSingleLine(true); e.setHint(hint);
+        e.setTextColor(Color.rgb(30,30,30));
+        e.setHintTextColor(Color.rgb(110,110,110));
+        e.setBackgroundColor(Color.WHITE);
+        e.setPadding(dp(a,8),dp(a,4),dp(a,8),dp(a,4));
         root.addView(e,new LinearLayout.LayoutParams(-1,-2)); return e;
     }
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
