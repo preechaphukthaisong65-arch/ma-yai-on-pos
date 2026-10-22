@@ -84,4 +84,5 @@ public class BackupScreen extends Activity {
             });
         },"pos-backup").start();
     }
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }
