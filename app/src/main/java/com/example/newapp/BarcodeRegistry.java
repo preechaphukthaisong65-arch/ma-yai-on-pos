@@ -41,6 +41,8 @@ final class BarcodeRegistry {
             }
             String code=nextGenerated(db);
             registerIfMissing(db,code,name.trim(),priceSatang,"STORE",createdAt);
+            AuditService.record(db,"BARCODE",code,"BARCODE_CREATED",
+                    "name="+name.trim()+";price="+priceSatang,createdAt);
             Entry created=find(db,code);
             if(created==null)throw new IllegalStateException("สร้างรายการบาร์โค้ดไม่สำเร็จ");
             db.setTransactionSuccessful();
