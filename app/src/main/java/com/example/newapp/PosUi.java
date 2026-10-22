@@ -8,6 +8,8 @@ import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
+import android.view.ViewGroup;
+import java.util.ArrayDeque;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -20,6 +22,7 @@ import java.util.WeakHashMap;
 final class PosUi {
     private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
     private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
+    private static final WeakHashMap<Activity,ArrayDeque<View>> NAV_STACK = new WeakHashMap<>();
     private PosUi() {}
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
@@ -40,7 +43,7 @@ final class PosUi {
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
         LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
-        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
+        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
@@ -114,6 +117,30 @@ final class PosUi {
     }
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
+    static void showRoot(Activity a,View view) {
+        NAV_STACK.remove(a);
+        a.setContentView(view);
+    }
+    private static void showPage(Activity a,View view) {
+        ViewGroup content=a.findViewById(android.R.id.content);
+        if(content!=null&&content.getChildCount()>0) {
+            View previous=content.getChildAt(0);
+            ArrayDeque<View> stack=NAV_STACK.get(a);
+            if(stack==null){stack=new ArrayDeque<>();NAV_STACK.put(a,stack);}
+            if(previous!=view)stack.push(previous);
+        }
+        a.setContentView(view);
+    }
+    private static void navigateBack(Activity a) {
+        ArrayDeque<View> stack=NAV_STACK.get(a);
+        if(stack!=null&&!stack.isEmpty()) {
+            View previous=stack.pop();
+            a.setContentView(previous);
+            if(stack.isEmpty())NAV_STACK.remove(a);
+        } else {
+            a.finish();
+        }
+    }
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
@@ -124,7 +151,7 @@ final class PosUi {
         LinearLayout container=PAGE_CONTAINERS.get(root);
         if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
         else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
-        previous.setOnClickListener(v->a.finish());
+        previous.setOnClickListener(v->navigateBack(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
