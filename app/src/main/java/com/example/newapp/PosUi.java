@@ -12,7 +12,6 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import com.google.zxing.integration.android.IntentIntegrator;
 import java.util.Locale;
 
 final class PosUi {
@@ -55,21 +54,8 @@ final class PosUi {
         root.addView(e,new LinearLayout.LayoutParams(-1,-2)); return e;
     }
     static void line(Activity a,LinearLayout root,String value) { root.addView(text(a,value,16,Color.DKGRAY)); }
-    static void scan(Activity a) { scan(a,"สแกนบาร์โค้ดสินค้า"); }
-    static void scan(Activity a,String prompt) {
-        IntentIntegrator scan=new IntentIntegrator(a);
-        scan.setPrompt(prompt); scan.setBeepEnabled(false);
-        scan.setOrientationLocked(true); scan.setDesiredBarcodeFormats(IntentIntegrator.ONE_D_CODE_TYPES);
-        try {
-            scan.initiateScan();
-        } catch (RuntimeException e) {
-            new AlertDialog.Builder(a)
-                    .setTitle("เปิดกล้องสแกนไม่ได้")
-                    .setMessage("ระบบเปิดหน้าสแกนไม่สำเร็จ กรุณาตรวจสอบสิทธิ์กล้องและติดตั้งแอปใหม่หากยังเกิดปัญหา")
-                    .setPositiveButton("ตกลง", null)
-                    .show();
-        }
-    }
+    static void scan(Activity a) { BarcodeScanner.launch(a); }
+    static void scan(Activity a,String prompt) { BarcodeScanner.launch(a,prompt); }
     static void speak(Activity a,String message) { speakThen(a,message,()->{}); }
     static void speakThen(Activity a,String message,Runnable after) {
         final TextToSpeech[] holder = new TextToSpeech[1];

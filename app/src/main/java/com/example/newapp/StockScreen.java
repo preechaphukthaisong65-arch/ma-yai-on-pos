@@ -8,7 +8,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
 public class StockScreen extends Activity {
@@ -40,7 +39,7 @@ public class StockScreen extends Activity {
     private void scanAgain(){PosUi.scan(this);}
     @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){
         super.onActivityResult(requestCode,resultCode,data);
-        IntentResult result=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);
+        IntentResult result=BarcodeScanner.parseResult(requestCode,resultCode,data);
         if(result!=null){if(result.getContents()==null){home();return;} scanned=result.getContents(); handleScan(scanned);}
     }
     private void handleScan(String barcode){
