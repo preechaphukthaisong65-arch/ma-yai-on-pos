@@ -23,7 +23,7 @@ import java.util.Locale;
 
 public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name,unit;int qty,stock; Item(long i,String b,String n,String u,long p,int s){id=i;barcode=b;name=n;unit=u;price=p;stock=s;qty=1;} }
-    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private DecoratedBarcodeView barcodeView; private boolean scanning=false; private String lastBarcode=""; private long lastScanAt=0; private boolean saleInProgress=false,duplicatePromptOpen=false;
+    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private DecoratedBarcodeView barcodeView; private Button finishScanButton; private boolean scanning=false,activityResumed=false,waitingForSpeech=false; private String lastBarcode=""; private long lastScanAt=0; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
         PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));PosUi.button(this,root,"กลับหน้าหลัก",v->finish());
@@ -52,14 +52,14 @@ public class SellScreen extends Activity {
         LinearLayout cameraPage=new LinearLayout(this);cameraPage.setOrientation(LinearLayout.VERTICAL);cameraPage.setBackgroundColor(android.graphics.Color.BLACK);
         barcodeView=new DecoratedBarcodeView(this);barcodeView.setStatusText("");
         cameraPage.addView(barcodeView,new LinearLayout.LayoutParams(-1,0,1f));
-        Button done=new Button(this);done.setText("จบการสแกน");done.setOnClickListener(v->finishScan());
+        Button done=new Button(this);done.setText("จบการสแกน");done.setOnClickListener(v->finishScan());finishScanButton=done;
         cameraPage.addView(done,new LinearLayout.LayoutParams(-1,-2));setContentView(cameraPage);
         barcodeView.decodeContinuous(new BarcodeCallback(){
             @Override public void barcodeResult(BarcodeResult result){
                 if(result==null||result.getText()==null)return;
                 long now=System.currentTimeMillis();String value=result.getText();
                 if(value.equals(lastBarcode)&&now-lastScanAt<1200L)return;
-                lastBarcode=value;lastScanAt=now;barcodeView.pause();addScanned(value);
+                lastBarcode=value;lastScanAt=now;waitingForSpeech=true;if(finishScanButton!=null)finishScanButton.setEnabled(false);barcodeView.pause();addScanned(value);
             }
             @Override public void possibleResultPoints(java.util.List<com.google.zxing.ResultPoint> points){}
         });
@@ -67,19 +67,24 @@ public class SellScreen extends Activity {
             requestPermissions(new String[]{android.Manifest.permission.CAMERA},101);
         }else barcodeView.resume();
     }
-    private void finishScan(){scanning=false;if(barcodeView!=null)barcodeView.pause();barcodeView=null;showCart();}
+    private void finishScan(){scanning=false;waitingForSpeech=false;if(barcodeView!=null)barcodeView.pause();barcodeView=null;finishScanButton=null;showCart();}
+    private void resumeScanningAfterSpeech(){
+        waitingForSpeech=false;
+        if(finishScanButton!=null)finishScanButton.setEnabled(true);
+        if(activityResumed&&scanning&&barcodeView!=null&&(android.os.Build.VERSION.SDK_INT<23||checkSelfPermission(android.Manifest.permission.CAMERA)==android.content.pm.PackageManager.PERMISSION_GRANTED))barcodeView.resume();
+    }
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        if(requestCode==101){if(grantResults.length>0&&grantResults[0]==android.content.pm.PackageManager.PERMISSION_GRANTED&&barcodeView!=null)barcodeView.resume();else{scanning=false;new AlertDialog.Builder(this).setMessage("ต้องอนุญาตใช้กล้องเพื่อสแกนบาร์โค้ด").setPositiveButton("ตกลง",(d,w)->home()).show();}}
+        if(requestCode==101){if(grantResults.length>0&&grantResults[0]==android.content.pm.PackageManager.PERMISSION_GRANTED&&barcodeView!=null&&!waitingForSpeech)barcodeView.resume();else if(grantResults.length==0||grantResults[0]!=android.content.pm.PackageManager.PERMISSION_GRANTED){scanning=false;new AlertDialog.Builder(this).setMessage("ต้องอนุญาตใช้กล้องเพื่อสแกนบาร์โค้ด").setPositiveButton("ตกลง",(d,w)->home()).show();}}
     }
-    @Override protected void onPause(){if(barcodeView!=null)barcodeView.pause();super.onPause();}
-    @Override protected void onResume(){super.onResume();if(scanning&&barcodeView!=null&&android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.CAMERA)==android.content.pm.PackageManager.PERMISSION_GRANTED)barcodeView.resume();}
+    @Override protected void onPause(){activityResumed=false;if(barcodeView!=null)barcodeView.pause();super.onPause();}
+    @Override protected void onResume(){super.onResume();activityResumed=true;if(scanning&&!waitingForSpeech&&barcodeView!=null&&(android.os.Build.VERSION.SDK_INT<23||checkSelfPermission(android.Manifest.permission.CAMERA)==android.content.pm.PackageManager.PERMISSION_GRANTED))barcodeView.resume();}
     private void addScanned(String barcode){
         Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","unit","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
-        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",()->{if(barcodeView!=null&&scanning)barcodeView.resume();});return;}
+        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::resumeScanningAfterSpeech);return;}
         long id=c.getLong(0);String name=c.getString(1),unit=c.getString(2);long price=c.getLong(3);int stock=c.getInt(4);c.close();
         Item old=cart.get(id);if(old==null){Item item=new Item(id,barcode,name,unit,price,stock);cart.put(id,item);}else old.qty++;
-        PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",()->{if(barcodeView!=null&&scanning)barcodeView.resume();});
+        PosUi.speakThen(this,name+" "+cart.get(id).qty+" "+unit+"ค่ะ",this::resumeScanningAfterSpeech);
     }
     private long subtotal(){long s=0;for(Item i:cart.values())s+=i.price*i.qty;return s;}
     private void showCart(){
