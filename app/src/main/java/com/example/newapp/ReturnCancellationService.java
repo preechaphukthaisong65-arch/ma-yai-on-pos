@@ -108,6 +108,8 @@ final class ReturnCancellationService {
             l.put("subtotal_satang",-subtotal);l.put("fee_satang",ledgerFee);
             l.put("total_satang",Math.addExact(-subtotal,ledgerFee));l.put("created_at",now);
             db.insertOrThrow("sales_ledger",null,l);
+            AuditService.record(db,"BILL",code.trim(),returning?"RETURN":"CANCEL",
+                    "subtotal="+subtotal+";type="+type+";priorStatus="+status,timestamp);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
