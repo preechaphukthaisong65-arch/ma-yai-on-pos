@@ -109,6 +109,6 @@ public class CreditAccountScreen extends Activity {
             receipt="บันทึกรับชำระหนี้แล้ว แต่สร้างใบเสร็จไม่สำเร็จ";
         }
         PosUi.showResult(this,true,"รับชำระหนี้สำเร็จ",
-                "บันทึกรับชำระหนี้เรียบร้อย\\n"+receipt,()->home());
+                "บันทึกรับชำระหนี้เรียบร้อย\n"+receipt,()->home());
     }
-}}
+}
