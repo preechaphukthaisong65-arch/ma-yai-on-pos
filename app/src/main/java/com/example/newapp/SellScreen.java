@@ -100,9 +100,7 @@ public class SellScreen extends Activity {
         PosUi.line(this,root,"เลือกลูกค้าเดิมจากคำแนะนำ หรือกรอกชื่อเต็มเพื่อสร้างลูกค้าใหม่");
         AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);
         java.util.ArrayList<String> customerNames=CustomerService.listNames(helper);
-        customer.setTextSize(24f);
-        customer.setPadding(PosUi.dp(this,12),PosUi.dp(this,10),PosUi.dp(this,12),PosUi.dp(this,10));
-        customer.setMinHeight(PosUi.dp(this,56));
+        PosUi.styleInput(this,customer);
         customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
         root.addView(customer,new LinearLayout.LayoutParams(-1,-2));
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
