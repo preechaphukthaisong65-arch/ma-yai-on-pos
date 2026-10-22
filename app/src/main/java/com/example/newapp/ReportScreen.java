@@ -22,8 +22,23 @@ public class ReportScreen extends Activity {
         PosUi.button(this,root,"สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
         PosUi.button(this,root,"สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
+        PosUi.button(this,root,"ประวัติการทำรายการสำคัญ",v->auditLog());
         PosUi.back(this,root);
     }
+    private void auditLog(){
+        root=PosUi.page(this,"ประวัติการทำรายการสำคัญ");
+        Cursor c=helper.getReadableDatabase().query("audit_log",new String[]{"actor_label","action","entity_type","entity_id","details","created_at"},null,null,null,null,"created_at DESC","200");
+        if(!c.moveToFirst())PosUi.line(this,root,"ยังไม่มีประวัติการทำรายการสำคัญ");
+        else do{
+            String entity=c.getString(2)+(c.isNull(3)?"":" #"+c.getString(3));
+            String details=c.isNull(4)||c.getString(4).isEmpty()?"":"\n"+c.getString(4);
+            PosUi.line(this,root,new SimpleDateFormat("dd/MM/yyyy HH:mm:ss",Locale.getDefault()).format(new Date(c.getLong(5)))+" • "+c.getString(1)+" • "+entity+"\nผู้ทำรายการ: "+c.getString(0)+details);
+        }while(c.moveToNext());
+        c.close();
+        PosUi.line(this,root,"หมายเหตุ: จนกว่าจะเพิ่มระบบบัญชีผู้ใช้ รายการยังไม่สามารถระบุตัวบุคคลผู้ทำรายการได้");
+        PosUi.back(this,root);
+    }
+
     private void returnedCancelled(){
         root=PosUi.page(this,"รายการบิลคืนสินค้า / ยกเลิก");
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT bill_code,event_type,subtotal_satang,fee_satang,total_satang,created_at,sale_type,CASE WHEN event_type IN ('RETURN','CANCEL') AND sale_type='CREDIT' AND fee_satang=0 AND NOT EXISTS (SELECT 1 FROM sales_ledger w WHERE w.bill_id=sales_ledger.bill_id AND w.event_type='CREDIT_FEE_WAIVED') THEN COALESCE((SELECT s.fee_satang FROM sales_ledger s WHERE s.bill_id=sales_ledger.bill_id AND s.event_type='SALE'),0) ELSE fee_satang END AS display_fee FROM sales_ledger WHERE event_type IN ('RETURN','CANCEL') ORDER BY created_at DESC",null);
