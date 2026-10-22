@@ -107,27 +107,134 @@ public class StockScreen extends Activity {
     }
     private void newProduct(String barcode){
         root=PosUi.page(this,"เพิ่มสินค้าใหม่");
-        PosUi.line(this,root,"บาร์โค้ด: "+barcode);PosUi.speak(this,"สินค้าใหม่ค่ะ");
-        EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
-        Cursor registry=helper.getReadableDatabase().query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null,"1");
-        if(registry.moveToFirst()){name.setText(registry.getString(0));price.setText(PosDatabase.money(registry.getLong(1)));name.setEnabled(false);price.setEnabled(false);}
+        PosUi.line(this,root,"บาร์โค้ด: "+barcode);
+        PosUi.speak(this,"สินค้าใหม่ค่ะ");
+
+        EditText name=PosUi.input(this,root,"ชื่อสินค้า");
+        EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
+        Cursor registry=helper.getReadableDatabase().query(
+                "barcode_registry",new String[]{"name","price_satang"},
+                "barcode=?",new String[]{barcode},null,null,null,"1");
+        if(registry.moveToFirst()){
+            name.setText(registry.getString(0));
+            price.setText(PosDatabase.money(registry.getLong(1)));
+            name.setEnabled(false);
+            price.setEnabled(false);
+        }
         registry.close();
-        EditText cost=PosUi.input(this,root,"ต้นทุน (บาท)");EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
+
+        price.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText cost=PosUi.input(this,root,"ต้นทุน (บาท)");
+        cost.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText unit=PosUi.input(this,root,"หน่วย เช่น ขวด");
+        EditText lim=PosUi.input(this,root,"ลิมิตสต๊อก");
+        lim.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         EditText qty=PosUi.input(this,root,"จำนวนเริ่มต้น");
-        PosUi.button(this,root,"บันทึกสินค้า",v->{try{
-            String nm=PosUi.str(name),un=PosUi.str(unit);if(nm.isEmpty()||un.isEmpty())throw new IllegalArgumentException();
-            int q=Integer.parseInt(PosUi.str(qty)),l=Integer.parseInt(PosUi.str(lim));long p=PosUi.satang(price),co=PosUi.satang(cost);if(q<0||l<0)throw new IllegalArgumentException();
-            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();try{
-                Cursor existingRegistry=db.query("barcode_registry",new String[]{"name","price_satang"},"barcode=?",new String[]{barcode},null,null,null);
+        qty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+
+        PosUi.button(this,root,"บันทึกสินค้า",v->{
+            String nm=PosUi.str(name), un=PosUi.str(unit);
+            String priceText=PosUi.str(price).replace(",","");
+            String costText=PosUi.str(cost).replace(",","");
+            String limitText=PosUi.str(lim), qtyText=PosUi.str(qty);
+
+            if(nm.isEmpty()){name.setError("กรอกชื่อสินค้า");name.requestFocus();return;}
+            if(un.isEmpty()){unit.setError("กรอกหน่วยสินค้า เช่น ชิ้นหรือขวด");unit.requestFocus();return;}
+            if(priceText.isEmpty()){price.setError("กรอกราคาขาย");price.requestFocus();return;}
+            if(costText.isEmpty()){cost.setError("กรอกต้นทุน");cost.requestFocus();return;}
+            if(limitText.isEmpty()){lim.setError("กรอกลิมิตสต๊อก (ใส่ 0 ได้)");lim.requestFocus();return;}
+            if(qtyText.isEmpty()){qty.setError("กรอกจำนวนเริ่มต้น (ใส่ 0 ได้)");qty.requestFocus();return;}
+
+            final int q,l;
+            final long p,co;
+            try{
+                q=Integer.parseInt(qtyText);
+                if(q<0)throw new NumberFormatException();
+            }catch(NumberFormatException e){qty.setError("จำนวนเริ่มต้นต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");qty.requestFocus();return;}
+            try{
+                l=Integer.parseInt(limitText);
+                if(l<0)throw new NumberFormatException();
+            }catch(NumberFormatException e){lim.setError("ลิมิตสต๊อกต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");lim.requestFocus();return;}
+            try{p=PosDatabase.toSatang(priceText);}
+            catch(Exception e){price.setError("ราคาขายไม่ถูกต้อง เช่น 25 หรือ 25.50");price.requestFocus();return;}
+            try{co=PosDatabase.toSatang(costText);}
+            catch(Exception e){cost.setError("ต้นทุนไม่ถูกต้อง เช่น 15 หรือ 15.50");cost.requestFocus();return;}
+
+            SQLiteDatabase db=null;
+            boolean started=false,saved=false;
+            String error=null;
+            try{
+                db=helper.getWritableDatabase();
+                db.beginTransaction();
+                started=true;
+
+                Cursor existingProduct=db.query("products",new String[]{"active"},
+                        "barcode=?",new String[]{barcode},null,null,null,"1");
+                if(existingProduct.moveToFirst()){
+                    int active=existingProduct.getInt(0);
+                    existingProduct.close();
+                    throw new IllegalStateException(active==1
+                            ?"สินค้านี้มีอยู่ในคลังแล้ว กรุณาใช้เมนูเพิ่มสินค้าเข้าสต๊อก"
+                            :"บาร์โค้ดนี้เป็นสินค้าที่ปิดใช้งานอยู่ กรุณาตรวจสอบรายการเดิมก่อนเพิ่มใหม่");
+                }
+                existingProduct.close();
+
+                Cursor existingRegistry=db.query("barcode_registry",
+                        new String[]{"name","price_satang"},"barcode=?",
+                        new String[]{barcode},null,null,null,"1");
                 boolean registryExists=existingRegistry.moveToFirst();
-                if(registryExists&&(!nm.equals(existingRegistry.getString(0))||p!=existingRegistry.getLong(1))){existingRegistry.close();throw new IllegalStateException("บาร์โค้ดนี้มีข้อมูลในคลังบาร์โค้ดไม่ตรงกัน กรุณาสแกนตรวจสอบก่อน");}
+                if(registryExists&&(!nm.equals(existingRegistry.getString(0))
+                        ||p!=existingRegistry.getLong(1))){
+                    existingRegistry.close();
+                    throw new IllegalStateException(
+                            "บาร์โค้ดนี้มีข้อมูลในคลังบาร์โค้ดไม่ตรงกัน กรุณาสแกนตรวจสอบก่อน");
+                }
                 existingRegistry.close();
-                ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
+
+                ContentValues cv=new ContentValues();
+                cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);
+                cv.put("cost_satang",co);cv.put("unit",un);cv.put("stock",q);
+                cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());
+                cv.put("updated_at",PosDatabase.now());
                 long id=db.insertOrThrow("products",null,cv);
-                if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,br);}
-                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());db.insertOrThrow("stock_history",null,h);db.setTransactionSuccessful();
-            }finally{db.endTransaction();}StockAlertManager.check(this);home();
-        }catch(Exception e){new AlertDialog.Builder(this).setMessage("บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage()).setPositiveButton("ตกลง",null).show();}});
+
+                if(!registryExists){
+                    ContentValues br=new ContentValues();
+                    br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);
+                    br.put("source","FACTORY");br.put("created_at",PosDatabase.now());
+                    db.insertOrThrow("barcode_registry",null,br);
+                }
+
+                ContentValues h=new ContentValues();
+                h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);
+                h.put("change_type","INITIAL");h.put("before_qty",0);
+                h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());
+                db.insertOrThrow("stock_history",null,h);
+                db.setTransactionSuccessful();
+                saved=true;
+            }catch(Exception e){
+                error=e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage();
+                saved=false;
+            }finally{
+                if(db!=null&&started){
+                    try{db.endTransaction();}
+                    catch(Exception e){saved=false;error="ยืนยันการบันทึกไม่สำเร็จ: "
+                            +(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}
+                }
+            }
+            if(saved){
+                StockAlertManager.check(this);
+                home();
+            }else{
+                new AlertDialog.Builder(this)
+                        .setTitle("บันทึกสินค้าไม่สำเร็จ")
+                        .setMessage(error==null?"กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง":error)
+                        .setPositiveButton("ตกลง",null)
+                        .show();
+            }
+        });
         PosUi.back(this,root);
     }
 }
