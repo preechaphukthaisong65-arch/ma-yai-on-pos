@@ -3,6 +3,7 @@ package com.example.newapp;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
@@ -45,17 +46,17 @@ public class CreditAccountScreen extends Activity {
         c.close();
         PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(dueTotal)+" บาท");
         if(!allIds.isEmpty()){
-            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds,payableTotal(customerId,allIds)));
+            PosUi.button(this,root,"ชำระเต็มจำนวนทุกบิล",v->payAll(customerId,allIds));
             PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
                 ArrayList<Long> chosen=new ArrayList<>(selected);java.util.Collections.sort(chosen);
                 if(chosen.isEmpty()){new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();return;}
-                payAll(customerId,chosen,payableTotal(customerId,chosen));
+                payAll(customerId,chosen);
             });
         }else PosUi.line(this,root,"ไม่มีบิลค้างชำระ");
         PosUi.back(this,root);
     }
 
-    private void payAll(long customerId,ArrayList<Long> ids,long ignoredTotal){
+    private void payAll(long customerId,ArrayList<Long> ids){
         try{
             CreditPaymentService.Quote quote=CreditPaymentService.quote(helper,customerId,ids,PosDatabase.now());
             StringBuilder spoken=new StringBuilder();
