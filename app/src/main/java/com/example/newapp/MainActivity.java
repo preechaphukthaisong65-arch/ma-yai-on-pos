@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
         TextView ticker = new TextView(this);
         tickerView = ticker;
         ticker.setText(TICKER_BASE);
-        ticker.setTextSize(14);
+        ticker.setTextSize(21);
         ticker.setTextColor(Color.rgb(35, 55, 40));
         // Light translucent white backing improves ticker/notification text contrast
         // while allowing the shared home wallpaper to remain visible.
@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
         ticker.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
         ticker.setMarqueeRepeatLimit(-1);
         ticker.setSelected(true);
-        ticker.setPadding(dp(4), dp(8), dp(4), dp(8));
+        ticker.setPadding(dp(4), dp(2), dp(4), dp(2));
         page.addView(ticker);
 
         LinearLayout r1 = row(), r2 = row(), r3 = row();
@@ -111,7 +111,7 @@ public class MainActivity extends Activity {
         TextView caption = new TextView(this);
         caption.setText(label);
         caption.setTextColor(Color.rgb(35, 45, 55));
-        caption.setTextSize(14);
+        caption.setTextSize(21);
         caption.setGravity(Gravity.CENTER);
         caption.setMaxLines(2);
         tile.addView(caption, new LinearLayout.LayoutParams(-1, -2));
