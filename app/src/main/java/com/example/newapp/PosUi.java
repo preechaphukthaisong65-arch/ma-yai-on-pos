@@ -28,6 +28,10 @@ final class PosUi {
         synchronized (PAGE_HISTORY) { PAGE_HISTORY.remove(a); SKIP_NEXT_HISTORY.put(a,Boolean.TRUE); }
     }
 
+    static void clearNavigation(Activity a) {
+        synchronized (PAGE_HISTORY) { PAGE_HISTORY.remove(a); SKIP_NEXT_HISTORY.remove(a); }
+    }
+
     static LinearLayout page(Activity a, String title) {
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
