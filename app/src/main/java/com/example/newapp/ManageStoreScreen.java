@@ -110,7 +110,7 @@ public class ManageStoreScreen extends Activity {
         finally{
             if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
         }
-        if(saved)new AlertDialog.Builder(this).setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();
+        if(saved){StockAlertManager.check(this);new AlertDialog.Builder(this).setMessage((returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();}
         else new AlertDialog.Builder(this).setMessage("ทำรายการไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error)).setPositiveButton("ตกลง",null).show();
     }
 }
