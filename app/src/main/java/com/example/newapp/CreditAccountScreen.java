@@ -105,4 +105,5 @@ public class CreditAccountScreen extends Activity {
             PosUi.result(this,false,"รับชำระหนี้ไม่สำเร็จ",e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage(),null);
         }
     }
+    @Override protected void onDestroy(){PosUi.clearNavigation(this);super.onDestroy();}
 }
