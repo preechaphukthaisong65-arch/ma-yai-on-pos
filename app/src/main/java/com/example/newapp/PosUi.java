@@ -2,6 +2,7 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -127,12 +128,33 @@ final class PosUi {
         });
     }
 
+    static AlertDialog.Builder dialog(Activity a) { return new StyledDialogBuilder(a); }
+
     static void result(Activity a, boolean success, String title, String message, Runnable after) {
         String spoken=(success?"บันทึกสำเร็จ ":"บันทึกไม่สำเร็จ ")+message;
-        new AlertDialog.Builder(a).setTitle(title).setMessage(message)
+        dialog(a).setTitle(title).setMessage(message)
                 .setPositiveButton("ตกลง",(dialog,which)->{if(after!=null)after.run();})
-                .setOnDismissListener(dialog->speak(a,spoken))
+                .setOnShowListener(d->speak(a,spoken))
                 .show();
+    }
+
+    private static final class StyledDialogBuilder extends AlertDialog.Builder {
+        StyledDialogBuilder(Activity a) { super(a); }
+        @Override public AlertDialog show() {
+            AlertDialog d=super.show();
+            TextView message=d.findViewById(android.R.id.message);
+            if(message!=null){message.setTextSize(24);message.setPadding(dp((Activity)d.getContext(),20),dp((Activity)d.getContext(),12),dp((Activity)d.getContext(),20),dp((Activity)d.getContext(),12));}
+            int titleId=d.getContext().getResources().getIdentifier("alertTitle","id","android");
+            TextView title=titleId==0?null:d.findViewById(titleId);
+            if(title!=null)title.setTextSize(30);
+            Button positive=d.getButton(DialogInterface.BUTTON_POSITIVE);
+            Button negative=d.getButton(DialogInterface.BUTTON_NEGATIVE);
+            Button neutral=d.getButton(DialogInterface.BUTTON_NEUTRAL);
+            if(positive!=null)positive.setTextSize(21);
+            if(negative!=null)negative.setTextSize(21);
+            if(neutral!=null)neutral.setTextSize(21);
+            return d;
+        }
     }
 
     private static void ttsLangSafe(Activity a,TextToSpeech tts) {
