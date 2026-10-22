@@ -77,7 +77,7 @@ public class ReportScreen extends Activity {
     }
     private void chooseChartYear(){
         EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine(true);input.setText(String.valueOf(chartYear));input.setSelectAllOnFocus(true);
-        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี ค.ศ. เช่น 2026").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2000||year>2100)throw new IllegalArgumentException();updateAnnualChart(year);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี ค.ศ. ระหว่าง 2000–2100").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
+        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี พ.ศ. เช่น 2569").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2400||year>2700)throw new IllegalArgumentException();updateAnnualChart(year);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี พ.ศ. ระหว่าง 2400–2700").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
     }
     private void auditLog(){
         root=PosUi.page(this,"ประวัติการทำรายการสำคัญ");
