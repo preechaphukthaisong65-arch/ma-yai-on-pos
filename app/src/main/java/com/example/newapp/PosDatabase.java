@@ -138,7 +138,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
             legacy.close();
             for (int i = 0; i < customerIds.size(); i++) {
                 String oldName = legacyNames.get(i);
-                int split = oldName.indexOf(' ');
+                int split = oldName.lastIndexOf(' ');
                 String first = split > 0 ? oldName.substring(0, split).trim() : oldName;
                 String last = split > 0 ? oldName.substring(split + 1).trim() : "";
                 ContentValues profile = new ContentValues();
