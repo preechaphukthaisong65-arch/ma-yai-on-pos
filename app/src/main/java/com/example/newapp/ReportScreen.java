@@ -61,4 +61,6 @@ public class ReportScreen extends Activity {
         if(i==1)PosUi.line(this,root,best?"ยังไม่มีสินค้าที่มียอดขายสุทธิในช่วงนี้":"ยังไม่มีสินค้าในคลัง");
         c.close();PosUi.back(this,root);
     }
+
+    @Override public void onBackPressed() { PosUi.goBack(this); }
 }
