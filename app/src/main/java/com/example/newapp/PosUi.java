@@ -15,8 +15,10 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.zxing.integration.android.IntentIntegrator;
 import java.util.Locale;
+import java.util.WeakHashMap;
 
 final class PosUi {
+    private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
     private PosUi() {}
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
@@ -30,7 +32,9 @@ final class PosUi {
         TextView heading = text(a,title,24,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
-        scroll.addView(root); a.setContentView(scroll); return root;
+        scroll.addView(root);
+        LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
+        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); a.setContentView(outer); PAGE_CONTAINERS.put(root,outer); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size*1.5f); t.setTextColor(color);
@@ -103,7 +107,10 @@ final class PosUi {
         Button previous=new Button(a); previous.setText("← ย้อนกลับ"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,4),0,dp(a,4),0);
         LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,dp(a,44),1f); hp.rightMargin=dp(a,8);
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(a,44),1f);
-        footer.addView(home,hp); footer.addView(previous,bp); root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
+        footer.addView(home,hp); footer.addView(previous,bp);
+        LinearLayout container=PAGE_CONTAINERS.get(root);
+        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,48)));
+        else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
         home.setOnClickListener(v->{Intent i=new Intent(a,MainActivity.class);i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);a.startActivity(i);a.finish();});
         previous.setOnClickListener(v->a.finish());
     }
