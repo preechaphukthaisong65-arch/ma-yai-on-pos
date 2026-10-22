@@ -19,7 +19,9 @@ final class CustomerService {
         try { if(c.moveToFirst())return c.getLong(0); }
         finally { c.close(); }
         ContentValues values=new ContentValues();values.put("full_name",name);values.put("created_at",timestamp);
-        return db.insertOrThrow("customers",null,values);
+        long id=db.insertOrThrow("customers",null,values);
+        AuditService.record(db,"CUSTOMER",String.valueOf(id),"CUSTOMER_CREATED","source=SALE",timestamp);
+        return id;
     }
 
     static ArrayList<String> listNames(PosDatabase helper) {
