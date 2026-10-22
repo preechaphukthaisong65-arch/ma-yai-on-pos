@@ -73,17 +73,15 @@ public class StockScreen extends Activity {
         c.close();PosUi.button(this,root,"สแกนบาร์โค้ดอื่น",v->scanAgain());PosUi.back(this,root);
     }
     private boolean saveLimit(long id,int oldLimit,int newLimit){
-        SQLiteDatabase db=null;boolean started=false,saved=false;String error=null;
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();started=true;
-            ContentValues cv=new ContentValues();cv.put("stock_limit",newLimit);cv.put("updated_at",PosDatabase.now());
-            if(db.update("products",cv,"id=? AND stock_limit=?",new String[]{String.valueOf(id),String.valueOf(oldLimit)})!=1)throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-            db.setTransactionSuccessful();saved=true;
-        }catch(Exception e){error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();}
-        finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ";}}}
-        if(saved)StockAlertManager.check(this);
-        if(!saved)new AlertDialog.Builder(this).setMessage(error==null?"บันทึกลิมิตไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
-        return saved;
+            ProductCatalogService.updateStockLimit(helper,id,oldLimit,newLimit,PosDatabase.now());
+            StockAlertManager.check(this);
+            return true;
+        }catch(Exception e){
+            String error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();
+            new AlertDialog.Builder(this).setMessage(error).setPositiveButton("ตกลง",null).show();
+            return false;
+        }
     }
 
     private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
