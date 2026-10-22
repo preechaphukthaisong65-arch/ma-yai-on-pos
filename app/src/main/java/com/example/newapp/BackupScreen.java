@@ -15,7 +15,7 @@ public class BackupScreen extends Activity {
     private LinearLayout root;
     @Override protected void onCreate(Bundle state){super.onCreate(state);home();}
 
-    private void home(){
+    private void home(){PosUi.resetNavigation(this);
         root=PosUi.page(this,"สำรอง / กู้คืนข้อมูล");
         PosUi.line(this,root,"ไฟล์สำรองมีข้อมูลสินค้า ลูกค้า บิล และประวัติธุรกรรม ควรเก็บไว้ในพื้นที่ส่วนตัว");
         PosUi.button(this,root,"ส่งออกไฟล์สำรอง",v->chooseExport());
