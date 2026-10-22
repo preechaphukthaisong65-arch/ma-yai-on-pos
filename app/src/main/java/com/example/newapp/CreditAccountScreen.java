@@ -49,7 +49,7 @@ public class CreditAccountScreen extends Activity {
             PosUi.button(this,root,"ชำระเฉพาะบิลที่เลือก",v->{
                 ArrayList<Long> chosen=new ArrayList<>(selected);java.util.Collections.sort(chosen);
                 if(chosen.isEmpty()){
-                    new AlertDialog.Builder(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();
+                    PosUi.dialog(this).setMessage("เลือกอย่างน้อยหนึ่งบิล").setPositiveButton("ตกลง",null).show();
                     return;
                 }
                 payAll(customerId,chosen);
@@ -81,13 +81,13 @@ public class CreditAccountScreen extends Activity {
                 }finally{items.close();}
             }
             spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(quote.totalSatang)).append(" บาท");
-            PosUi.speakThen(this,spoken.toString(),()->new AlertDialog.Builder(this)
+            PosUi.speakThen(this,spoken.toString(),()->PosUi.dialog(this)
                     .setTitle("ยืนยันรับชำระหนี้")
                     .setMessage("รับเงินสด "+PosDatabase.money(quote.totalSatang)+" บาท เพื่อชำระบิลที่เลือกหรือไม่?")
                     .setNegativeButton("ยกเลิก",null)
                     .setPositiveButton("ยืนยัน",(dialog,which)->recordPayment(customerId,ids,quote.totalSatang)).show());
         }catch(Exception e){
-            new AlertDialog.Builder(this).setMessage("คำนวณยอดชำระไม่สำเร็จ: "+
+            PosUi.dialog(this).setMessage("คำนวณยอดชำระไม่สำเร็จ: "+
                     (e.getMessage()==null?"ข้อมูลบิลไม่ถูกต้อง":e.getMessage())).setPositiveButton("ตกลง",null).show();
         }
     }
@@ -96,12 +96,10 @@ public class CreditAccountScreen extends Activity {
         try{
             CreditPaymentService.Result result=CreditPaymentService.commit(helper,customerId,ids,total,PosDatabase.now());
             String receipt=ReceiptService.formatPayment(result);
-            new AlertDialog.Builder(this).setTitle("รับชำระหนี้สำเร็จ")
-                    .setMessage("บันทึกรับชำระหนี้เรียบร้อย\n"+receipt)
-                    .setPositiveButton("ตกลง",(dialog,which)->home()).show();
+            PosUi.transactionFeedback(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt,()->home());
         }catch(Exception e){
-            new AlertDialog.Builder(this).setMessage("รับชำระไม่สำเร็จ: "+
-                    (e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage())).setPositiveButton("ตกลง",null).show();
+            PosUi.transactionFeedback(this,false,"รับชำระไม่สำเร็จ: "+
+                    (e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage()));
         }
     }
 }

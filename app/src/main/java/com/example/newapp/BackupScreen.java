@@ -33,7 +33,7 @@ public class BackupScreen extends Activity {
     }
 
     private void confirmImport(){
-        new AlertDialog.Builder(this).setTitle("ยืนยันนำเข้าข้อมูลสำรอง")
+        PosUi.dialog(this).setTitle("ยืนยันนำเข้าข้อมูลสำรอง")
                 .setMessage("การนำเข้าจะแทนที่ข้อมูลปัจจุบันทั้งหมด หากยังไม่มีไฟล์สำรองล่าสุด อย่าดำเนินการต่อ")
                 .setNegativeButton("ยกเลิก",null)
                 .setPositiveButton("เลือกไฟล์",(d,w)->{
@@ -50,7 +50,7 @@ public class BackupScreen extends Activity {
         Uri uri=data.getData();
         if(requestCode==REQUEST_EXPORT)runTask("กำลังสำรองข้อมูล...",()->BackupService.exportTo(this,uri),
                 "สำรองข้อมูลเรียบร้อย",false);
-        else if(requestCode==REQUEST_IMPORT)new AlertDialog.Builder(this)
+        else if(requestCode==REQUEST_IMPORT)PosUi.dialog(this)
                 .setTitle("แทนที่ข้อมูลปัจจุบัน")
                 .setMessage("ยืนยันใช้ไฟล์นี้แทนฐานข้อมูลปัจจุบันหรือไม่? ระบบจะตรวจไฟล์ก่อน และจะพยายามคืนฐานข้อมูลเดิมหากกู้คืนไม่สำเร็จ")
                 .setNegativeButton("ยกเลิก",null)
@@ -69,18 +69,16 @@ public class BackupScreen extends Activity {
             runOnUiThread(()->{
                 if(isFinishing())return;
                 if(error==null){
-                    new AlertDialog.Builder(this).setMessage(success)
-                            .setPositiveButton("ตกลง",(d,w)->{
-                                if(returnHome){
-                                    Intent intent=new Intent(this,MainActivity.class);
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                                    startActivity(intent);finish();
-                                }else home();
-                            }).show();
+                    PosUi.transactionFeedback(this,true,success,()->{
+                        if(returnHome){
+                            Intent intent=new Intent(this,MainActivity.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                            startActivity(intent);finish();
+                        }else home();
+                    });
                 }else{
                     String message=error.getMessage()==null?"เกิดข้อผิดพลาดในการจัดการไฟล์":error.getMessage();
-                    new AlertDialog.Builder(this).setTitle("ดำเนินการไม่สำเร็จ").setMessage(message)
-                            .setPositiveButton("ตกลง",(d,w)->home()).show();
+                    PosUi.transactionFeedback(this,false,message,()->home());
                 }
             });
         },"pos-backup").start();

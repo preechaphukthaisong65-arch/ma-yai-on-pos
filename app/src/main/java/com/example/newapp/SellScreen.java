@@ -24,7 +24,7 @@ public class SellScreen extends Activity {
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ขายสินค้า");PosUi.line(this,root,"เพิ่มสินค้าเข้าบิลด้วยการสแกนบาร์โค้ดเท่านั้น");
-        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));PosUi.button(this,root,"กลับหน้าหลัก",v->finish());
+        PosUi.button(this,root,"เริ่มสแกนสินค้า",v->{cart.clear();scan();});PosUi.button(this,root,"บัญชีลูกค้าสินเชื่อ",v->startActivity(new Intent(SellScreen.this,CreditAccountScreen.class)));
         addSalesChart("ยอดขายรายสัปดาห์ • 8 สัปดาห์ล่าสุด","week",8);
         addSalesChart("ยอดขายรายเดือน • 12 เดือนล่าสุด","month",12);
         addSalesChart("ยอดขายรายปี • ปีปัจจุบันและข้อมูลที่เหลือของปีก่อน","year",2);
@@ -101,6 +101,8 @@ public class SellScreen extends Activity {
         AutoCompleteTextView customer=new AutoCompleteTextView(this);customer.setSingleLine(true);customer.setHint("ชื่อลูกค้า-ชื่อและนามสกุล");customer.setThreshold(1);
         java.util.ArrayList<String> customerNames=CustomerService.listNames(helper);
         customer.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,customerNames));
+        customer.setPadding(PosUi.dp(this,12),PosUi.dp(this,12),PosUi.dp(this,12),PosUi.dp(this,12));
+        customer.setMinHeight(PosUi.dp(this,56));
         root.addView(customer,new LinearLayout.LayoutParams(-1,-2));
         long sub=subtotal(),fee=PosDatabase.creditFee(sub),total=sub+fee;
         PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
@@ -111,12 +113,12 @@ public class SellScreen extends Activity {
     }
     private void commitSale(boolean credit,String customerName,long cash){
         if(saleInProgress||duplicatePromptOpen)return;
-        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        if(cart.isEmpty()){PosUi.dialog(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         String duplicate;
-        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){new AlertDialog.Builder(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
+        try{duplicate=findDuplicate(credit,customerName,cash);}catch(Exception e){PosUi.dialog(this).setMessage("ตรวจสอบบิลซ้ำไม่สำเร็จ จึงยังไม่บันทึกการขาย").setPositiveButton("ตกลง",null).show();return;}
         if(duplicate!=null){
             duplicatePromptOpen=true;
-            new AlertDialog.Builder(this).setTitle("พบบิลที่อาจซ้ำ")
+            PosUi.dialog(this).setTitle("พบบิลที่อาจซ้ำ")
                     .setMessage("พบบิลที่มีรายละเอียดตรงกันใน 1 ชั่วโมงที่ผ่านมา ("+duplicate+") ต้องการสร้างบิลใหม่หรือไม่?")
                     .setNegativeButton("ยกเลิก",(d,w)->{duplicatePromptOpen=false;home();})
                     .setPositiveButton("ยืนยันว่าเป็นการขายจริง",(d,w)->{duplicatePromptOpen=false;saveSale(credit,customerName,cash);})
@@ -150,7 +152,7 @@ public class SellScreen extends Activity {
     }
     private void saveSale(boolean credit,String customerName,long cash){
         if(saleInProgress)return;
-        if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
+        if(cart.isEmpty()){PosUi.dialog(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         saleInProgress=true;
         SalesTransactionService.Result result=null;
         String error=null;
@@ -175,7 +177,7 @@ public class SellScreen extends Activity {
                         (credit?"ค่าบริการ 5% "+PosDatabase.money(result.feeSatang)+" บาท\nยอดหนี้ "+PosDatabase.money(result.totalSatang)+" บาท":
                                 "รับเงิน "+PosDatabase.money(result.cashReceivedSatang)+" บาท\nเงินทอน "+PosDatabase.money(result.changeSatang)+" บาท");
             }
-            new AlertDialog.Builder(this).setTitle("บันทึกการขายสำเร็จ").setMessage(message).setPositiveButton("ตกลง",(d,w)->home()).show();
-        }else new AlertDialog.Builder(this).setTitle("บันทึกไม่สำเร็จ").setMessage(error==null?"บันทึกการขายไม่สำเร็จ":error).setPositiveButton("ตกลง",null).show();
+            PosUi.transactionFeedback(this,true,message,()->home());
+        }else PosUi.transactionFeedback(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error);
     }
 }
