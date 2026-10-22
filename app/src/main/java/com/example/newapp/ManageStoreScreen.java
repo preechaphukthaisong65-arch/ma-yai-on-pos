@@ -39,9 +39,9 @@ public class ManageStoreScreen extends Activity {
         PosUi.back(this,root);
     }
     private void savePrice(long id,String barcode,String name,long old,long next){
-        SQLiteDatabase db=helper.getWritableDatabase();boolean saved=false;String error=null;
+        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
         try{
-            db.beginTransaction();
+            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
             Cursor c=db.query("products",new String[]{"price_satang"},"id=?",new String[]{String.valueOf(id)},null,null,null);
             if(!c.moveToFirst()||c.getLong(0)!=old){c.close();throw new IllegalStateException("ราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนใหม่");}c.close();
             ContentValues p=new ContentValues();p.put("price_satang",next);p.put("updated_at",PosDatabase.now());
@@ -50,7 +50,7 @@ public class ManageStoreScreen extends Activity {
             ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());db.insertOrThrow("price_history",null,h);
             db.setTransactionSuccessful();saved=true;
         }catch(Exception e){error=e.getMessage();}
-        finally{if(db.inTransaction()){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
+        finally{if(db!=null&&transactionStarted&&db.inTransaction()){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
         if(saved){
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
             new AlertDialog.Builder(this).setMessage("บันทึกราคาใหม่เรียบร้อย").setPositiveButton("ตกลง",(d,w)->home()).show();
