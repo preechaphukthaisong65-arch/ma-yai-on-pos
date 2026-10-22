@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
         backParams.setMargins(0, 0, dp(8), dp(4));
         frame.addView(back, backParams);
         back.setOnClickListener(v -> finish());
-        setContentView(frame);
+        PosUi.showRoot(this,frame);
         hideSystemBars();
     }
 
