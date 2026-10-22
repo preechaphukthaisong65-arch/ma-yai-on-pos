@@ -40,7 +40,11 @@ final class PosUi {
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         LinearLayout previous=CURRENT.get(a);
-        if(previous!=null)HISTORY.computeIfAbsent(a,k->new ArrayDeque<>()).push(previous);
+        if(previous!=null){
+            ArrayDeque<LinearLayout> stack=HISTORY.get(a);
+            if(stack==null){stack=new ArrayDeque<>();HISTORY.put(a,stack);}
+            stack.push(previous);
+        }
 
         LinearLayout root = new LinearLayout(a);
         root.setOrientation(LinearLayout.VERTICAL);
