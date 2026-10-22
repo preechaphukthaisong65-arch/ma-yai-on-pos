@@ -23,6 +23,7 @@ public class ReportScreen extends Activity {
         PosUi.button(this,root,"รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
         PosUi.button(this,root,"ประวัติการเปลี่ยนแปลงระบบ",v->auditHistory());
         PosUi.button(this,root,"ตรวจสอบความถูกต้องของข้อมูล",v->checkIntegrity());
+        PosUi.button(this,root,"สำรอง / กู้คืนข้อมูล",v->startActivity(new android.content.Intent(this,BackupScreen.class)));
         PosUi.back(this,root);
     }
     private void returnedCancelled(){
