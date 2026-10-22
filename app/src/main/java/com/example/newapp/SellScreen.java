@@ -12,7 +12,6 @@ import android.widget.LinearLayout;
 import android.widget.Button;
 import android.widget.AutoCompleteTextView;
 import android.widget.ArrayAdapter;
-import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -54,7 +53,7 @@ public class SellScreen extends Activity {
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
         super.onActivityResult(requestCode,resultCode,data);
-        IntentResult result=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);
+        IntentResult result=BarcodeScanner.parseResult(requestCode,resultCode,data);
         if(result==null)return;
         scanning=false;
         if(result.getContents()!=null){
