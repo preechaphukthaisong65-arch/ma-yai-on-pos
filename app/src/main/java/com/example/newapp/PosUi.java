@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.graphics.drawable.GradientDrawable;
@@ -13,6 +15,8 @@ import java.util.ArrayDeque;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.zxing.integration.android.IntentIntegrator;
@@ -20,10 +24,35 @@ import java.util.Locale;
 import java.util.WeakHashMap;
 
 final class PosUi {
-    private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
+    private static final WeakHashMap<LinearLayout,FrameLayout> PAGE_CONTAINERS = new WeakHashMap<>();
     private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
     private static final WeakHashMap<Activity,ArrayDeque<View>> NAV_STACK = new WeakHashMap<>();
     private PosUi() {}
+
+    // Remove the light checkerboard baked into the supplied back-button artwork.
+    static void setTransparentBackImage(Activity a, ImageView view, int imageId) {
+        if (imageId == 0) return;
+        android.graphics.Bitmap source = android.graphics.BitmapFactory.decodeResource(a.getResources(), imageId);
+        if (source == null) { view.setImageResource(imageId); return; }
+        Bitmap bitmap = source.copy(Bitmap.Config.ARGB_8888, true);
+        source.recycle();
+        int w = bitmap.getWidth(), h = bitmap.getHeight();
+        int[] pixels = new int[w*h];
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h);
+        boolean[] seen = new boolean[pixels.length];
+        int[] queue = new int[pixels.length];
+        int head = 0, tail = 0;
+        for (int x=0; x<w; x++) { if (isCheckerPixel(pixels[x])) { seen[x]=true; queue[tail++]=x; } int i=(h-1)*w+x; if(isCheckerPixel(pixels[i])&&!seen[i]){seen[i]=true;queue[tail++]=i;} }
+        for (int y=1; y<h-1; y++) { int l=y*w, r=l+w-1; if(isCheckerPixel(pixels[l])&&!seen[l]){seen[l]=true;queue[tail++]=l;} if(isCheckerPixel(pixels[r])&&!seen[r]){seen[r]=true;queue[tail++]=r;} }
+        while(head<tail) { int p=queue[head++], x=p%w, y=p/w; pixels[p]=pixels[p]&0x00ffffff;
+            for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ if(dx==0&&dy==0)continue; int nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue; int q=ny*w+nx; if(!seen[q]&&isCheckerPixel(pixels[q])){seen[q]=true;queue[tail++]=q;} }
+        }
+        bitmap.setPixels(pixels,0,w,0,0,w,h); view.setImageBitmap(bitmap);
+    }
+    private static boolean isCheckerPixel(int color) {
+        int r=Color.red(color), g=Color.green(color), b=Color.blue(color);
+        return Math.max(r,Math.max(g,b))-Math.min(r,Math.min(g,b)) < 18 && (r+g+b)/3 >= 155;
+    }
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN, android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -42,8 +71,9 @@ final class PosUi {
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
-        LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
-        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
+        FrameLayout outer=new FrameLayout(a); outer.setBackgroundColor(Color.TRANSPARENT);
+        outer.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
@@ -203,13 +233,23 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
-        LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
-        footer.setPadding(0,dp(a,8),0,0);
-        Button previous=new Button(a); previous.setText("👈 หน้าก่อนหน้า"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,8),0,dp(a,8),0);
-        footer.addView(previous,new LinearLayout.LayoutParams(-1,dp(a,44)));
-        LinearLayout container=PAGE_CONTAINERS.get(root);
-        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
-        else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
+        ImageView previous=new ImageView(a);
+        int imageId=a.getResources().getIdentifier("back_button","drawable",a.getPackageName());
+        if(imageId!=0)setTransparentBackImage(a,previous,imageId);
+        previous.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        previous.setAdjustViewBounds(true);
+        previous.setContentDescription("ย้อนกลับ");
+        previous.setClickable(true);
+        previous.setFocusable(true);
+        previous.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout.LayoutParams buttonParams=new FrameLayout.LayoutParams(-2,dp(a,50),Gravity.BOTTOM|Gravity.RIGHT);
+        buttonParams.setMargins(0,0,dp(a,8),Math.max(dp(a,4),Math.round(a.getResources().getDisplayMetrics().heightPixels*0.03f)));
+        FrameLayout container=PAGE_CONTAINERS.get(root);
+        if(container!=null) {
+            container.addView(previous,buttonParams);
+        } else {
+            root.addView(previous,new LinearLayout.LayoutParams(-2,dp(a,50)));
+        }
         previous.setOnClickListener(v->navigateBack(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {

@@ -1,5 +1,5 @@
 name: Build MaeyaiOn POS APK
-# Rebuild trigger: verify restored Build #826 application source; no app-code changes.
+# Rebuild trigger: verify transparent back-button pixel cleanup in the APK.
 
 on:
   workflow_dispatch:
@@ -15,6 +15,7 @@ on:
       - fix/server-committed-local-sync
       - work/complete-pos-no-backup
       - fix/offline-pos-integrity-2026-10
+      - ui/back-button-97-percent
   pull_request:
     branches:
       - main
