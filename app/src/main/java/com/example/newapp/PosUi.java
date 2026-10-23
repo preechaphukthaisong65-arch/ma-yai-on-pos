@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.graphics.drawable.GradientDrawable;
@@ -26,6 +28,31 @@ final class PosUi {
     private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
     private static final WeakHashMap<Activity,ArrayDeque<View>> NAV_STACK = new WeakHashMap<>();
     private PosUi() {}
+
+    // Remove the light checkerboard baked into the supplied back-button artwork.
+    static void setTransparentBackImage(Activity a, ImageView view, int imageId) {
+        if (imageId == 0) return;
+        android.graphics.Bitmap source = android.graphics.BitmapFactory.decodeResource(a.getResources(), imageId);
+        if (source == null) { view.setImageResource(imageId); return; }
+        Bitmap bitmap = source.copy(Bitmap.Config.ARGB_8888, true);
+        source.recycle();
+        int w = bitmap.getWidth(), h = bitmap.getHeight();
+        int[] pixels = new int[w*h];
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h);
+        boolean[] seen = new boolean[pixels.length];
+        int[] queue = new int[pixels.length];
+        int head = 0, tail = 0;
+        for (int x=0; x<w; x++) { if (isCheckerPixel(pixels[x])) { seen[x]=true; queue[tail++]=x; } int i=(h-1)*w+x; if(isCheckerPixel(pixels[i])&&!seen[i]){seen[i]=true;queue[tail++]=i;} }
+        for (int y=1; y<h-1; y++) { int l=y*w, r=l+w-1; if(isCheckerPixel(pixels[l])&&!seen[l]){seen[l]=true;queue[tail++]=l;} if(isCheckerPixel(pixels[r])&&!seen[r]){seen[r]=true;queue[tail++]=r;} }
+        while(head<tail) { int p=queue[head++], x=p%w, y=p/w; pixels[p]=pixels[p]&0x00ffffff;
+            for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ if(dx==0&&dy==0)continue; int nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue; int q=ny*w+nx; if(!seen[q]&&isCheckerPixel(pixels[q])){seen[q]=true;queue[tail++]=q;} }
+        }
+        bitmap.setPixels(pixels,0,w,0,0,w,h); view.setImageBitmap(bitmap);
+    }
+    private static boolean isCheckerPixel(int color) {
+        int r=Color.red(color), g=Color.green(color), b=Color.blue(color);
+        return Math.max(r,Math.max(g,b))-Math.min(r,Math.min(g,b)) < 18 && (r+g+b)/3 >= 155;
+    }
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
         a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN, android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
