@@ -14,6 +14,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.zxing.integration.android.IntentIntegrator;
@@ -21,7 +22,7 @@ import java.util.Locale;
 import java.util.WeakHashMap;
 
 final class PosUi {
-    private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
+    private static final WeakHashMap<LinearLayout,FrameLayout> PAGE_CONTAINERS = new WeakHashMap<>();
     private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
     private static final WeakHashMap<Activity,ArrayDeque<View>> NAV_STACK = new WeakHashMap<>();
     private PosUi() {}
@@ -43,8 +44,9 @@ final class PosUi {
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
-        LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
-        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
+        FrameLayout outer=new FrameLayout(a); outer.setBackgroundColor(Color.TRANSPARENT);
+        outer.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
@@ -204,7 +206,6 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
-        LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         ImageView previous=new ImageView(a);
         int imageId=a.getResources().getIdentifier("back_button","drawable",a.getPackageName());
         if(imageId!=0)previous.setImageResource(imageId);
@@ -213,16 +214,14 @@ final class PosUi {
         previous.setContentDescription("ย้อนกลับ");
         previous.setClickable(true);
         previous.setFocusable(true);
-        footer.addView(previous,new LinearLayout.LayoutParams(-2,dp(a,50)));
-        LinearLayout container=PAGE_CONTAINERS.get(root);
+        previous.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout.LayoutParams buttonParams=new FrameLayout.LayoutParams(-2,dp(a,50),Gravity.BOTTOM|Gravity.RIGHT);
+        buttonParams.setMargins(0,0,dp(a,8),Math.max(dp(a,4),Math.round(a.getResources().getDisplayMetrics().heightPixels*0.03f)));
+        FrameLayout container=PAGE_CONTAINERS.get(root);
         if(container!=null) {
-            container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,50)));
-            View bottomSpace=new View(a);
-            container.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(a.getResources().getDisplayMetrics().heightPixels*0.03f))));
+            container.addView(previous,buttonParams);
         } else {
-            root.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,50)));
-            View bottomSpace=new View(a);
-            root.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(a.getResources().getDisplayMetrics().heightPixels*0.03f))));
+            root.addView(previous,new LinearLayout.LayoutParams(-2,dp(a,50)));
         }
         previous.setOnClickListener(v->navigateBack(a));
     }
