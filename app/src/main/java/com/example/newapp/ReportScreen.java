@@ -30,9 +30,13 @@ public class ReportScreen extends Activity {
         addMenuButton(lower,"📉  สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         addMenuButton(lower,"🧾  รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
         addMenuButton(lower,"📋  ประวัติการทำรายการสำคัญ",v->auditLog());
-        android.widget.ImageView back=new android.widget.ImageView(this);int backId=getResources().getIdentifier("back_button","drawable",getPackageName());if(backId!=0)back.setImageResource(backId);back.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);back.setAdjustViewBounds(true);back.setContentDescription("ย้อนกลับ");back.setClickable(true);back.setFocusable(true);back.setOnClickListener(v->finish());
-        LinearLayout backRow=new LinearLayout(this);backRow.setOrientation(LinearLayout.HORIZONTAL);backRow.setGravity(android.view.Gravity.RIGHT|android.view.Gravity.CENTER_VERTICAL);backRow.addView(back,new LinearLayout.LayoutParams(-2,PosUi.dp(this,50)));lower.addView(backRow,new LinearLayout.LayoutParams(-1,PosUi.dp(this,50)));
-        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));View bottomSpace=new View(this);screen.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(getResources().getDisplayMetrics().heightPixels*0.03f))));PosUi.showRoot(this,screen);
+        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));
+        View bottomSpace=new View(this);screen.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(getResources().getDisplayMetrics().heightPixels*0.03f))));
+        android.widget.FrameLayout overlay=new android.widget.FrameLayout(this);
+        overlay.addView(screen,new android.widget.FrameLayout.LayoutParams(-1,-1));
+        android.widget.ImageView back=new android.widget.ImageView(this);int backId=getResources().getIdentifier("back_button","drawable",getPackageName());if(backId!=0)back.setImageResource(backId);back.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);back.setAdjustViewBounds(true);back.setContentDescription("ย้อนกลับ");back.setClickable(true);back.setFocusable(true);back.setBackgroundColor(android.graphics.Color.TRANSPARENT);back.setOnClickListener(v->finish());
+        android.widget.FrameLayout.LayoutParams backParams=new android.widget.FrameLayout.LayoutParams(-2,PosUi.dp(this,50),android.view.Gravity.BOTTOM|android.view.Gravity.END);backParams.setMargins(0,0,PosUi.dp(this,8),Math.max(PosUi.dp(this,4),Math.round(getResources().getDisplayMetrics().heightPixels*0.03f)));overlay.addView(back,backParams);
+        PosUi.showRoot(this,overlay);
     }
     private void addMenuButton(LinearLayout parent,String label,android.view.View.OnClickListener action){
         android.widget.Button button=new android.widget.Button(this);button.setText(label);button.setTextSize(14);button.setSingleLine(true);button.setMinHeight(0);button.setPadding(PosUi.dp(this,6),0,PosUi.dp(this,6),0);button.setOnClickListener(action);
