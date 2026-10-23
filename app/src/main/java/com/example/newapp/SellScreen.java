@@ -48,7 +48,7 @@ public class SellScreen extends Activity {
         screen.addView(sections,new FrameLayout.LayoutParams(-1,-1));
         android.widget.ImageView back=new android.widget.ImageView(this);
         int backId=getResources().getIdentifier("back_button","drawable",getPackageName());
-        if(backId!=0)back.setImageResource(backId);
+        if(backId!=0)PosUi.setTransparentBackImage(this,back,backId);
         back.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
         back.setAdjustViewBounds(true);
         back.setContentDescription("ย้อนกลับ");
