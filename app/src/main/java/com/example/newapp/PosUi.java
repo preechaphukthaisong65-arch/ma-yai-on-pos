@@ -235,7 +235,7 @@ final class PosUi {
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
         ImageView previous=new ImageView(a);
         int imageId=a.getResources().getIdentifier("back_button","drawable",a.getPackageName());
-        if(imageId!=0)previous.setImageResource(imageId);
+        if(imageId!=0)setTransparentBackImage(a,previous,imageId);
         previous.setScaleType(ImageView.ScaleType.FIT_CENTER);
         previous.setAdjustViewBounds(true);
         previous.setContentDescription("ย้อนกลับ");
