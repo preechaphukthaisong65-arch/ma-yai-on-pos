@@ -206,7 +206,7 @@ final class PosUi {
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
         LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         ImageView previous=new ImageView(a);
-        int imageId=a.getResources().getIdentifier("back-button","drawable",a.getPackageName());
+        int imageId=a.getResources().getIdentifier("back_button","drawable",a.getPackageName());
         if(imageId!=0)previous.setImageResource(imageId);
         previous.setScaleType(ImageView.ScaleType.FIT_CENTER);
         previous.setAdjustViewBounds(true);
