@@ -13,6 +13,7 @@ import java.util.ArrayDeque;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.zxing.integration.android.IntentIntegrator;
@@ -203,13 +204,26 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
-        LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
-        footer.setPadding(0,dp(a,8),0,0);
-        Button previous=new Button(a); previous.setText("👈 หน้าก่อนหน้า"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,8),0,dp(a,8),0);
-        footer.addView(previous,new LinearLayout.LayoutParams(-1,dp(a,44)));
+        LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        ImageView previous=new ImageView(a);
+        int imageId=a.getResources().getIdentifier("back-button","drawable",a.getPackageName());
+        if(imageId!=0)previous.setImageResource(imageId);
+        previous.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        previous.setAdjustViewBounds(true);
+        previous.setContentDescription("ย้อนกลับ");
+        previous.setClickable(true);
+        previous.setFocusable(true);
+        footer.addView(previous,new LinearLayout.LayoutParams(-2,dp(a,50)));
         LinearLayout container=PAGE_CONTAINERS.get(root);
-        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
-        else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
+        if(container!=null) {
+            container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,50)));
+            View bottomSpace=new View(a);
+            container.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(a.getResources().getDisplayMetrics().heightPixels*0.03f))));
+        } else {
+            root.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,50)));
+            View bottomSpace=new View(a);
+            root.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(a.getResources().getDisplayMetrics().heightPixels*0.03f))));
+        }
         previous.setOnClickListener(v->navigateBack(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
