@@ -8,6 +8,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.view.View;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -29,8 +30,9 @@ public class ReportScreen extends Activity {
         addMenuButton(lower,"📉  สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         addMenuButton(lower,"🧾  รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
         addMenuButton(lower,"📋  ประวัติการทำรายการสำคัญ",v->auditLog());
-        android.widget.Button back=new android.widget.Button(this);back.setText("👈 หน้าก่อนหน้า");back.setTextSize(14);back.setSingleLine(true);back.setOnClickListener(v->finish());lower.addView(back,new LinearLayout.LayoutParams(-1,PosUi.dp(this,38)));
-        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));PosUi.showRoot(this,screen);
+        android.widget.ImageView back=new android.widget.ImageView(this);int backId=getResources().getIdentifier("back-button","drawable",getPackageName());if(backId!=0)back.setImageResource(backId);back.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);back.setAdjustViewBounds(true);back.setContentDescription("ย้อนกลับ");back.setClickable(true);back.setFocusable(true);back.setOnClickListener(v->finish());
+        LinearLayout backRow=new LinearLayout(this);backRow.setOrientation(LinearLayout.HORIZONTAL);backRow.setGravity(android.view.Gravity.RIGHT|android.view.Gravity.CENTER_VERTICAL);backRow.addView(back,new LinearLayout.LayoutParams(-2,PosUi.dp(this,50)));lower.addView(backRow,new LinearLayout.LayoutParams(-1,PosUi.dp(this,50)));
+        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));View bottomSpace=new View(this);screen.addView(bottomSpace,new LinearLayout.LayoutParams(-1,Math.max(1,Math.round(getResources().getDisplayMetrics().heightPixels*0.03f))));PosUi.showRoot(this,screen);
     }
     private void addMenuButton(LinearLayout parent,String label,android.view.View.OnClickListener action){
         android.widget.Button button=new android.widget.Button(this);button.setText(label);button.setTextSize(14);button.setSingleLine(true);button.setMinHeight(0);button.setPadding(PosUi.dp(this,6),0,PosUi.dp(this,6),0);button.setOnClickListener(action);
