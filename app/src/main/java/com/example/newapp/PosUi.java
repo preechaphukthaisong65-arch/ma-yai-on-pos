@@ -34,17 +34,15 @@ final class PosUi {
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         ScrollView scroll = new ScrollView(a);
-        int background = a.getResources().getIdentifier("app_background", "drawable", a.getPackageName());
-        if (background != 0) scroll.setBackgroundResource(background);
+        scroll.setBackgroundColor(Color.WHITE);
         LinearLayout root = new LinearLayout(a); root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,24));
-        root.setBackgroundColor(Color.TRANSPARENT);
-        if (background == 0) scroll.setBackgroundColor(Color.rgb(248,250,247));
+        root.setBackgroundColor(Color.WHITE);
         TextView heading = text(a,title,24,Color.rgb(35,80,48)); heading.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
-        FrameLayout outer=new FrameLayout(a); outer.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout outer=new FrameLayout(a); outer.setBackgroundColor(Color.WHITE);
         outer.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
         showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
     }

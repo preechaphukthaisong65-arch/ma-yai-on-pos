@@ -21,16 +21,20 @@ public class ReportScreen extends Activity {
     private void home(){
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
-        LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.rgb(248,250,247));
+        LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.WHITE);
         annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
-        LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,4),PosUi.dp(this,8),PosUi.dp(this,2));lower.setBackgroundColor(android.graphics.Color.rgb(238,244,238));
+        LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,4),PosUi.dp(this,8),PosUi.dp(this,2));lower.setBackgroundColor(android.graphics.Color.WHITE);
         addMenuButton(lower,"📊  สรุปยอดขาย",v->summaryReport());
         addMenuButton(lower,"📈  สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
         addMenuButton(lower,"📉  สินค้าขายน้อย 20 อันดับ (30 วัน)",v->topProducts(false));
         addMenuButton(lower,"🧾  รายการบิลคืนสินค้า / ยกเลิก",v->returnedCancelled());
         addMenuButton(lower,"📋  ประวัติการทำรายการสำคัญ",v->auditLog());
-        android.widget.Button back=new android.widget.Button(this);back.setText("👈 หน้าก่อนหน้า");back.setTextSize(14);back.setSingleLine(true);back.setOnClickListener(v->finish());lower.addView(back,new LinearLayout.LayoutParams(-1,PosUi.dp(this,38)));
-        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));PosUi.showRoot(this,screen);
+        screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));
+        android.widget.FrameLayout frame=new android.widget.FrameLayout(this);
+        frame.setBackgroundColor(android.graphics.Color.WHITE);
+        frame.addView(screen,new android.widget.FrameLayout.LayoutParams(-1,-1));
+        BackNavigation.attach(this,frame,this::finish);
+        PosUi.showRoot(this,frame);
     }
     private void addMenuButton(LinearLayout parent,String label,android.view.View.OnClickListener action){
         android.widget.Button button=new android.widget.Button(this);button.setText(label);button.setTextSize(14);button.setSingleLine(true);button.setMinHeight(0);button.setPadding(PosUi.dp(this,6),0,PosUi.dp(this,6),0);button.setOnClickListener(action);

@@ -31,8 +31,7 @@ public class SellScreen extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         android.widget.LinearLayout sections=new android.widget.LinearLayout(this);
         sections.setOrientation(android.widget.LinearLayout.VERTICAL);
-        int bg=getResources().getIdentifier("app_background","drawable",getPackageName());
-        if(bg!=0)sections.setBackgroundResource(bg);else sections.setBackgroundColor(android.graphics.Color.WHITE);
+        sections.setBackgroundColor(android.graphics.Color.WHITE);
         android.widget.FrameLayout top=new android.widget.FrameLayout(this),bottom=new android.widget.FrameLayout(this);
         sections.addView(top,new android.widget.LinearLayout.LayoutParams(-1,0,1f));
         sections.addView(bottom,new android.widget.LinearLayout.LayoutParams(-1,0,1f));
@@ -45,6 +44,7 @@ public class SellScreen extends Activity {
         sell.setOnClickListener(v->showScanScreen());
         arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra("arrears_search_mode",true);startActivity(i);});
         FrameLayout screen=new FrameLayout(this);
+        screen.setBackgroundColor(android.graphics.Color.WHITE);
         screen.addView(sections,new FrameLayout.LayoutParams(-1,-1));
         BackNavigation.attach(this,screen,this::finish);
         PosUi.showRoot(this,screen);
