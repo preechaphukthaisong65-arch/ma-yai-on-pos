@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import java.util.ArrayDeque;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -21,7 +22,7 @@ import java.util.Locale;
 import java.util.WeakHashMap;
 
 final class PosUi {
-    private static final WeakHashMap<LinearLayout,LinearLayout> PAGE_CONTAINERS = new WeakHashMap<>();
+    private static final WeakHashMap<LinearLayout,FrameLayout> PAGE_CONTAINERS = new WeakHashMap<>();
     private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
     private static final WeakHashMap<Activity,ArrayDeque<View>> NAV_STACK = new WeakHashMap<>();
     private PosUi() {}
@@ -43,8 +44,9 @@ final class PosUi {
         root.addView(heading,new LinearLayout.LayoutParams(-1,-2));
         View gap = new View(a); root.addView(gap,new LinearLayout.LayoutParams(1,dp(a,10)));
         scroll.addView(root);
-        LinearLayout outer=new LinearLayout(a); outer.setOrientation(LinearLayout.VERTICAL); outer.setBackgroundColor(Color.TRANSPARENT);
-        outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f)); showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
+        FrameLayout outer=new FrameLayout(a); outer.setBackgroundColor(Color.TRANSPARENT);
+        outer.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        showPage(a,outer); PAGE_CONTAINERS.put(root,outer); back(a,root); return root;
     }
     static TextView text(Activity a,String value,int size,int color) {
         TextView t=new TextView(a); t.setText(value); t.setTextSize(size); t.setTextColor(color);
@@ -204,31 +206,20 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
-        LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
-        footer.setPadding(0,dp(a,8),0,0);
         int backImage = a.getResources().getIdentifier("back_button", "drawable", a.getPackageName());
-        View previous;
-        if(backImage != 0) {
-            ImageView image = new ImageView(a);
-            image.setImageResource(backImage);
-            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            image.setContentDescription("หน้าก่อนหน้า");
-            image.setClickable(true);
-            previous = image;
-        } else {
-            Button fallback = new Button(a);
-            fallback.setText("👈 หน้าก่อนหน้า");
-            fallback.setTextSize(15);
-            fallback.setSingleLine(true);
-            fallback.setMinHeight(dp(a,42));
-            fallback.setPadding(dp(a,8),0,dp(a,8),0);
-            previous = fallback;
-        }
-        footer.addView(previous,new LinearLayout.LayoutParams(-1,dp(a,44)));
-        LinearLayout container=PAGE_CONTAINERS.get(root);
-        if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
-        else root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
-        previous.setOnClickListener(v->navigateBack(a));
+        FrameLayout container=PAGE_CONTAINERS.get(root);
+        if(backImage==0||container==null)return;
+        ImageView image=new ImageView(a);
+        image.setImageResource(backImage);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setContentDescription("หน้าก่อนหน้า");
+        image.setClickable(true);
+        image.setFocusable(true);
+        FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(dp(a,64),dp(a,64),Gravity.BOTTOM|Gravity.LEFT);
+        lp.leftMargin=dp(a,16);
+        lp.bottomMargin=Math.round(a.getResources().getDisplayMetrics().heightPixels*0.05f);
+        container.addView(image,lp);
+        image.setOnClickListener(v->navigateBack(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
