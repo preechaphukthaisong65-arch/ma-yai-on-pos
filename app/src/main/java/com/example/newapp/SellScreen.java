@@ -46,20 +46,7 @@ public class SellScreen extends Activity {
         arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra("arrears_search_mode",true);startActivity(i);});
         FrameLayout screen=new FrameLayout(this);
         screen.addView(sections,new FrameLayout.LayoutParams(-1,-1));
-        int backImage=getResources().getIdentifier("back_button","drawable",getPackageName());
-        if(backImage!=0){
-            android.widget.ImageView back=new android.widget.ImageView(this);
-            back.setImageResource(backImage);
-            back.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            back.setContentDescription("หน้าก่อนหน้า");
-            back.setClickable(true);
-            back.setFocusable(true);
-            FrameLayout.LayoutParams backParams=new FrameLayout.LayoutParams(PosUi.dp(this,64),PosUi.dp(this,64),android.view.Gravity.BOTTOM|android.view.Gravity.LEFT);
-            backParams.leftMargin=PosUi.dp(this,16);
-            backParams.bottomMargin=Math.round(getResources().getDisplayMetrics().heightPixels*0.05f);
-            screen.addView(back,backParams);
-            back.setOnClickListener(v->finish());
-        }
+        BackNavigation.attach(this,screen,this::finish);
         PosUi.showRoot(this,screen);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
