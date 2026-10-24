@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import java.util.ArrayDeque;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -205,7 +206,24 @@ final class PosUi {
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
         LinearLayout footer=new LinearLayout(a); footer.setOrientation(LinearLayout.HORIZONTAL); footer.setGravity(Gravity.CENTER_VERTICAL);
         footer.setPadding(0,dp(a,8),0,0);
-        Button previous=new Button(a); previous.setText("👈 หน้าก่อนหน้า"); previous.setTextSize(15); previous.setSingleLine(true); previous.setMinHeight(dp(a,42)); previous.setPadding(dp(a,8),0,dp(a,8),0);
+        int backImage = a.getResources().getIdentifier("back_button", "drawable", a.getPackageName());
+        View previous;
+        if(backImage != 0) {
+            ImageView image = new ImageView(a);
+            image.setImageResource(backImage);
+            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            image.setContentDescription("หน้าก่อนหน้า");
+            image.setClickable(true);
+            previous = image;
+        } else {
+            Button fallback = new Button(a);
+            fallback.setText("👈 หน้าก่อนหน้า");
+            fallback.setTextSize(15);
+            fallback.setSingleLine(true);
+            fallback.setMinHeight(dp(a,42));
+            fallback.setPadding(dp(a,8),0,dp(a,8),0);
+            previous = fallback;
+        }
         footer.addView(previous,new LinearLayout.LayoutParams(-1,dp(a,44)));
         LinearLayout container=PAGE_CONTAINERS.get(root);
         if(container!=null)container.addView(footer,new LinearLayout.LayoutParams(-1,dp(a,52)));
