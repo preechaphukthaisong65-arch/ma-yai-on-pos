@@ -206,20 +206,9 @@ final class PosUi {
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
-        int backImage = a.getResources().getIdentifier("back_button", "drawable", a.getPackageName());
         FrameLayout container=PAGE_CONTAINERS.get(root);
-        if(backImage==0||container==null)return;
-        ImageView image=new ImageView(a);
-        image.setImageResource(backImage);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setContentDescription("หน้าก่อนหน้า");
-        image.setClickable(true);
-        image.setFocusable(true);
-        FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(dp(a,64),dp(a,64),Gravity.BOTTOM|Gravity.LEFT);
-        lp.leftMargin=dp(a,16);
-        lp.bottomMargin=Math.round(a.getResources().getDisplayMetrics().heightPixels*0.05f);
-        container.addView(image,lp);
-        image.setOnClickListener(v->navigateBack(a));
+        if(container==null)return;
+        BackNavigation.attach(a,container,()->navigateBack(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
