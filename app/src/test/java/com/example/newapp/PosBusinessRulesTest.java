@@ -48,4 +48,14 @@ public class PosBusinessRulesTest {
         assertFalse(PosBusinessRules.isReversibleStatus("CANCELLED"));
         assertFalse(PosBusinessRules.isReversibleStatus("RETURNED"));
     }
+    @Test public void retentionPolicyNeverPurgesReportOrTransactionSources() {
+        assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("stock_history"));
+        assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("price_history"));
+        assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("payment_history"));
+        assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("sales_ledger"));
+        assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("sales_ledger_items"));
+        assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("audit_log"));
+        assertFalse(PosHistoryPolicy.mayPurgeTransactionDetails());
+    }
+
 }
