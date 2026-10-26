@@ -141,11 +141,17 @@ public class SellScreen extends Activity {
         rowParams.topMargin=PosUi.dp(this,12);
         root.addView(row,rowParams);
     }
+    @Override public void onBackPressed(){
+        if(cart.isEmpty()){super.onBackPressed();return;}
+        new AlertDialog.Builder(this).setTitle("มีสินค้าอยู่ในตะกร้า")
+            .setMessage("ต้องการออกจากหน้าขายหรือไม่? รายการในตะกร้าจะถูกล้าง")
+            .setNegativeButton("กลับไปขาย",null)
+            .setPositiveButton("ออกจากหน้าขาย",(d,w)->{cart.clear();finish();}).show();
+    }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
-        StringBuilder summary=new StringBuilder("รายการสินค้าในตะกร้าทั้งหมด ");
-        for(Item i:cart.values())summary.append(i.name).append(" จำนวน ").append(i.qty).append(" รายการ ");
-        PosUi.speakThen(this,summary.toString(),this::paymentChoice);
+        /* Payment navigation must never depend on TTS availability or completion. */
+        paymentChoice();
     }
     private void paymentChoice(){
         root=PosUi.page(this,"เลือกวิธีขาย");
