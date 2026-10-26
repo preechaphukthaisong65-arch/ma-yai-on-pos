@@ -192,7 +192,7 @@ public final class BackupRestoreScreen extends Activity {
 
     private static void copyFile(File source, File destination) throws Exception {
         try (InputStream in = new FileInputStream(source);
-             OutputStream out = new FileOutputStream(destination, false)) {
+             FileOutputStream out = new FileOutputStream(destination, false)) {
             copyLimited(in, out, MAX_BACKUP_BYTES);
             out.flush();
             out.getFD().sync();
