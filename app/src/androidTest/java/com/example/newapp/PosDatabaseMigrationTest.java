@@ -70,4 +70,42 @@ public class PosDatabaseMigrationTest {
         assertFalse("Migration must preserve foreign-key integrity", foreignKeys.moveToFirst());
         foreignKeys.close();
     }
+    @Test public void v12MigrationCreatesStaffTableWithoutChangingCustomerIds() {
+        PosDatabase.closeInstance();
+        context.deleteDatabase(PosDatabase.databaseFileName());
+        File file = context.getDatabasePath(PosDatabase.databaseFileName());
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists()) assertTrue(parent.mkdirs());
+
+        SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(file, null);
+        old.execSQL("PRAGMA foreign_keys=OFF");
+        old.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
+        old.execSQL("CREATE TABLE bills (id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, FOREIGN KEY(customer_id) REFERENCES customers(id))");
+        old.execSQL("INSERT INTO customers(id,full_name,first_name,last_name,created_at) VALUES(52,'Mali Dee','Mali','Dee',2000)");
+        old.execSQL("INSERT INTO bills(id,customer_id) VALUES(88,52)");
+        old.execSQL("PRAGMA user_version=12");
+        old.close();
+
+        SQLiteDatabase upgraded = PosDatabase.get(context).getWritableDatabase();
+        Cursor version = upgraded.rawQuery("PRAGMA user_version", null);
+        assertTrue(version.moveToFirst());
+        assertEquals(13, version.getInt(0));
+        version.close();
+
+        Cursor staff = upgraded.rawQuery("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='staff_users'", null);
+        assertTrue(staff.moveToFirst());
+        assertEquals(1, staff.getInt(0));
+        staff.close();
+
+        Cursor bill = upgraded.rawQuery("SELECT customer_id FROM bills WHERE id=88", null);
+        assertTrue(bill.moveToFirst());
+        assertEquals(52L, bill.getLong(0));
+        bill.close();
+
+        Cursor integrity = upgraded.rawQuery("PRAGMA integrity_check", null);
+        assertTrue(integrity.moveToFirst());
+        assertEquals("ok", integrity.getString(0));
+        integrity.close();
+    }
+
 }
