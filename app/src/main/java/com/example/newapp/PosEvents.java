@@ -39,12 +39,13 @@ final class PosEvents {
                 quantity, unitPriceSatang, lineTotalSatang, now);
     }
 
-    static void payment(SQLiteDatabase db, long billId, String billCode, long amountSatang,
-                        long cashReceivedSatang, long changeSatang, long now) {
+    static void payment(SQLiteDatabase db, long billId, String billCode,
+                        long amountSatang, long now) {
         PosRecords.paymentHistory(db, billId, billCode, amountSatang, now);
+        // This audit entry is per bill; batch cash tender and change are logged once
+        // by CreditAccountScreen so they are not duplicated across every bill.
         PosDatabase.audit(db, "PAYMENT_RECEIVED", "BILL", billCode,
-                "amount_satang=" + amountSatang + "; cash_received_satang="
-                        + cashReceivedSatang + "; change_satang=" + changeSatang);
+                "amount_satang=" + amountSatang);
     }
 
     static void creditFeeWaived(SQLiteDatabase db, long billId, String billCode,
