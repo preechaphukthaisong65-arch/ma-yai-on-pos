@@ -316,7 +316,7 @@ public class SellScreen extends Activity {
         finally{saleInProgress=false;}
         if(saved){
             cart.clear();StockAlertManager.check(this);
-            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
+            PosUi.receipt(this,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }
