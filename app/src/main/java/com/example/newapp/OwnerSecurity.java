@@ -120,7 +120,7 @@ public final class OwnerSecurity {
                     SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
                     SharedPreferences.Editor edit = p.edit().putString("pin_salt", Base64.encodeToString(pinSalt, Base64.NO_WRAP))
                             .putString("pin_hash", hash(one, pinSalt)).putInt("failures", 0).putLong("lock_until", 0L);
-                    if (oldRecoveryHash == null || !p.contains("recovery_hash") || oldRecoveryHash != null) {
+                    if (oldRecoveryHash != null || !p.contains("recovery_hash")) {
                         StringBuilder recoveryBuilder = new StringBuilder(12); SecureRandom recoveryRandom = new SecureRandom(); for (int i = 0; i < 12; i++) recoveryBuilder.append(recoveryRandom.nextInt(10)); String recovery = recoveryBuilder.toString();
                         byte[] recoverySalt = random(SALT_BYTES);
                         edit.putString("recovery_salt", Base64.encodeToString(recoverySalt, Base64.NO_WRAP))
