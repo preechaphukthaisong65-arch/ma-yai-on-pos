@@ -53,7 +53,7 @@ public class ManageStoreScreen extends Activity {
                 if(transaction.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode})==0){
                     ContentValues legacy=new ContentValues();legacy.put("barcode",barcode);legacy.put("name",name);legacy.put("price_satang",next);legacy.put("source","LEGACY");legacy.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,legacy);
                 }
-                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());transaction.insertOrThrow("price_history",null,h);
+                PosRecords.priceChange(transaction,id,barcode,name,old,next,PosDatabase.now());
                 PosDatabase.audit(transaction,"PRICE_CHANGED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; old_price_satang="+old+"; new_price_satang="+next);
                 return null;
             });
@@ -105,8 +105,8 @@ public class ManageStoreScreen extends Activity {
                         long pid=p.getLong(0);int before=p.getInt(1);p.close();itemSubtotal[0]=Math.addExact(itemSubtotal[0],lineTotal);
                         ContentValues up=new ContentValues();up.put("stock",Math.addExact(before,qty));up.put("updated_at",PosDatabase.now());
                         if(transaction.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");
-                        ContentValues h=new ContentValues();h.put("product_id",pid);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type","RETURN_CANCEL");h.put("before_qty",before);h.put("after_qty",Math.addExact(before,qty));h.put("difference",qty);h.put("reference",code);h.put("created_at",PosDatabase.now());transaction.insertOrThrow("stock_history",null,h);
-                        ContentValues li=new ContentValues();li.put("bill_id",id);li.put("bill_code",code);li.put("event_type",returning?"RETURN":"CANCEL");li.put("barcode",barcode);li.put("product_name",name);li.put("quantity",-qty);li.put("unit_price_satang",unitPrice);li.put("line_total_satang",-lineTotal);li.put("created_at",PosDatabase.now());transaction.insertOrThrow("sales_ledger_items",null,li);
+                        PosRecords.stockMovement(transaction,pid,barcode,name,"RETURN_CANCEL",before,Math.addExact(before,qty),code,PosDatabase.now());
+                        PosRecords.salesLedgerItem(transaction,id,code,returning?"RETURN":"CANCEL",barcode,name,-qty,unitPrice,-lineTotal,PosDatabase.now());
                     }
                 }finally{items.close();}
                 if(itemCount[0]==0||itemSubtotal[0]!=sub)throw new IllegalStateException("รายละเอียดสินค้าในบิลไม่ตรงกับยอดบิล จึงยกเลิกการดำเนินการ");
@@ -114,7 +114,7 @@ public class ManageStoreScreen extends Activity {
                 if(transaction.update("bills",b,"id=? AND bill_code=? AND status=?",new String[]{String.valueOf(id),code,status})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว ไม่สามารถดำเนินการซ้ำได้");
                 long ledgerFee="CREDIT".equals(type)?("PAID".equals(status)?0:-fee):0;
                 long ledgerSubtotal=-sub;long ledgerTotal=Math.addExact(ledgerSubtotal,ledgerFee);
-                ContentValues l=new ContentValues();l.put("bill_id",id);l.put("bill_code",code);l.put("sale_type",type);l.put("event_type",returning?"RETURN":"CANCEL");l.put("subtotal_satang",ledgerSubtotal);l.put("fee_satang",ledgerFee);l.put("total_satang",ledgerTotal);l.put("created_at",PosDatabase.now());transaction.insertOrThrow("sales_ledger",null,l);
+                PosRecords.salesLedger(transaction,id,code,type,returning?"RETURN":"CANCEL",ledgerSubtotal,ledgerFee,ledgerTotal,PosDatabase.now());
                 PosDatabase.audit(transaction,returning?"RETURN":"CANCEL","BILL",code,"subtotal_satang="+ledgerSubtotal+"; fee_satang="+ledgerFee+"; total_satang="+ledgerTotal);
                 return null;
             });
