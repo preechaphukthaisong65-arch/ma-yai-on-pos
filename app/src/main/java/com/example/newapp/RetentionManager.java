@@ -1,35 +1,18 @@
 package com.example.newapp;
 
 import android.content.Context;
-import android.database.sqlite.SQLiteDatabase;
-import java.util.Calendar;
 
-/** Type-specific retention. Unpaid bills and the independent sales ledger are protected. */
+/**
+ * Retention is deliberately non-destructive until an archival/export path is implemented.
+ * Bill headers, bill items, payments, ledgers, operational history, and audit entries are
+ * report inputs; deleting any of them can make customer history or reports incomplete.
+ */
 final class RetentionManager {
-    private RetentionManager(){}
-    static void run(Context context){
-        PosDatabase helper=PosDatabase.get(context);
-        SQLiteDatabase db=null;boolean transactionStarted=false;
-        long now=PosDatabase.now();
-        long detailCutoff=now-30L*86400000L;
-        Calendar operationsCalendar=AppClock.calendar();operationsCalendar.setTimeInMillis(now);operationsCalendar.add(Calendar.MONTH,-3);long operationsCutoff=operationsCalendar.getTimeInMillis();
-        Calendar calendar=AppClock.calendar();calendar.setTimeInMillis(now);calendar.add(Calendar.MONTH,-15);
-        long ledgerCutoff=calendar.getTimeInMillis();
-        try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            String expired="((status='PAID' AND paid_at IS NOT NULL AND paid_at<?) OR (status IN ('CANCELLED','RETURNED') AND archive_until IS NOT NULL AND archive_until<?))";
-            db.delete("payments","bill_id IN (SELECT id FROM bills WHERE "+expired+")",new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
-            db.delete("bills",expired,new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
-            db.delete("stock_history","created_at<? AND change_type!='COUNT'",new String[]{String.valueOf(operationsCutoff)});
-            db.delete("price_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
-            db.delete("payment_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
-            db.delete("sales_ledger_items","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
-            db.delete("sales_ledger","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
-            db.setTransactionSuccessful();
-        }catch(android.database.sqlite.SQLiteException ignored){
-            // Keep the app usable if storage is full; transaction rollback prevents partial cleanup.
-        }finally{
-            if(db!=null&&transactionStarted&&db.inTransaction()){try{db.endTransaction();}catch(android.database.sqlite.SQLiteException ignored){}}
-        }
+    private RetentionManager() {}
+
+    static void run(Context context) {
+        // Intentionally retain transaction data. Do not purge rows by age alone.
+        // A future archival implementation must export and verify records before deletion.
+        PosDatabase.get(context).getReadableDatabase();
     }
 }

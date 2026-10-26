@@ -117,15 +117,18 @@ public class CreditAccountScreen extends Activity {
             String f=first.getText().toString().trim(),l=last.getText().toString().trim();
             if(f.isEmpty()){first.setError("กรอกชื่อ");return;}
             if(l.isEmpty()){last.setError("กรอกนามสกุล");return;}
-            SQLiteDatabase db=null;boolean started=false,saved=false;String error=null;
+            boolean saved=false;String error=null;
             try{
-                db=helper.getWritableDatabase();db.beginTransaction();started=true;
-                ContentValues values=new ContentValues();values.put("first_name",f);values.put("last_name",l);
-                if(db.update("customers",values,"id=?",new String[]{String.valueOf(customerId)})!=1)throw new IllegalStateException("บันทึกข้อมูลลูกค้าไม่สำเร็จ");
-                PosDatabase.audit(db,"CUSTOMER_PROFILE_UPDATED","CUSTOMER",String.valueOf(customerId),"name_before="+PosDatabase.customerName(oldFirst,oldLast)+"; name_after="+PosDatabase.customerName(f,l));
-                db.setTransactionSuccessful();saved=true;
+                SQLiteDatabase db=helper.getWritableDatabase();
+                PosTransactions.execute(db,transaction->{
+                    ContentValues values=new ContentValues();values.put("first_name",f);values.put("last_name",l);
+                    if(transaction.update("customers",values,"id=?",new String[]{String.valueOf(customerId)})!=1)throw new IllegalStateException("บันทึกข้อมูลลูกค้าไม่สำเร็จ");
+                    PosEvents.customerProfileUpdated(transaction,customerId,
+                            PosDatabase.customerName(oldFirst,oldLast),PosDatabase.customerName(f,l));
+                    return null;
+                });
+                saved=true;
             }catch(Exception e){error=e.getMessage();}
-            finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันการบันทึกไม่สำเร็จ";}}}
             PosUi.result(this,saved,saved?"บันทึกข้อมูลลูกค้าเรียบร้อย":(error==null?"บันทึกข้อมูลลูกค้าไม่สำเร็จ":error),saved?this::customerDirectory:null);
         });
         PosUi.back(this,root);
@@ -164,7 +167,7 @@ public class CreditAccountScreen extends Activity {
             Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
             if(c.moveToFirst()){
                 String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);
-                total=Math.addExact(total,("CREDIT".equals(type)&&now>=created&&now-created<=86400000L)?subtotal:amount);
+                total=Math.addExact(total,PosBusinessRules.paymentDue(type,subtotal,amount,created,now));
             }
             c.close();
         }
@@ -183,7 +186,7 @@ public class CreditAccountScreen extends Activity {
             Cursor bill=readDb.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
             if(bill.moveToFirst()){
                 String type=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),amount=bill.getLong(4),created=bill.getLong(5),now=PosDatabase.now();
-                boolean waive="CREDIT".equals(type)&&now>=created&&now-created<=86400000L;
+                boolean waive="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
                 spoken.append("บิล ").append(bill.getString(0)).append(" ยอดสินค้า ").append(PosDatabase.money(sub)).append(" บาท ");
                 if(fee>0){if(waive)spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ได้รับการยกเว้นเนื่องจากชำระภายใน 24 ชั่วโมง ");else spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ");}
                 spoken.append("ยอดที่ต้องชำระ ").append(PosDatabase.money(waive?sub:amount)).append(" บาท ");
@@ -216,29 +219,31 @@ public class CreditAccountScreen extends Activity {
     }
 
     private void recordPayment(long customerId,ArrayList<Long> ids,long total,long cashReceived,long change){
-        SQLiteDatabase db=null;boolean transactionStarted=false,paid=false;String error=null;
+        boolean paid=false;String error=null;
         StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\n");
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;long now=PosDatabase.now();long actualTotal=0;
-            for(long id:ids){
-                Cursor c=db.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","status"},"id=? AND customer_id=?",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
-                if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
-                String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();
-                if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
-                long created=getBillTime(db,id);boolean waiveFee="CREDIT".equals(type)&&now>=created&&now-created<=86400000L;
-                long collected=waiveFee?sub:amount;actualTotal=Math.addExact(actualTotal,collected);
-                ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
-                if(db.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
-                ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);db.insertOrThrow("payments",null,pay);
-                ContentValues audit=new ContentValues();audit.put("bill_id",id);audit.put("bill_code",code);audit.put("amount_satang",collected);audit.put("created_at",now);db.insertOrThrow("payment_history",null,audit);
-                PosDatabase.audit(db,"PAYMENT_RECEIVED","BILL",code,"amount_satang="+collected+"; cash_received_satang="+cashReceived+"; change_satang="+change);
-                receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
-                if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",now);db.insertOrThrow("sales_ledger",null,adj);PosDatabase.audit(db,"CREDIT_FEE_WAIVED","BILL",code,"waived_fee_satang="+fee);}
-            }
-            if(actualTotal!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
-            db.setTransactionSuccessful();paid=true;
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                long now=PosDatabase.now();long[] actualTotal={0L};
+                for(long id:ids){
+                    Cursor c=transaction.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","status"},"id=? AND customer_id=?",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
+                    if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
+                    String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();
+                    if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
+                    long created=getBillTime(transaction,id);boolean waiveFee="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
+                    long collected=PosBusinessRules.paymentDue(type,sub,amount,created,now);actualTotal[0]=Math.addExact(actualTotal[0],collected);
+                    ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
+                    if(transaction.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
+                    ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);transaction.insertOrThrow("payments",null,pay);
+                    PosEvents.payment(transaction,id,code,collected,cashReceived,change,now);
+                    receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
+                    if(waiveFee)PosEvents.creditFeeWaived(transaction,id,code,type,fee,now);
+                }
+                if(actualTotal[0]!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
+                return null;
+            });
+            paid=true;
         }catch(Exception e){error=e.getMessage()==null?"รับชำระไม่สำเร็จ":e.getMessage();paid=false;}
-        finally{if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){paid=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
         if(paid)PosUi.result(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt+"ยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท",this::arrearsSearch);
         else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }

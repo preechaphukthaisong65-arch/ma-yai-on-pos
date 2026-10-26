@@ -24,7 +24,6 @@ import java.util.WeakHashMap;
 final class PosUi {
     private static final WeakHashMap<LinearLayout,FrameLayout> PAGE_CONTAINERS = new WeakHashMap<>();
     private static final WeakHashMap<LinearLayout,Boolean> BACK_BUTTON_ADDED = new WeakHashMap<>();
-    private static final WeakHashMap<Activity,ArrayDeque<View>> NAV_STACK = new WeakHashMap<>();
     private PosUi() {}
     static int dp(Activity a, int n) { return (int)(n*a.getResources().getDisplayMetrics().density+0.5f); }
     static LinearLayout page(Activity a, String title) {
@@ -177,36 +176,31 @@ final class PosUi {
     }
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
+    /**
+     * Shared full-screen wrapper for custom home layouts that need the standard back button.
+     * The first 90% is reserved for page content; the bottom 10% belongs to navigation.
+     */
+    static void showRootWithBack(Activity a, View content, Runnable onBack) {
+        if (a == null || content == null || onBack == null) return;
+        FrameLayout frame = new FrameLayout(a);
+        frame.setBackgroundColor(Color.WHITE);
+        frame.addView(content, new FrameLayout.LayoutParams(-1, -1, Gravity.TOP));
+        BackNavigation.attach(a, frame, onBack);
+        PosNavigation.showRoot(a, frame);
+    }
+
     static void showRoot(Activity a,View view) {
-        NAV_STACK.remove(a);
-        a.setContentView(view);
+        PosNavigation.showRoot(a,view);
     }
     private static void showPage(Activity a,View view) {
-        ViewGroup content=a.findViewById(android.R.id.content);
-        if(content!=null&&content.getChildCount()>0) {
-            View previous=content.getChildAt(0);
-            ArrayDeque<View> stack=NAV_STACK.get(a);
-            if(stack==null){stack=new ArrayDeque<>();NAV_STACK.put(a,stack);}
-            if(previous!=view)stack.push(previous);
-        }
-        a.setContentView(view);
-    }
-    private static void navigateBack(Activity a) {
-        ArrayDeque<View> stack=NAV_STACK.get(a);
-        if(stack!=null&&!stack.isEmpty()) {
-            View previous=stack.pop();
-            a.setContentView(previous);
-            if(stack.isEmpty())NAV_STACK.remove(a);
-        } else {
-            a.finish();
-        }
+        PosNavigation.showPage(a,view);
     }
     static void back(Activity a,LinearLayout root) {
         if(root==null||BACK_BUTTON_ADDED.containsKey(root))return;
         BACK_BUTTON_ADDED.put(root,Boolean.TRUE);
         FrameLayout container=PAGE_CONTAINERS.get(root);
         if(container==null)return;
-        BackNavigation.attach(a,container,()->navigateBack(a));
+        BackNavigation.attach(a,container,()->PosNavigation.back(a));
     }
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";

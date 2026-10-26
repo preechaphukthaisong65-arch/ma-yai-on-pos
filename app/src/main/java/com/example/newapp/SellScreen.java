@@ -43,11 +43,7 @@ public class SellScreen extends Activity {
         top.addView(sell,sp);bottom.addView(arrears,ap);
         sell.setOnClickListener(v->showScanScreen());
         arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra("arrears_search_mode",true);startActivity(i);});
-        FrameLayout screen=new FrameLayout(this);
-        screen.setBackgroundColor(android.graphics.Color.WHITE);
-        screen.addView(sections,new FrameLayout.LayoutParams(-1,-1));
-        BackNavigation.attach(this,screen,this::finish);
-        PosUi.showRoot(this,screen);
+        PosUi.showRootWithBack(this,sections,this::finish);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
     private android.widget.TextView circleButton(String label,int color,int diameter){
@@ -61,11 +57,11 @@ public class SellScreen extends Activity {
     private void scan(){
         // Keep the cart screen as the return destination after each barcode scan.
         scanning=true;
-        PosUi.scan(this,"สแกนบาร์โค้ดสินค้า");
+        PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
         super.onActivityResult(requestCode,resultCode,data);
-        IntentResult result=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);
+        IntentResult result=PosBarcode.parseResult(requestCode,resultCode,data);
         if(result==null)return;
         scanning=false;
         if(result.getContents()!=null){
@@ -75,9 +71,12 @@ public class SellScreen extends Activity {
         }
     }
     private void addScanned(String barcode){
-        Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
+        Cursor c=helper.findProduct(helper.getReadableDatabase(),PosBarcode.trimmed(barcode));
         if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showScanScreen);return;}
-        long id=c.getLong(0);String name=c.getString(1);long price=c.getLong(2);int stock=c.getInt(3);c.close();
+        long id=c.getLong(c.getColumnIndexOrThrow("id"));
+        String name=c.getString(c.getColumnIndexOrThrow("name"));
+        long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
+        int stock=c.getInt(c.getColumnIndexOrThrow("stock"));c.close();
         Item old=cart.get(id);
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
@@ -250,50 +249,56 @@ public class SellScreen extends Activity {
         if(saleInProgress)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         saleInProgress=true;
-        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null,code=null;
+        boolean saved=false;String error=null;final String[] savedCode={null};
         long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=Math.addExact(sub,fee);
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            code="B"+now;int suffix=1;
-            while(true){Cursor existing=db.query("bills",new String[]{"id"},"bill_code=?",new String[]{code},null,null,null,"1");boolean used=existing.moveToFirst();existing.close();if(!used)break;code="B"+now+"-"+(suffix++);}
-            Long selectedCustomerId=null;
-            if(credit){
-                if(customerId>0){
-                    Cursor c=db.query("customers",new String[]{"first_name","last_name"},"id=?",new String[]{String.valueOf(customerId)},null,null,null);
-                    if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบรหัสลูกค้าที่เลือก");}
-                    String storedFirst=c.getString(0),storedLast=c.getString(1);c.close();
-                    if(storedFirst==null||storedFirst.trim().isEmpty()||storedLast==null||storedLast.trim().isEmpty())throw new IllegalStateException("ข้อมูลชื่อและนามสกุลลูกค้าไม่ครบ");
-                    selectedCustomerId=customerId;
-                }else{
-                    String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
-                    if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
-                    ContentValues cv=new ContentValues();
-                    cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
-                    cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
-                    selectedCustomerId=db.insertOrThrow("customers",null,cv);
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                String generatedCode="B"+now;int suffix=1;
+                while(true){
+                    Cursor existing=transaction.query("bills",new String[]{"id"},"bill_code=?",new String[]{generatedCode},null,null,null,"1");
+                    boolean used=existing.moveToFirst();existing.close();
+                    if(!used)break;
+                    generatedCode="B"+now+"-"+(suffix++);
                 }
-            }
-            ContentValues bill=new ContentValues();bill.put("bill_code",code);if(selectedCustomerId!=null)bill.put("customer_id",selectedCustomerId);bill.put("sale_type",credit?"CREDIT":"CASH");bill.put("status",credit?"UNPAID":"PAID");bill.put("subtotal_satang",sub);bill.put("fee_satang",fee);bill.put("total_satang",total);bill.put("cash_received_satang",cash);bill.put("change_satang",credit?0:cash-total);bill.put("created_at",now);if(!credit)bill.put("paid_at",now);
-            long billId=db.insertOrThrow("bills",null,bill);
-            for(Item i:cart.values()){
-                if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
-                ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
-                if(db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
-                ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));db.insertOrThrow("bill_items",null,it);
-                ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",code);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",lineTotal(i));li.put("created_at",now);db.insertOrThrow("sales_ledger_items",null,li);
-                ContentValues h=new ContentValues();h.put("product_id",i.id);h.put("barcode",i.barcode);h.put("product_name",i.name);h.put("change_type","SALE");h.put("before_qty",i.stock);h.put("after_qty",i.stock-i.qty);h.put("difference",-i.qty);h.put("reference",code);h.put("created_at",now);db.insertOrThrow("stock_history",null,h);
-            }
-            ContentValues ledger=new ContentValues();ledger.put("bill_id",billId);ledger.put("bill_code",code);ledger.put("sale_type",credit?"CREDIT":"CASH");ledger.put("event_type","SALE");ledger.put("subtotal_satang",sub);ledger.put("fee_satang",fee);ledger.put("total_satang",total);ledger.put("created_at",now);db.insertOrThrow("sales_ledger",null,ledger);
-            PosDatabase.audit(db,"SALE", "BILL", code, "type="+(credit?"CREDIT":"CASH")+"; subtotal_satang="+sub+"; fee_satang="+fee+"; total_satang="+total);
-            db.setTransactionSuccessful();saved=true;
+                final String billCode=generatedCode;
+                savedCode[0]=billCode;
+                Long selectedCustomerId=null;
+                if(credit){
+                    if(customerId>0){
+                        Cursor c=transaction.query("customers",new String[]{"first_name","last_name"},"id=?",new String[]{String.valueOf(customerId)},null,null,null);
+                        if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบรหัสลูกค้าที่เลือก");}
+                        String storedFirst=c.getString(0),storedLast=c.getString(1);c.close();
+                        if(storedFirst==null||storedFirst.trim().isEmpty()||storedLast==null||storedLast.trim().isEmpty())throw new IllegalStateException("ข้อมูลชื่อและนามสกุลลูกค้าไม่ครบ");
+                        selectedCustomerId=customerId;
+                    }else{
+                        String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
+                        if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
+                        ContentValues cv=new ContentValues();
+                        cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
+                        cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
+                        selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
+                    }
+                }
+                ContentValues bill=new ContentValues();bill.put("bill_code",billCode);if(selectedCustomerId!=null)bill.put("customer_id",selectedCustomerId);bill.put("sale_type",credit?"CREDIT":"CASH");bill.put("status",credit?"UNPAID":"PAID");bill.put("subtotal_satang",sub);bill.put("fee_satang",fee);bill.put("total_satang",total);bill.put("cash_received_satang",cash);bill.put("change_satang",credit?0:cash-total);bill.put("created_at",now);if(!credit)bill.put("paid_at",now);
+                long billId=transaction.insertOrThrow("bills",null,bill);
+                for(Item i:cart.values()){
+                    if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
+                    ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
+                    if(transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
+                    ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));transaction.insertOrThrow("bill_items",null,it);
+                    PosEvents.saleItem(transaction,billId,billCode,i.barcode,i.name,i.qty,i.price,lineTotal(i),now);
+                    PosEvents.stockChange(transaction,i.id,i.barcode,i.name,"SALE",i.stock,i.stock-i.qty,billCode,now);
+                }
+                PosEvents.sale(transaction,billId,billCode,credit?"CREDIT":"CASH",sub,fee,total,now);
+                return null;
+            });
+            saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();saved=false;}
-        finally{
-            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
-            saleInProgress=false;
-        }
+        finally{saleInProgress=false;}
         if(saved){
             cart.clear();StockAlertManager.check(this);
-            PosUi.result(this,true,"เลขที่บิล "+code+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
+            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }
