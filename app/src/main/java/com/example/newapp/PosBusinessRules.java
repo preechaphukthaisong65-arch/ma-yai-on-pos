@@ -17,13 +17,11 @@ final class PosBusinessRules {
         return Math.addExact(whole, subtotalSatang % 20L == 0L ? 0L : 1L);
     }
 
-    /** Amount due when collecting an unpaid bill; fee is waived only inside the original 24-hour window. */
+    /** Amount due from an unpaid bill. Fee waivers must be explicitly approved by the owner; device time is not authorization. */
     static long paymentDue(String saleType, long subtotalSatang,
                            long totalSatang, long billCreatedAt, long now) {
         if (subtotalSatang < 0L || totalSatang < 0L)
             throw new IllegalArgumentException("ยอดบิลไม่ถูกต้อง");
-        if ("CREDIT".equals(saleType) && withinCreditFeeWindow(billCreatedAt, now))
-            return subtotalSatang;
         return totalSatang;
     }
 
