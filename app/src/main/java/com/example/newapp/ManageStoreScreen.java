@@ -109,7 +109,7 @@ public class ManageStoreScreen extends Activity {
                     }
                 }finally{items.close();}
                 if(itemCount[0]==0||itemSubtotal[0]!=sub)throw new IllegalStateException("รายละเอียดสินค้าในบิลไม่ตรงกับยอดบิล จึงยกเลิกการดำเนินการ");
-                ContentValues b=new ContentValues();b.put("status",returning?"RETURNED":"CANCELLED");b.put("archived_at",PosDatabase.now());b.put("archive_until",PosDatabase.now()+30L*86400000L);
+                ContentValues b=new ContentValues();b.put("status",returning?"RETURNED":"CANCELLED");b.put("archived_at",PosDatabase.now());b.put("archive_until",Math.addExact(PosDatabase.now(),PosHistoryPolicy.CLOSED_BILL_DETAIL_RETENTION_MILLIS));
                 if(transaction.update("bills",b,"id=? AND bill_code=? AND status=?",new String[]{String.valueOf(id),code,status})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว ไม่สามารถดำเนินการซ้ำได้");
                 long ledgerFee=PosBusinessRules.reversalFee(type,status,fee);
                 long ledgerSubtotal=PosBusinessRules.reversalSubtotal(sub);
