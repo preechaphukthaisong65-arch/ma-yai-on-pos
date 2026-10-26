@@ -1,0 +1,73 @@
+name: Build signed release APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0"
+
+      - name: Require existing production signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.POS_RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.POS_RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.POS_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.POS_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo "Missing POS_RELEASE_KEYSTORE_BASE64; configure the existing production keystore in repository Actions secrets."; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "Missing POS_RELEASE_KEYSTORE_PASSWORD."; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "Missing POS_RELEASE_KEY_ALIAS."; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "Missing POS_RELEASE_KEY_PASSWORD."; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/pos-release.jks"
+          test -s "$RUNNER_TEMP/pos-release.jks"
+
+      - name: Build unsigned release APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Align and sign with supplied production key
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.POS_RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.POS_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.POS_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          UNSIGNED="$(find app/build/outputs/apk/release -maxdepth 1 -name '*unsigned.apk' -print -quit)"
+          test -n "$UNSIGNED" || { echo "Unsigned release APK was not found."; exit 1; }
+          SDK="$ANDROID_HOME/build-tools/35.0.0"
+          "$SDK/zipalign" -p 4 "$UNSIGNED" "$RUNNER_TEMP/pos-release-aligned.apk"
+          "$SDK/apksigner" sign \
+            --ks "$RUNNER_TEMP/pos-release.jks" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out app/build/outputs/apk/release/maeyai-on-pos-release.apk \
+            "$RUNNER_TEMP/pos-release-aligned.apk"
+          "$SDK/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/maeyai-on-pos-release.apk
+
+      - name: Upload signed release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: maeyai-on-pos-signed-release
+          path: app/build/outputs/apk/release/maeyai-on-pos-release.apk
+          if-no-files-found: error
+          retention-days: 14
