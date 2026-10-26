@@ -21,11 +21,59 @@ import java.util.HashMap;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONException;
 
 public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
+    private static final String CART_PREFS = "pos_durable_cart";
+    private static final String CART_KEY = "items";
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);restoreCart();home();}
+
+    /** Persist the in-progress basket across Activity recreation, force-stop, and device restart. */
+    private void persistCart(){
+        JSONArray items=new JSONArray();
+        try {
+            for(Item item:cart.values()){
+                JSONObject row=new JSONObject();
+                row.put("id",item.id);row.put("barcode",item.barcode);row.put("name",item.name);
+                row.put("price",item.price);row.put("qty",item.qty);
+                items.put(row);
+            }
+            getSharedPreferences(CART_PREFS,MODE_PRIVATE).edit().putString(CART_KEY,items.toString()).commit();
+        } catch(JSONException e) {
+            throw new IllegalStateException("บันทึกตะกร้าสินค้าไม่สำเร็จ",e);
+        }
+    }
+
+    private void restoreCart(){
+        String raw=getSharedPreferences(CART_PREFS,MODE_PRIVATE).getString(CART_KEY,"[]");
+        try {
+            JSONArray items=new JSONArray(raw);
+            SQLiteDatabase db=helper.getReadableDatabase();
+            for(int n=0;n<items.length();n++){
+                JSONObject row=items.getJSONObject(n);
+                long id=row.getLong("id");
+                Cursor product=db.query("products",new String[]{"barcode","name","stock","active"},"id=?",new String[]{String.valueOf(id)},null,null,null,"1");
+                if(!product.moveToFirst()){product.close();continue;}
+                String barcode=product.getString(0),name=product.getString(1);
+                int stock=product.getInt(2),active=product.getInt(3);product.close();
+                if(active!=1)continue;
+                int qty=row.getInt("qty");
+                if(qty<=0)continue;
+                Item item=new Item(id,barcode,name,row.getLong("price"),stock);
+                item.qty=qty;
+                cart.put(id,item);
+            }
+            persistCart();
+        } catch(Exception e) {
+            cart.clear();
+            getSharedPreferences(CART_PREFS,MODE_PRIVATE).edit().remove(CART_KEY).commit();
+            android.util.Log.e("SellScreen","Could not restore saved cart; cleared invalid snapshot",e);
+        }
+    }
     private void home(){
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
@@ -81,6 +129,7 @@ public class SellScreen extends Activity {
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
         try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
+        persistCart();
         showScanScreen();
     }
     private long lineTotal(Item i){return Math.multiplyExact(i.price,(long)i.qty);}
@@ -133,6 +182,7 @@ public class SellScreen extends Activity {
                     .setNegativeButton("ยกเลิก",null)
                     .setPositiveButton("เคลียร์ตะกร้า",(dialog,which)->{
                         cart.clear();
+                        persistCart();
                         showScanScreen();
                     }).show();
         });
@@ -144,9 +194,9 @@ public class SellScreen extends Activity {
     @Override public void onBackPressed(){
         if(cart.isEmpty()){super.onBackPressed();return;}
         new AlertDialog.Builder(this).setTitle("มีสินค้าอยู่ในตะกร้า")
-            .setMessage("ต้องการออกจากหน้าขายหรือไม่? รายการในตะกร้าจะถูกล้าง")
+            .setMessage("ต้องการออกจากหน้าขายหรือไม่? ระบบจะบันทึกตะกร้าไว้เพื่อกลับมาทำรายการต่อ")
             .setNegativeButton("กลับไปขาย",null)
-            .setPositiveButton("ออกจากหน้าขาย",(d,w)->{cart.clear();finish();}).show();
+            .setPositiveButton("ออกจากหน้าขาย",(d,w)->{persistCart();finish();}).show();
     }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
@@ -303,7 +353,7 @@ public class SellScreen extends Activity {
         }catch(Exception e){error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();saved=false;}
         finally{saleInProgress=false;}
         if(saved){
-            cart.clear();StockAlertManager.check(this);
+            cart.clear();persistCart();StockAlertManager.check(this);
             PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
