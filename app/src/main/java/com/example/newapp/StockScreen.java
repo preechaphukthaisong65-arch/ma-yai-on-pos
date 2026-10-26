@@ -37,16 +37,16 @@ public class StockScreen extends Activity {
         if(count==100)PosUi.button(this,root,"โหลดสินค้าเพิ่ม",v->showAll(offset+100));
         PosUi.button(this,root,"สแกนเพื่อดูรายละเอียด",v->{mode="detail";scanAgain();});PosUi.back(this,root);
     }
-    private void scanAgain(){PosUi.scan(this);}
+    private void scanAgain(){PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");}
     @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){
         super.onActivityResult(requestCode,resultCode,data);
-        IntentResult result=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);
+        IntentResult result=PosBarcode.parseResult(requestCode,resultCode,data);
         if(result!=null){if(result.getContents()==null){home();return;} scanned=result.getContents(); handleScan(scanned);}
     }
     private void handleScan(String barcode){
         if("countHistory".equals(mode)){showStockHistory(barcode);return;}
         SQLiteDatabase db=helper.getReadableDatabase();
-        Cursor c=db.query("products",null,"barcode=? AND active=1",new String[]{barcode},null,null,null);
+        Cursor c=helper.findProduct(db,PosBarcode.trimmed(barcode));
         if(!c.moveToFirst()){c.close();if("add".equals(mode))newProduct(barcode);else if("countHistory".equals(mode)){showStockHistory(barcode);return;}else{new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->scanAgain()).show();}return;}
         long id=c.getLong(c.getColumnIndexOrThrow("id"));String name=c.getString(c.getColumnIndexOrThrow("name"));
         int stock=c.getInt(c.getColumnIndexOrThrow("stock"));int limit=c.getInt(c.getColumnIndexOrThrow("stock_limit"));long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
