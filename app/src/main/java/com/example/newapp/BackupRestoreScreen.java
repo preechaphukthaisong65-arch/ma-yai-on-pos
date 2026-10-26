@@ -118,8 +118,7 @@ public final class BackupRestoreScreen extends Activity {
         File snapshot = new File(getCacheDir(), "pos-export-snapshot.db");
         try {
             SQLiteDatabase db = PosDatabase.get(this).getWritableDatabase();
-            Cursor checkpoint = db.rawQuery("PRAGMA wal_checkpoint(FULL)", null);
-            checkpoint.close();
+            checkpointDatabase(db);
             PosDatabase.closeInstance();
             File database = getDatabasePath(PosDatabase.databaseFileName());
             if (!database.isFile()) throw new IOException("ไม่พบไฟล์ฐานข้อมูลร้านค้า");
@@ -157,8 +156,7 @@ public final class BackupRestoreScreen extends Activity {
             validateDatabase(decrypted, true);
 
             SQLiteDatabase current = PosDatabase.get(this).getWritableDatabase();
-            Cursor checkpoint = current.rawQuery("PRAGMA wal_checkpoint(FULL)", null);
-            checkpoint.close();
+            checkpointDatabase(current);
             PosDatabase.closeInstance();
 
             File database = getDatabasePath(PosDatabase.databaseFileName());
@@ -254,6 +252,14 @@ public final class BackupRestoreScreen extends Activity {
         boolean violations = foreignKeys.moveToFirst();
         foreignKeys.close();
         if (violations) throw new IOException("พบ foreign-key violation ในฐานข้อมูล");
+    }
+
+
+    private void checkpointDatabase(SQLiteDatabase db) throws IOException {
+        Cursor checkpoint = db.rawQuery("PRAGMA wal_checkpoint(FULL)", null);
+        int busy = checkpoint.moveToFirst() ? checkpoint.getInt(0) : 1;
+        checkpoint.close();
+        if (busy != 0) throw new IOException("ฐานข้อมูลกำลังถูกใช้งาน ไม่สามารถสำรองหรือกู้คืนได้อย่างปลอดภัย กรุณาลองใหม่");
     }
 
     private byte[] randomBytes(int count) {
