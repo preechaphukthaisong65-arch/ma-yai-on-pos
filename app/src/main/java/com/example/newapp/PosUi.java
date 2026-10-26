@@ -225,6 +225,6 @@ final class PosUi {
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
         new AlertDialog.Builder(a).setTitle(title).setMessage(message).setPositiveButton("ตกลง",(d,w)->{if(after!=null)after.run();}).show();
-        speak(a,(success?"บันทึกสำเร็จ ":"บันทึกไม่สำเร็จ ")+message);
+        speak(a,success?"บันทึกสำเร็จค่ะ":"บันทึกไม่สำเร็จค่ะ");
     }
 }
