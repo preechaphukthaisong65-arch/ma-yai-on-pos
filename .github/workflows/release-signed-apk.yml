@@ -24,6 +24,11 @@ jobs:
         with:
           packages: "platforms;android-35 build-tools;35.0.0"
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
       - name: Require existing production signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.POS_RELEASE_KEYSTORE_BASE64 }}
@@ -41,8 +46,7 @@ jobs:
 
       - name: Build unsigned release APK
         run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon :app:assembleRelease
+          gradle --no-daemon :app:assembleRelease
 
       - name: Align and sign with supplied production key
         env:
