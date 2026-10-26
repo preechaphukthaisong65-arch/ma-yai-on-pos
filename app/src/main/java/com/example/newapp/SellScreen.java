@@ -25,7 +25,7 @@ import java.util.Locale;
 public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);PosAuth.requireOwner(this,this::home);}
     @Override public void onBackPressed(){requestExit();}
     private void requestExit(){
         if(saleInProgress){new AlertDialog.Builder(this).setMessage("กำลังบันทึกรายการขาย กรุณารอให้ระบบทำรายการเสร็จ").setPositiveButton("ตกลง",null).show();return;}
