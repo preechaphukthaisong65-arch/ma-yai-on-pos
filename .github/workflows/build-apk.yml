@@ -58,6 +58,7 @@ jobs:
   migration-test:
     name: Android emulator database migration tests
     runs-on: ubuntu-latest
+    timeout-minutes: 35
 
     steps:
       - name: Checkout source
@@ -80,4 +81,34 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
-          script: gradle --no-daemon connectedDebugAndroidTest --stacktrace
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set +e
+            adb wait-for-device
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            gradle --no-daemon connectedDebugAndroidTest --stacktrace
+            test_status=$?
+            if [ "$test_status" -ne 0 ]; then
+              mkdir -p migration-debug
+              adb logcat -d -v threadtime > migration-debug/logcat.txt 2>&1 || true
+              adb shell dumpsys activity processes > migration-debug/activity-processes.txt 2>&1 || true
+              adb shell getprop > migration-debug/getprop.txt 2>&1 || true
+              find app/build/reports/androidTests app/build/outputs/androidTest-results -type f -print 2>/dev/null > migration-debug/test-files.txt || true
+              echo "Instrumentation failed with exit code $test_status; diagnostic files will be uploaded."
+            fi
+            exit "$test_status"
+
+      - name: Upload emulator diagnostics and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-emulator-diagnostics
+          path: |
+            migration-debug/**
+            app/build/reports/androidTests/connected/**
+            app/build/outputs/androidTest-results/connected/**
+          if-no-files-found: warn
+          retention-days: 14
