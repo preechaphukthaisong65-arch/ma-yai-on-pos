@@ -226,11 +226,16 @@ public class CreditAccountScreen extends Activity {
                     ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
                     if(transaction.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                     ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);transaction.insertOrThrow("payments",null,pay);
-                    PosEvents.payment(transaction,id,code,collected,cashReceived,change,now);
+                    PosEvents.payment(transaction,id,code,collected,now);
                     receipt.append("บิล ").append(code).append(" รับชำระ ").append(PosDatabase.money(collected)).append(" บาท");if(waiveFee)receipt.append(" (เจ้าของร้านยกเว้นค่าบริการ)");receipt.append("\n");
                     if(waiveFee)PosEvents.creditFeeWaived(transaction,id,code,type,fee,now);
                 }
                 if(actualTotal[0]!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
+                PosDatabase.audit(transaction, "CREDIT_PAYMENT_BATCH_RECEIVED", "CUSTOMER",
+                        String.valueOf(customerId),
+                        "bill_count=" + ids.size() + "; amount_satang=" + actualTotal[0]
+                                + "; cash_received_satang=" + cashReceived
+                                + "; change_satang=" + change);
                 return null;
             });
             paid=true;
