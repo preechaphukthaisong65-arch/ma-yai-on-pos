@@ -17,9 +17,9 @@ final class PosBusinessRules {
     }
 
     /** Amount due when collecting an unpaid bill; fee is waived only inside the original 24-hour window. */
-    static long paymentDue(String saleType, long subtotalSatang, long feeSatang,
+    static long paymentDue(String saleType, long subtotalSatang,
                            long totalSatang, long billCreatedAt, long now) {
-        if (subtotalSatang < 0L || feeSatang < 0L || totalSatang < 0L)
+        if (subtotalSatang < 0L || totalSatang < 0L)
             throw new IllegalArgumentException("ยอดบิลไม่ถูกต้อง");
         if ("CREDIT".equals(saleType) && withinCreditFeeWindow(billCreatedAt, now))
             return subtotalSatang;
