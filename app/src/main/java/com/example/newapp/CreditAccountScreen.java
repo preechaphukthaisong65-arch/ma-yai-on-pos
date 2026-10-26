@@ -235,8 +235,18 @@ public class CreditAccountScreen extends Activity {
             });
             paid=true;
         }catch(Exception e){error=e.getMessage()==null?"รับชำระไม่สำเร็จ":e.getMessage();paid=false;}
-        if(paid)PosUi.result(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt+"ยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท",this::arrearsSearch);
-        else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
+        if(paid){
+            String customerName="";
+            Cursor customer=helper.getReadableDatabase().query("customers",new String[]{"first_name","last_name"},"id=?",new String[]{String.valueOf(customerId)},null,null,null);
+            if(customer.moveToFirst())customerName=PosDatabase.customerName(customer.getString(0),customer.getString(1));
+            customer.close();
+            String printable=receipt+"ลูกค้า: "+customerName+"\\nวันที่: "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(PosDatabase.now()))+"\\nยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\\nเงินทอน "+PosDatabase.money(change)+" บาท";
+            root=PosUi.page(this,"รับชำระหนี้สำเร็จ");
+            PosUi.line(this,root,printable);
+            PosUi.button(this,root,"แชร์ใบรับชำระ",v->PosReceiptOutput.share(this,printable));
+            PosUi.button(this,root,"พิมพ์ใบรับชำระ",v->{try{PosReceiptOutput.print(this,"ใบรับชำระ POS",printable);}catch(Exception e){new AlertDialog.Builder(this).setMessage(e.getMessage()==null?"เปิดระบบพิมพ์ไม่สำเร็จ":e.getMessage()).setPositiveButton("ตกลง",null).show();}});
+            PosUi.button(this,root,"กลับไปหน้าลูกหนี้",v->arrearsSearch());
+        } else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 
 }
