@@ -52,14 +52,14 @@ public class ManageStoreScreen extends Activity {
                 .setTitle("ส่งออกข้อมูลสำรอง")
                 .setMessage("ไฟล์นี้มีข้อมูลสินค้า ลูกค้า ยอดหนี้ และประวัติการเงินทั้งหมด เก็บไว้ในที่ปลอดภัยและอย่าส่งให้บุคคลอื่น")
                 .setNegativeButton("ยกเลิก",null)
-                .setPositiveButton("เลือกที่บันทึก",(d,w)->{
+                .setPositiveButton("เลือกที่บันทึก",(d,w)->OwnerAccess.confirmOwnerAction(this,"ส่งออกข้อมูลสำรองที่มีข้อมูลลูกค้าและการเงิน",()->{
                     String stamp=new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",java.util.Locale.US).format(new java.util.Date());
                     Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
                     intent.setType("application/octet-stream");
                     intent.putExtra(Intent.EXTRA_TITLE,"maeyai-on-pos-backup-"+stamp+".db");
                     startActivityForResult(intent,BACKUP_REQUEST_CODE);
-                }).show();
+                })).show();
     }
     private void confirmBackupRestore(){
         new AlertDialog.Builder(this)
@@ -93,12 +93,12 @@ public class ManageStoreScreen extends Activity {
             finally{checkpoint.close();}
             PosDatabase.closeForRestore();
             copyFile(databaseFile,rollback);
+            replaced=true;
             deleteDatabaseSidecars(databaseFile);
             if(!temporary.renameTo(databaseFile)){
                 copyFile(temporary,databaseFile);
                 temporary.delete();
             }
-            replaced=true;
             helper=PosDatabase.get(this);
             helper.getWritableDatabase(); // Apply supported schema upgrades before declaring success.
             rollback.delete();
@@ -149,8 +149,8 @@ public class ManageStoreScreen extends Activity {
         try{
             android.database.sqlite.SQLiteDatabase db=helper.getWritableDatabase();
             android.database.Cursor checkpoint=db.rawQuery("PRAGMA wal_checkpoint(FULL)",null);
-            if(checkpoint.moveToFirst()&&checkpoint.getInt(0)!=0)throw new IOException("ฐานข้อมูลยังไม่พร้อมสำหรับสำรองข้อมูล กรุณาลองใหม่");
-            checkpoint.close();
+            try{if(checkpoint.moveToFirst()&&checkpoint.getInt(0)!=0)throw new IOException("ฐานข้อมูลยังไม่พร้อมสำหรับสำรองข้อมูล กรุณาลองใหม่");}
+            finally{checkpoint.close();}
             java.io.File source=getDatabasePath("maeyai_on_pos.db");
             if(!source.isFile()||source.length()==0)throw new IOException("ไม่พบไฟล์ฐานข้อมูล");
             try(FileInputStream input=new FileInputStream(source);
