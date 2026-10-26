@@ -95,6 +95,7 @@ public class BackupRestoreScreen extends Activity {
         InputStream input = null;
         OutputStream output = null;
         boolean movedOriginal = false;
+        boolean installedBackup = false;
         try {
             input = getContentResolver().openInputStream(source);
             if (input == null) throw new IllegalStateException("อ่านไฟล์สำรองไม่ได้");
@@ -111,13 +112,14 @@ public class BackupRestoreScreen extends Activity {
                 movedOriginal = true;
             }
             if (!temp.renameTo(database)) throw new IllegalStateException("ติดตั้งไฟล์สำรองไม่สำเร็จ");
+            installedBackup = true;
             // Opening through SQLiteOpenHelper applies any required schema migrations.
             helper.getWritableDatabase();
             PosUi.result(this, true, "กู้คืนข้อมูลเรียบร้อยแล้ว", this::home);
         } catch (Exception e) {
             try {
                 helper.close();
-                if (database.exists()) database.delete();
+                if (installedBackup && database.exists()) database.delete();
                 if (movedOriginal && previous.exists()) previous.renameTo(database);
                 helper.getWritableDatabase();
             } catch (Exception ignored) { }
