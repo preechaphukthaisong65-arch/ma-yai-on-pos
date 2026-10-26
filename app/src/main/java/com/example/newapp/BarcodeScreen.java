@@ -35,6 +35,7 @@ public class BarcodeScreen extends Activity {
                     if(codeHolder[0]==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
                     ContentValues reg=new ContentValues();reg.put("barcode",codeHolder[0]);reg.put("name",n);reg.put("price_satang",generatedPriceHolder[0]);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,reg);
                     ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));transaction.update("app_meta",meta,"key='barcode_sequence'",null);
+                    PosEvents.barcodeRegistered(transaction,codeHolder[0],n,generatedPriceHolder[0],"STORE");
                 }
                 return null;
             });
