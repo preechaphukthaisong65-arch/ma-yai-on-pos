@@ -74,15 +74,17 @@ public class StockScreen extends Activity {
         c.close();PosUi.button(this,root,"สแกนบาร์โค้ดอื่น",v->scanAgain());PosUi.back(this,root);
     }
     private boolean saveLimit(long id,int oldLimit,int newLimit){
-        SQLiteDatabase db=null;boolean started=false,saved=false;String error=null;
+        boolean saved=false;String error=null;
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();started=true;
-            ContentValues cv=new ContentValues();cv.put("stock_limit",newLimit);cv.put("updated_at",PosDatabase.now());
-            if(db.update("products",cv,"id=? AND stock_limit=?",new String[]{String.valueOf(id),String.valueOf(oldLimit)})!=1)throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-            PosDatabase.audit(db,"STOCK_LIMIT_CHANGED","PRODUCT",String.valueOf(id),"old_limit="+oldLimit+"; new_limit="+newLimit);
-            db.setTransactionSuccessful();saved=true;
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                ContentValues cv=new ContentValues();cv.put("stock_limit",newLimit);cv.put("updated_at",PosDatabase.now());
+                if(transaction.update("products",cv,"id=? AND stock_limit=?",new String[]{String.valueOf(id),String.valueOf(oldLimit)})!=1)throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+                PosDatabase.audit(transaction,"STOCK_LIMIT_CHANGED","PRODUCT",String.valueOf(id),"old_limit="+oldLimit+"; new_limit="+newLimit);
+                return null;
+            });
+            saved=true;
         }catch(Exception e){error=e.getMessage()==null?"บันทึกลิมิตไม่สำเร็จ":e.getMessage();}
-        finally{if(db!=null&&started){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ";}}}
         if(saved){StockAlertManager.check(this);PosUi.result(this,true,"บันทึกลิมิตสต๊อกเรียบร้อย",this::home);}
         else PosUi.result(this,false,error==null?"บันทึกลิมิตไม่สำเร็จ":error,null);
         return saved;
