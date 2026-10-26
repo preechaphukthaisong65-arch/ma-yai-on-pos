@@ -49,9 +49,12 @@ final class DebtReminderNotifier {
         for(Debt debt:debts){
             currentIds.add(String.valueOf(debt.id));
             if(!notificationsEnabled)continue;
+            // Do not place customer names, balances, or dates in lock-screen notifications.
             Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,CHANNEL):new Notification.Builder(context);
-            builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แจ้งเตือนลูกหนี้").setContentText(debt.message).setStyle(new Notification.BigTextStyle().bigText(debt.message)).setAutoCancel(true);
-            manager.notify(200000+(int)(debt.id%1000000L),builder.build());
+            builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แจ้งเตือนบัญชีลูกหนี้")
+                    .setContentText("มีบัญชีลูกหนี้ค้างชำระเกิน 1 เดือน กรุณาเปิดแอปเพื่อตรวจสอบ")
+                    .setAutoCancel(true);
+            manager.notify(200000,builder.build());
         }
         SQLiteDatabase db=PosDatabase.get(context).getWritableDatabase();
         Cursor old=db.query("app_meta",new String[]{"value"},"key='debt_notification_ids'",null,null,null,null);
@@ -60,11 +63,12 @@ final class DebtReminderNotifier {
         ContentValues cv=new ContentValues();cv.put("key","debt_notification_ids");cv.put("value",ids.toString());db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);
     }
     static boolean hasOverdue(Context context){return !overdue(context).isEmpty();}
-    static String homeSummary(Context context){StringBuilder out=new StringBuilder();for(Debt debt:overdue(context)){if(out.length()>0)out.append("     •     ");out.append(debt.message);}return out.toString();}
+    static String homeSummary(Context context){return hasOverdue(context)?"มีบัญชีลูกหนี้ค้างชำระเกิน 1 เดือน — เปิดบัญชีลูกหนี้เพื่อตรวจสอบ":"";}
     static void showOverdue(Activity activity){
         ArrayList<Debt> debts=overdue(activity);
         if(debts.isEmpty()){new AlertDialog.Builder(activity).setMessage("ไม่มีลูกหนี้ค้างชำระเกิน 1 เดือน").setPositiveButton("ตกลง",null).show();return;}
-        StringBuilder message=new StringBuilder();for(Debt d:debts)message.append(d.message).append('\n');
-        new AlertDialog.Builder(activity).setTitle("ลูกหนี้ค้างชำระเกิน 1 เดือน").setMessage(message.toString()).setPositiveButton("ตกลง",null).show();
+        new AlertDialog.Builder(activity).setTitle("ลูกหนี้ค้างชำระเกิน 1 เดือน")
+                .setMessage("มี "+debts.size()+" บัญชีที่ต้องตรวจสอบ กรุณาเปิดหน้าบัญชีลูกหนี้เพื่อดูรายละเอียด")
+                .setPositiveButton("ตกลง",null).show();
     }
 }
