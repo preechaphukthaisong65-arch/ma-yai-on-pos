@@ -84,7 +84,7 @@ public class ReportScreen extends Activity {
             PosUi.line(this,root,new SimpleDateFormat("dd/MM/yyyy HH:mm:ss",Locale.getDefault()).format(new Date(c.getLong(5)))+" • "+c.getString(1)+" • "+entity+"\nผู้ทำรายการ: "+c.getString(0)+details);
         }while(c.moveToNext());
         c.close();
-        PosUi.line(this,root,"หมายเหตุ: จนกว่าจะเพิ่มระบบบัญชีผู้ใช้ รายการยังไม่สามารถระบุตัวบุคคลผู้ทำรายการได้");
+        PosUi.line(this,root,"หมายเหตุ: ระบบนี้ใช้ PIN เจ้าของร้านแบบผู้ใช้เดียว ยังไม่มีบัญชีแยกสำหรับพนักงานแต่ละคน");
         PosUi.back(this,root);
     }
 
