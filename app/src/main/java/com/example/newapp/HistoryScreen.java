@@ -12,7 +12,7 @@ public class HistoryScreen extends Activity {
     private static final int BILL_PAGE_SIZE=100;
     private int billOffset=0;
     private PosDatabase helper; private LinearLayout root;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);OwnerAccess.confirmOwnerAction(this,"ดูประวัติการขายและบิล",this::home);}
     private void home(){root=PosUi.page(this,"ประวัติการขาย");
         PosUi.button(this,root,"รายการขายทั้งหมด",v->listBills());
         PosUi.back(this,root);
