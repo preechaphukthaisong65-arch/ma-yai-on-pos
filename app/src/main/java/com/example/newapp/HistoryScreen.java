@@ -28,7 +28,7 @@ public class HistoryScreen extends Activity {
             String type=c.getString(4),status=c.getString(6);
             String amountLabel="ยอดบิล";
             if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id)){amount=c.getLong(5);amountLabel="รับจริง";}
-            String statusLabel="PAID".equals(status)?"ชำระแล้ว":("UNPAID".equals(status)?"ค้างชำระ":status);
+            String statusLabel="PAID".equals(status)?"ชำระแล้ว":("UNPAID".equals(status)?"ค้างชำระ":("CANCELLED".equals(status)?"ยกเลิกแล้ว":("RETURNED".equals(status)?"คืนสินค้าแล้ว":status)));
             String label=c.getString(0)+" • "+statusLabel+" • "+amountLabel+" "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2)));
             PosUi.button(this,root,label,v->details(id));
         }
