@@ -10,7 +10,13 @@ final class PosBusinessRules {
 
     private PosBusinessRules() {}
 
-    /** 5% credit fee, rounded upward to the next satang. */
+    /** Credit unit price: cash unit price plus 5%, rounded upward to the next satang. */
+    static long creditUnitPrice(long cashUnitPriceSatang) {
+        if (cashUnitPriceSatang < 0L) throw new IllegalArgumentException("ราคาสินค้าต้องไม่ติดลบ");
+        return Math.addExact(cashUnitPriceSatang, creditFee(cashUnitPriceSatang));
+    }
+
+    /** Legacy fee helper retained only for historical bills created by older app versions. */
     static long creditFee(long subtotalSatang) {
         if (subtotalSatang < 0L) throw new IllegalArgumentException("ยอดขายเชื่อต้องไม่ติดลบ");
         long whole = subtotalSatang / 20L;
