@@ -30,8 +30,10 @@ public class BarcodeScreen extends Activity {
                 Cursor found=transaction.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE AND price_satang=?",new String[]{n,String.valueOf(generatedPriceHolder[0])},null,null,"created_at ASC","1");
                 if(found.moveToFirst()){codeHolder[0]=found.getString(0);generatedPriceHolder[0]=found.getLong(1);reusedHolder[0]=true;}found.close();
                 if(!reusedHolder[0]){
-                    long seq=100000000000L;Cursor c=transaction.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
-                    while(seq<=999999999999L){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=transaction.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});boolean used=exists.moveToFirst();exists.close();if(!used){codeHolder[0]=candidate;break;}seq++;}
+                    long seq=10000000000L;Cursor c=transaction.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
+                    // Older builds stored a 12-digit sequence without a UPC-A check digit.
+                    if(seq>99999999999L)seq=seq/10L;
+                    while(seq<=99999999999L){String body=String.format(java.util.Locale.US,"%011d",seq);String candidate=body+upcACheckDigit(body);Cursor exists=transaction.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});boolean used=exists.moveToFirst();exists.close();if(!used){codeHolder[0]=candidate;break;}seq++;}
                     if(codeHolder[0]==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
                     ContentValues reg=new ContentValues();reg.put("barcode",codeHolder[0]);reg.put("name",n);reg.put("price_satang",generatedPriceHolder[0]);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,reg);
                     ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));transaction.update("app_meta",meta,"key='barcode_sequence'",null);
@@ -44,6 +46,17 @@ public class BarcodeScreen extends Activity {
             PosUi.result(this,true,"สินค้า: "+n+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""),this::home);
         }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
+    }
+    private static int upcACheckDigit(String elevenDigits){
+        if(elevenDigits==null||elevenDigits.length()!=11)throw new IllegalArgumentException("UPC-A ต้องมีเลขตั้งต้น 11 หลัก");
+        int odd=0,even=0;
+        for(int i=0;i<elevenDigits.length();i++){
+            char ch=elevenDigits.charAt(i);
+            if(ch<'0'||ch>'9')throw new IllegalArgumentException("บาร์โค้ดต้องเป็นตัวเลข");
+            int digit=ch-'0';
+            if((i%2)==0)odd+=digit;else even+=digit;
+        }
+        return (10-((odd*3+even)%10))%10;
     }
     private void registry(){
         root=PosUi.page(this,"คลังบาร์โค้ด");EditText query=PosUi.input(this,root,"ค้นหาจากชื่อหรือบาร์โค้ด");PosUi.button(this,root,"ค้นหา",v->search(query.getText().toString().trim()));PosUi.button(this,root,"สแกนบาร์โค้ดเพื่อค้นหา",v->PosBarcode.launch(this,"สแกนบาร์โค้ดเพื่อค้นหา"));PosUi.button(this,root,"แสดงทั้งหมด",v->search(""));
