@@ -64,10 +64,7 @@ public class BarcodeScreen extends Activity {
         PosUi.back(this,root);
     }
     static int upcCheckDigit(String elevenDigits){
-        if(elevenDigits==null||elevenDigits.length()!=11||!elevenDigits.matches("[0-9]{11}"))throw new IllegalArgumentException("เลขบาร์โค้ดภายในไม่ถูกต้อง");
-        int sum=0;
-        for(int i=0;i<elevenDigits.length();i++)sum+=(elevenDigits.charAt(i)-'0')*((i%2==0)?3:1);
-        return (10-(sum%10))%10;
+        return BarcodeRules.upcCheckDigit(elevenDigits);
     }
     private void registry(){
         root=PosUi.page(this,"คลังบาร์โค้ด");EditText query=PosUi.input(this,root,"ค้นหาจากชื่อหรือบาร์โค้ด");PosUi.button(this,root,"ค้นหา",v->search(query.getText().toString().trim()));PosUi.button(this,root,"สแกนบาร์โค้ดเพื่อค้นหา",v->PosBarcode.launch(this,"สแกนบาร์โค้ดเพื่อค้นหา"));PosUi.button(this,root,"แสดงทั้งหมด",v->search(""));
