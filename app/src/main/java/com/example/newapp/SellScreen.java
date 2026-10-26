@@ -72,13 +72,13 @@ public class SellScreen extends Activity {
     }
     private void addScanned(String barcode){
         Cursor c=helper.findProduct(helper.getReadableDatabase(),PosBarcode.trimmed(barcode));
-        if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showScanScreen);return;}
+        if(!c.moveToFirst()){c.close();new AlertDialog.Builder(this).setMessage("ไม่พบสินค้าในคลัง").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
         long id=c.getLong(c.getColumnIndexOrThrow("id"));
         String name=c.getString(c.getColumnIndexOrThrow("name"));
         long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
         int stock=c.getInt(c.getColumnIndexOrThrow("stock"));c.close();
         Item old=cart.get(id);
-        if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
+        if(stock<=0||(old!=null&&old.qty>=old.stock)){new AlertDialog.Builder(this).setMessage("สินค้า "+name+" มีสต๊อกไม่เพียงพอ").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
         try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
         showScanScreen();
@@ -141,11 +141,18 @@ public class SellScreen extends Activity {
         rowParams.topMargin=PosUi.dp(this,12);
         root.addView(row,rowParams);
     }
+    @Override public void onBackPressed(){
+        if(cart.isEmpty()){super.onBackPressed();return;}
+        new AlertDialog.Builder(this).setTitle("ตะกร้ายังมีสินค้า")
+                .setMessage("หากออกจากหน้าขาย สินค้าในตะกร้าจะไม่ถูกบันทึก ต้องการออกหรือไม่?")
+                .setNegativeButton("กลับไปขาย",null)
+                .setPositiveButton("ออกจากหน้าขาย",(d,w)->{cart.clear();finish();}).show();
+    }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
         StringBuilder summary=new StringBuilder("รายการสินค้าในตะกร้าทั้งหมด ");
         for(Item i:cart.values())summary.append(i.name).append(" จำนวน ").append(i.qty).append(" รายการ ");
-        PosUi.speakThen(this,summary.toString(),this::paymentChoice);
+        paymentChoice();
     }
     private void paymentChoice(){
         root=PosUi.page(this,"เลือกวิธีขาย");
@@ -274,10 +281,17 @@ public class SellScreen extends Activity {
                     }else{
                         String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
                         if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
-                        ContentValues cv=new ContentValues();
-                        cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
-                        cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
-                        selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
+                        Cursor existingCustomer=transaction.query("customers",new String[]{"id"},"first_name=? COLLATE NOCASE AND last_name=? COLLATE NOCASE",new String[]{f,l},null,null,"id ASC","1");
+                        if(existingCustomer.moveToFirst()){
+                            selectedCustomerId=existingCustomer.getLong(0);
+                            existingCustomer.close();
+                        }else{
+                            existingCustomer.close();
+                            ContentValues cv=new ContentValues();
+                            cv.put("full_name",f+" "+l);
+                            cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
+                            selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
+                        }
                     }
                 }
                 ContentValues bill=new ContentValues();bill.put("bill_code",billCode);if(selectedCustomerId!=null)bill.put("customer_id",selectedCustomerId);bill.put("sale_type",credit?"CREDIT":"CASH");bill.put("status",credit?"UNPAID":"PAID");bill.put("subtotal_satang",sub);bill.put("fee_satang",fee);bill.put("total_satang",total);bill.put("cash_received_satang",cash);bill.put("change_satang",credit?0:cash-total);bill.put("created_at",now);if(!credit)bill.put("paid_at",now);
