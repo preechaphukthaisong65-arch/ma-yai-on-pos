@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 12;
+    public static final int DB_VERSION = 12;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -19,6 +19,15 @@ public final class PosDatabase extends SQLiteOpenHelper {
     }
 
     private PosDatabase(Context context) { super(context, DB_NAME, null, DB_VERSION); }
+
+    public static synchronized void closeInstance() {
+        if (instance != null) {
+            instance.close();
+            instance = null;
+        }
+    }
+
+    public static String databaseFileName() { return DB_NAME; }
 
     @Override public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
