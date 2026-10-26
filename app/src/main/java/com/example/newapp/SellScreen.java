@@ -256,10 +256,35 @@ public class SellScreen extends Activity {
             String firstName=first.getText().toString().trim(),lastName=last.getText().toString().trim();
             if(firstName.isEmpty()){first.setError("กรอกชื่อ");return;}
             if(lastName.isEmpty()){last.setError("กรอกนามสกุล");return;}
-            commitSale(true,-1,firstName,lastName,0);
+            confirmNewCustomer(firstName,lastName);
         });
         PosUi.back(this,root);
     }
+    private void confirmNewCustomer(String firstName,String lastName){
+        Cursor matches=helper.getReadableDatabase().query("customers",new String[]{"id"},
+                "first_name=? COLLATE NOCASE AND last_name=? COLLATE NOCASE",
+                new String[]{firstName.trim(),lastName.trim()},null,null,"id ASC","10");
+        java.util.ArrayList<Long> ids=new java.util.ArrayList<>();
+        while(matches.moveToNext())ids.add(matches.getLong(0));
+        matches.close();
+        if(ids.isEmpty()){
+            commitSale(true,-1,firstName,lastName,0);
+            return;
+        }
+        StringBuilder message=new StringBuilder("พบชื่อลูกค้าและนามสกุลตรงกับบัญชีเดิม ");
+        for(int i=0;i<ids.size();i++){
+            if(i>0)message.append(", ");
+            message.append("#").append(ids.get(i));
+        }
+        message.append("\\nหากเป็นลูกค้าคนเดิม ให้ยกเลิกหน้าต่างนี้แล้วเลือกบัญชีเดิมจากช่องด้านบน เพื่อไม่ให้ยอดหนี้แยกหลายบัญชี");
+        message.append("\\nหากเป็นคนละคน สามารถยืนยันสร้างบัญชีใหม่ได้");
+        new AlertDialog.Builder(this).setTitle("ตรวจสอบบัญชีลูกค้าซ้ำ")
+                .setMessage(message.toString())
+                .setNegativeButton("กลับไปเลือกลูกค้าเดิม",null)
+                .setPositiveButton("ยืนยันว่าเป็นคนละคน",(d,w)->commitSale(true,-1,firstName,lastName,0))
+                .show();
+    }
+
     private void commitSale(boolean credit,long customerId,String firstName,String lastName,long cash){
         if(saleInProgress||duplicatePromptOpen)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
