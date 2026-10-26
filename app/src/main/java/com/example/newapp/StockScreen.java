@@ -56,13 +56,13 @@ public class StockScreen extends Activity {
         PosUi.line(this,root,"บาร์โค้ด: "+barcode); PosUi.line(this,root,"คงเหลือปัจจุบัน: "+stock);
         if("count".equals(mode)){
             EditText actual=PosUi.input(this,root,"จำนวนที่นับได้จริง");
-            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,qty,"COUNT");}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+            PosUi.button(this,root,"บันทึกผลนับ",v->{try{int qty=Integer.parseInt(PosUi.str(actual));if(qty<0)throw new IllegalArgumentException();OwnerAccess.confirmOwnerAction(this,"บันทึกผลนับสต๊อก",()->saveStock(id,barcode,name,stock,qty,"COUNT"));}catch(Exception e){actual.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("limit".equals(mode)){
             EditText lim=PosUi.input(this,root,"ลิมิตสต๊อกปัจจุบัน "+limit);
-            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();saveLimit(id,limit,q);}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
+            PosUi.button(this,root,"บันทึกลิมิต",v->{try{int q=Integer.parseInt(PosUi.str(lim));if(q<0)throw new IllegalArgumentException();OwnerAccess.confirmOwnerAction(this,"เปลี่ยนลิมิตสต๊อก",()->saveLimit(id,limit,q));}catch(Exception e){lim.setError("กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป");}});
         } else if("add".equals(mode)){
             PosUi.speak(this,name+"ค่ะ"); EditText qty=PosUi.input(this,root,"จำนวนสินค้าที่รับเข้า");
-            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();saveStock(id,barcode,name,stock,Math.addExact(stock,q),"RECEIVE");}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
+            PosUi.button(this,root,"บันทึกรับเข้า",v->{try{int q=Integer.parseInt(PosUi.str(qty));if(q<=0)throw new IllegalArgumentException();OwnerAccess.confirmOwnerAction(this,"รับสินค้าเข้าสต๊อก",()->saveStock(id,barcode,name,stock,Math.addExact(stock,q),"RECEIVE"));}catch(Exception e){qty.setError("กรอกจำนวนเต็มมากกว่า 0");}});
         }
         PosUi.button(this,root,"สแกนรายการถัดไป",v->scanAgain()); PosUi.back(this,root);
     }
@@ -118,7 +118,7 @@ public class StockScreen extends Activity {
         
         PosUi.line(this,root,"ลิมิตสต๊อกเริ่มต้น: 10 (แก้ไขภายหลังได้ที่ปุ่ม ลิมิตสต๊อก)");
         EditText qty=PosUi.input(this,root,"จำนวนสินค้าเริ่มต้น");
-        PosUi.button(this,root,"บันทึกสินค้า",v->{try{
+        PosUi.button(this,root,"บันทึกสินค้า",v->{OwnerAccess.confirmOwnerAction(this,"เพิ่มสินค้าเข้าสต๊อก",()->{try{
             String nm=PosUi.str(name);if(nm.isEmpty())throw new IllegalArgumentException("กรุณากรอกชื่อสินค้า");
             int q=Integer.parseInt(PosUi.str(qty));long p=PosUi.satang(price);if(q<=0)throw new IllegalArgumentException("จำนวนสินค้าเริ่มต้นต้องมากกว่า 0");
             int l=10;
@@ -135,7 +135,7 @@ public class StockScreen extends Activity {
                 return null;
             });
             StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
-        }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});
+        }catch(Exception e){PosUi.result(this,false,"บันทึกไม่สำเร็จ ตรวจสอบข้อมูลและบาร์โค้ด\n"+e.getMessage(),null);}});});
         PosUi.back(this,root);
     }
 }
