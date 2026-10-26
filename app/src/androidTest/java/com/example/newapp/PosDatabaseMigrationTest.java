@@ -114,7 +114,7 @@ public class PosDatabaseMigrationTest {
         context.deleteDatabase(PosDatabase.databaseFileName());
 
         // Start from the current schema, then add the legacy v9 columns and representative
-        // linked records. This exercises the v10->v13 destructive table rebuild path.
+        // linked records. This exercises the v9->v13 destructive table rebuild paths.
         SQLiteDatabase seed = PosDatabase.get(context).getWritableDatabase();
         seed.execSQL("ALTER TABLE products ADD COLUMN unit TEXT");
         seed.execSQL("ALTER TABLE bill_items ADD COLUMN unit TEXT");
@@ -141,7 +141,12 @@ public class PosDatabaseMigrationTest {
         boolean unitColumnExists = false;
         while (columns.moveToNext()) if ("unit".equalsIgnoreCase(columns.getString(1))) unitColumnExists = true;
         columns.close();
-        assertFalse("Legacy unit column must be removed", unitColumnExists);
+        assertFalse("Legacy product unit column must be removed", unitColumnExists);
+        Cursor itemColumns = upgraded.rawQuery("PRAGMA table_info(bill_items)", null);
+        boolean itemUnitColumnExists = false;
+        while (itemColumns.moveToNext()) if ("unit".equalsIgnoreCase(itemColumns.getString(1))) itemUnitColumnExists = true;
+        itemColumns.close();
+        assertFalse("Legacy bill item unit column must be removed", itemUnitColumnExists);
 
         Cursor bill = upgraded.rawQuery("SELECT customer_id FROM bills WHERE id=91", null);
         assertTrue(bill.moveToFirst());
