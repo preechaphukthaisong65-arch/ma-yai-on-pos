@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 11;
+    private static final int DB_VERSION = 12;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -177,6 +177,16 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE bill_items_new RENAME TO bill_items");
             db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
             db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
+        }
+
+        if (oldVersion < 12) {
+            // Customer display names are not unique identifiers. Preserve IDs and bill links,
+            // but remove UNIQUE(full_name) so two people can legitimately share a name.
+            db.execSQL("CREATE TABLE customers_new (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
+            db.execSQL("INSERT INTO customers_new(id,full_name,first_name,last_name,created_at) SELECT id,CASE WHEN TRIM(COALESCE(first_name,''))<>'' OR TRIM(COALESCE(last_name,''))<>'' THEN TRIM(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')) ELSE full_name END,first_name,last_name,created_at FROM customers");
+            db.execSQL("DROP TABLE customers");
+            db.execSQL("ALTER TABLE customers_new RENAME TO customers");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(first_name COLLATE NOCASE,last_name COLLATE NOCASE,id)");
         }
 
         if (oldVersion < 11) {
