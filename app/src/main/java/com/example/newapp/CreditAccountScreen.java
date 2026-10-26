@@ -234,10 +234,10 @@ public class CreditAccountScreen extends Activity {
                     ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
                     if(transaction.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                     ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);transaction.insertOrThrow("payments",null,pay);
-                    ContentValues audit=new ContentValues();audit.put("bill_id",id);audit.put("bill_code",code);audit.put("amount_satang",collected);audit.put("created_at",now);transaction.insertOrThrow("payment_history",null,audit);
+                    PosRecords.paymentHistory(transaction,id,code,collected,now);
                     PosDatabase.audit(transaction,"PAYMENT_RECEIVED","BILL",code,"amount_satang="+collected+"; cash_received_satang="+cashReceived+"; change_satang="+change);
                     receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
-                    if(waiveFee){ContentValues adj=new ContentValues();adj.put("bill_id",id);adj.put("bill_code",code);adj.put("sale_type",type);adj.put("event_type","CREDIT_FEE_WAIVED");adj.put("subtotal_satang",0);adj.put("fee_satang",-fee);adj.put("total_satang",-fee);adj.put("created_at",now);transaction.insertOrThrow("sales_ledger",null,adj);PosDatabase.audit(transaction,"CREDIT_FEE_WAIVED","BILL",code,"waived_fee_satang="+fee);}
+                    if(waiveFee){PosRecords.salesLedger(transaction,id,code,type,"CREDIT_FEE_WAIVED",0,-fee,-fee,now);PosDatabase.audit(transaction,"CREDIT_FEE_WAIVED","BILL",code,"waived_fee_satang="+fee);}
                 }
                 if(actualTotal[0]!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
                 return null;
