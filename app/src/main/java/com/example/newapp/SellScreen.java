@@ -134,7 +134,7 @@ public class SellScreen extends Activity {
         persistCart();
         showScanScreen();
     }
-    private long unitPrice(Item item,boolean credit){return credit?PosBusinessRules.creditUnitPrice(item.price):item.price;}
+    private long unitPrice(Item item,boolean credit){return item.price;}
     private long lineTotal(Item i){return lineTotal(i,false);}
     private long lineTotal(Item i,boolean credit){return Math.multiplyExact(unitPrice(i,credit),(long)i.qty);}
     private long subtotal(){return subtotal(false);}
@@ -221,10 +221,13 @@ public class SellScreen extends Activity {
     private void creditSale(){OwnerSecurity.requireOwner(this,"อนุมัติการขายเชื่อและสร้างหนี้ลูกค้า",this::openCreditSale);}
     private void openCreditSale(){
         root=PosUi.page(this,"ขายเชื่อ");
-        PosUi.line(this,root,"ราคาสินค้าเมื่อขายเชื่อจะเพิ่ม 5% และปัดเป็นบาทเต็ม");
+        PosUi.line(this,root,"ราคาสินค้าตามปกติ และคิดค่าบริการ 5% สำหรับการขายเชื่อ");
         try{
-            for(Item item:cart.values())PosUi.line(this,root,item.name+"  จำนวน "+item.qty+" × "+PosDatabase.money(unitPrice(item,true))+" = "+PosDatabase.money(lineTotal(item,true))+" บาท");
-            PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(subtotal(true))+" บาท");
+            long sub=subtotal(),fee=PosBusinessRules.creditFee(sub),total=Math.addExact(sub,fee);
+            for(Item item:cart.values())PosUi.line(this,root,item.name+"  จำนวน "+item.qty+" × "+PosDatabase.money(item.price)+" = "+PosDatabase.money(lineTotal(item))+" บาท");
+            PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
+            PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
+            PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
         }catch(ArithmeticException e){PosUi.line(this,root,"ยอดขายเชื่อเกินขอบเขตที่ระบบรองรับ");PosUi.back(this,root);return;}
         PosUi.line(this,root,"เลือกลูกค้าเดิมด้วยรหัส หรือกรอกชื่อและนามสกุลแยกช่องเพื่อสร้างลูกค้าใหม่");
         AutoCompleteTextView existing= new AutoCompleteTextView(this);
@@ -308,7 +311,7 @@ public class SellScreen extends Activity {
     }
     private String findDuplicate(boolean credit,long customerId,long cash){
         SQLiteDatabase db=helper.getReadableDatabase();
-        long now=PosDatabase.now(),sub=subtotal(credit),fee=0,total=sub,change=credit?0:Math.subtractExact(cash,sub);
+        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosBusinessRules.creditFee(sub):0L,total=Math.addExact(sub,fee),change=credit?0:Math.subtractExact(cash,total);
         Cursor bills=db.rawQuery("SELECT b.id,b.bill_code,b.customer_id,b.cash_received_satang,b.change_satang,b.subtotal_satang,b.fee_satang,b.total_satang FROM bills b WHERE b.created_at>=? AND b.created_at<=? AND b.sale_type=? AND b.status IN ('PAID','UNPAID') ORDER BY b.created_at DESC",
                 new String[]{String.valueOf(now-3600000L),String.valueOf(now),credit?"CREDIT":"CASH"});
         java.util.ArrayList<Item> current=new java.util.ArrayList<>(cart.values());
@@ -336,8 +339,8 @@ public class SellScreen extends Activity {
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
         saleInProgress=true;
         boolean saved=false;String error=null;final String[] savedCode={null};
-        final long now=PosDatabase.now();final long sub,fee=0,total;
-        try{sub=subtotal(credit);total=sub;}catch(ArithmeticException e){PosUi.result(this,false,"ยอดขายเกินขอบเขตที่ระบบรองรับ",null);return;}
+        final long now=PosDatabase.now();final long sub,fee,total;
+        try{sub=subtotal();fee=credit?PosBusinessRules.creditFee(sub):0L;total=Math.addExact(sub,fee);}catch(ArithmeticException e){PosUi.result(this,false,"ยอดขายเกินขอบเขตที่ระบบรองรับ",null);return;}
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
@@ -386,7 +389,7 @@ public class SellScreen extends Activity {
         finally{saleInProgress=false;}
         if(saved){
             cart.clear();persistCart();StockAlertManager.check(this);
-            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\n"+(credit?"ยอดขายเชื่อ (รวมราคาสินค้าที่ปรับแล้ว) "+PosDatabase.money(total)+" บาท":"ยอดสินค้า "+PosDatabase.money(sub)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
+            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\n"+(credit?"ยอดสินค้า "+PosDatabase.money(sub)+" บาท\nค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดขายเชื่อรวม "+PosDatabase.money(total)+" บาท":"ยอดสินค้า "+PosDatabase.money(sub)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }
