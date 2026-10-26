@@ -221,7 +221,7 @@ public class SellScreen extends Activity {
     private void creditSale(){OwnerSecurity.requireOwner(this,"อนุมัติการขายเชื่อและสร้างหนี้ลูกค้า",this::openCreditSale);}
     private void openCreditSale(){
         root=PosUi.page(this,"ขายเชื่อ");
-        PosUi.line(this,root,"ราคาขายเชื่อจะปรับราคาสินค้าแต่ละรายการเพิ่ม 5% โดยไม่บวกค่าบริการท้ายบิล");
+        PosUi.line(this,root,"ราคาสินค้าเมื่อขายเชื่อจะเพิ่ม 5% และปัดเป็นบาทเต็ม");
         try{
             for(Item item:cart.values())PosUi.line(this,root,item.name+"  จำนวน "+item.qty+" × "+PosDatabase.money(unitPrice(item,true))+" = "+PosDatabase.money(lineTotal(item,true))+" บาท");
             PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(subtotal(true))+" บาท");
