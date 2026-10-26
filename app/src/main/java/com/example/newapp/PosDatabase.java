@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 11;
+    private static final int DB_VERSION = 12;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -89,7 +89,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_audit_log_created ON audit_log(created_at)");
         db.execSQL("CREATE INDEX idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
-        db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','100000000000')");
+        db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','200000000000')");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -170,6 +170,21 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
         }
 
+        if (oldVersion < 12) {
+            // New store-generated labels use 13-digit EAN-13 with restricted-circulation prefix 20.
+            // Existing registry/product barcodes are preserved; only the next sequence is reset if outside this range.
+            Cursor sequence = db.query("app_meta", new String[]{"value"}, "key='barcode_sequence'", null, null, null, null);
+            long next = 200000000000L;
+            if (sequence.moveToFirst()) {
+                try { next = Long.parseLong(sequence.getString(0)); } catch (NumberFormatException ignored) { next = 200000000000L; }
+            }
+            sequence.close();
+            if (next < 200000000000L || next > 299999999999L) {
+                ContentValues value = new ContentValues();
+                value.put("value", "200000000000");
+                db.update("app_meta", value, "key='barcode_sequence'", null);
+            }
+        }
         if (oldVersion < 11) {
             // Permanently remove experimental cost-price and unit-of-measure columns
             // from databases created by earlier app versions, while preserving products
