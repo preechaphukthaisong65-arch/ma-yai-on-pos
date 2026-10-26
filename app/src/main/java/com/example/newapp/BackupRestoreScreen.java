@@ -48,6 +48,10 @@ public final class BackupRestoreScreen extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        OwnerSecurity.requireOwner(this, "สำรองหรือกู้คืนฐานข้อมูลร้านค้า", this::showScreen);
+    }
+
+    private void showScreen() {
         LinearLayout root = PosUi.page(this, "สำรอง / กู้คืนข้อมูลร้านค้า");
         TextView warning = new TextView(this);
         warning.setText("ไฟล์สำรองมีข้อมูลการขายและลูกค้า ระบบเข้ารหัสด้วยรหัสผ่านที่คุณตั้งเอง โปรดเก็บรหัสผ่านแยกจากไฟล์ หากลืมรหัสผ่านจะกู้คืนไม่ได้");
