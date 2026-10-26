@@ -18,10 +18,10 @@ public class PosBusinessRulesTest {
         PosBusinessRules.creditFee(-1L);
     }
 
-    @Test public void creditFeeIsWaivedAtExactly24Hours() {
+    @Test public void creditFeeIsNeverAutomaticallyWaivedByDeviceClock() {
         long created = 1_000_000L;
-        assertEquals(10_000L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created));
-        assertEquals(10_000L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created + DAY));
+        assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created));
+        assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created + DAY));
         assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created + DAY + 1L));
         assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created - 1L));
     }
