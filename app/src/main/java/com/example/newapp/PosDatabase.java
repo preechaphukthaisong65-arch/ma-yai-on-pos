@@ -226,7 +226,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
 
     public static long now() { return AppClock.now(); }
 
-    /** Append-only operational audit entry. Actor identity remains unknown until user accounts are implemented. */
+    /** Append-only operational audit entry. Local owner-gated actions carry the authenticated owner label; other actions remain unknown. */
     public static void audit(SQLiteDatabase db, String action, String entityType, String entityId, String details) {
         ContentValues row = new ContentValues();
         row.put("actor_label", PosSession.actorLabel());
