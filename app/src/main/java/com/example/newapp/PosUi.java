@@ -176,6 +176,19 @@ final class PosUi {
     }
     static String str(EditText e) { return e.getText().toString().trim(); }
     static long satang(EditText e) { return PosDatabase.toSatang(str(e)); }
+    /**
+     * Shared full-screen wrapper for custom home layouts that need the standard back button.
+     * The first 90% is reserved for page content; the bottom 10% belongs to navigation.
+     */
+    static void showRootWithBack(Activity a, View content, Runnable onBack) {
+        if (a == null || content == null || onBack == null) return;
+        FrameLayout frame = new FrameLayout(a);
+        frame.setBackgroundColor(Color.WHITE);
+        frame.addView(content, new FrameLayout.LayoutParams(-1, -1, Gravity.TOP));
+        BackNavigation.attach(a, frame, onBack);
+        PosNavigation.showRoot(a, frame);
+    }
+
     static void showRoot(Activity a,View view) {
         PosNavigation.showRoot(a,view);
     }
