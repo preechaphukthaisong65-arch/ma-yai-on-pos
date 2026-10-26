@@ -21,7 +21,7 @@ public class HistoryScreen extends Activity {
         Cursor countCursor=helper.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM bills",null);
         int totalBills=countCursor.moveToFirst()?countCursor.getInt(0):0;countCursor.close();
         PosUi.line(this,root,"หน้า "+(billsPage+1)+" • บิลทั้งหมด "+totalBills);
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC",String.valueOf(BILLS_PAGE_SIZE),String.valueOf(billsPage*BILLS_PAGE_SIZE));
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT bill_code,total_satang,created_at,id,sale_type,subtotal_satang,status FROM bills ORDER BY created_at DESC LIMIT ? OFFSET ?",new String[]{String.valueOf(BILLS_PAGE_SIZE),String.valueOf(billsPage*BILLS_PAGE_SIZE)});
         while(c.moveToNext()){
             final long id=c.getLong(3);
             long amount=c.getLong(1);
