@@ -166,7 +166,7 @@ public class CreditAccountScreen extends Activity {
             Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
             if(c.moveToFirst()){
                 String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);
-                total=Math.addExact(total,("CREDIT".equals(type)&&now>=created&&now-created<=86400000L)?subtotal:amount);
+                total=Math.addExact(total,PosBusinessRules.paymentDue(type,subtotal,amount,created,now));
             }
             c.close();
         }
@@ -185,7 +185,7 @@ public class CreditAccountScreen extends Activity {
             Cursor bill=readDb.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
             if(bill.moveToFirst()){
                 String type=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),amount=bill.getLong(4),created=bill.getLong(5),now=PosDatabase.now();
-                boolean waive="CREDIT".equals(type)&&now>=created&&now-created<=86400000L;
+                boolean waive="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
                 spoken.append("บิล ").append(bill.getString(0)).append(" ยอดสินค้า ").append(PosDatabase.money(sub)).append(" บาท ");
                 if(fee>0){if(waive)spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ได้รับการยกเว้นเนื่องจากชำระภายใน 24 ชั่วโมง ");else spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ");}
                 spoken.append("ยอดที่ต้องชำระ ").append(PosDatabase.money(waive?sub:amount)).append(" บาท ");
@@ -229,8 +229,8 @@ public class CreditAccountScreen extends Activity {
                     if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
                     String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();
                     if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
-                    long created=getBillTime(transaction,id);boolean waiveFee="CREDIT".equals(type)&&now>=created&&now-created<=86400000L;
-                    long collected=waiveFee?sub:amount;actualTotal[0]=Math.addExact(actualTotal[0],collected);
+                    long created=getBillTime(transaction,id);boolean waiveFee="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
+                    long collected=PosBusinessRules.paymentDue(type,sub,amount,created,now);actualTotal[0]=Math.addExact(actualTotal[0],collected);
                     ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
                     if(transaction.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                     ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);transaction.insertOrThrow("payments",null,pay);
