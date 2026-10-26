@@ -53,8 +53,7 @@ public class ManageStoreScreen extends Activity {
                 if(transaction.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode})==0){
                     ContentValues legacy=new ContentValues();legacy.put("barcode",barcode);legacy.put("name",name);legacy.put("price_satang",next);legacy.put("source","LEGACY");legacy.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,legacy);
                 }
-                PosRecords.priceChange(transaction,id,barcode,name,old,next,PosDatabase.now());
-                PosDatabase.audit(transaction,"PRICE_CHANGED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; old_price_satang="+old+"; new_price_satang="+next);
+                PosEvents.priceChange(transaction,id,barcode,name,old,next,PosDatabase.now());
                 return null;
             });
             saved=true;
@@ -115,8 +114,7 @@ public class ManageStoreScreen extends Activity {
                 long ledgerFee=PosBusinessRules.reversalFee(type,status,fee);
                 long ledgerSubtotal=PosBusinessRules.reversalSubtotal(sub);
                 long ledgerTotal=PosBusinessRules.reversalTotal(ledgerSubtotal,ledgerFee);
-                PosRecords.salesLedger(transaction,id,code,type,returning?"RETURN":"CANCEL",ledgerSubtotal,ledgerFee,ledgerTotal,PosDatabase.now());
-                PosDatabase.audit(transaction,returning?"RETURN":"CANCEL","BILL",code,"subtotal_satang="+ledgerSubtotal+"; fee_satang="+ledgerFee+"; total_satang="+ledgerTotal);
+                PosEvents.billReversal(transaction,id,code,type,returning?"RETURN":"CANCEL",ledgerSubtotal,ledgerFee,ledgerTotal,PosDatabase.now());
                 return null;
             });
             saved=true;
