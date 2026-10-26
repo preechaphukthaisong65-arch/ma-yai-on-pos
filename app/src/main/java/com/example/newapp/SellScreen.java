@@ -30,7 +30,7 @@ public class SellScreen extends Activity {
     private static final String CART_PREFS = "pos_durable_cart";
     private static final String CART_KEY = "items";
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);restoreCart();home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);StaffSecurity.requireCashier(this,()->{restoreCart();home();});}
 
     /** Persist the in-progress basket across Activity recreation, force-stop, and device restart. */
     private void persistCart(){
@@ -213,7 +213,8 @@ public class SellScreen extends Activity {
         PosUi.button(this,root,"ยืนยันขายเงินสด",v->{try{long cash=PosUi.satang(received);if(cash<subtotal()){received.setError("เงินรับไม่พอ");return;}commitSale(false,-1,null,null,cash);}catch(Exception e){received.setError("กรอกจำนวนเงินให้ถูกต้อง");}});
         PosUi.back(this,root);
     }
-    private void creditSale(){
+    private void creditSale(){OwnerSecurity.requireOwner(this,"อนุมัติการขายเชื่อและสร้างหนี้ลูกค้า",this::openCreditSale);}
+    private void openCreditSale(){
         root=PosUi.page(this,"ขายเชื่อ");
         PosUi.line(this,root,"เลือกลูกค้าเดิมด้วยรหัส หรือกรอกชื่อและนามสกุลแยกช่องเพื่อสร้างลูกค้าใหม่");
         AutoCompleteTextView existing= new AutoCompleteTextView(this);
