@@ -1,20 +1,22 @@
 package com.example.newapp;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.app.AlertDialog;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.EditText;
+import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
 public class ManageStoreScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;private String mode="";
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);OwnerSecurity.requireOwner(this,"จัดการร้านค้า: แก้ราคา คืนสินค้า และยกเลิกบิล",this::home);} 
+    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"จัดการบัญชีพนักงาน",v->startActivity(new Intent(this,StaffManagementScreen.class)));PosUi.button(this,root,"สำรอง / กู้คืนข้อมูลร้านค้า",v->startActivity(new Intent(this,BackupRestoreScreen.class)));PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosBarcode.launch(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
@@ -74,24 +76,20 @@ public class ManageStoreScreen extends Activity {
         if(!c.moveToFirst()){c.close();new AlertDialog.Builder(this).setMessage("ไม่พบบิลนี้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         long id=c.getLong(0),sub=c.getLong(3),fee=c.getLong(4),total=c.getLong(5),created=c.getLong(6);String type=c.getString(1),status=c.getString(2);c.close();
         boolean feeWaived=false;if("CREDIT".equals(type)&&"PAID".equals(status)){Cursor waived=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(id)},null,null,null,"1");if(waived.moveToFirst()){feeWaived=true;fee=0;total=sub;}waived.close();}
-        if(!PosBusinessRules.withinBillReversalWindow(created,PosDatabase.now())){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         if(!PosBusinessRules.isReversibleStatus(status)){new AlertDialog.Builder(this).setMessage("บิลนี้ถูกยกเลิกหรือคืนไปแล้ว").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");PosUi.line(this,root,"เลขที่บิล: "+code);PosUi.line(this,root,"ประเภท: "+type);PosUi.line(this,root,"สถานะ: "+status);PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(sub)+" บาท");if("CREDIT".equals(type)&&fee>0)PosUi.line(this,root,"ค่าบริการ: "+PosDatabase.money(fee)+" บาท");PosUi.line(this,root,"ยอดบิล: "+PosDatabase.money(total)+" บาท");
-        String returnConfirm="ยืนยันคืนสินค้าทั้งบิลหรือไม่?";if("PAID".equals(status)){returnConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&feeWaived)returnConfirm+=" (ค่าบริการได้รับการยกเว้นตั้งแต่ชำระหนี้)";else if("CREDIT".equals(type)&&fee>0)returnConfirm+=" (ไม่คืนค่าบริการ 5%)";}else if("CREDIT".equals(type))returnConfirm+="\nจะยกเลิกหนี้เต็มจำนวนของบิลนี้";final String confirmationMessage=returnConfirm;PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->new AlertDialog.Builder(this).setMessage(confirmationMessage).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,created,true)).show());
-        String cancelConfirm="ยืนยันยกเลิกทั้งบิลหรือไม่?";if("PAID".equals(status)){cancelConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&fee>0&&!feeWaived)cancelConfirm+=" (ไม่คืนค่าบริการ 5%)";}final String cancelConfirmation=cancelConfirm;PosUi.button(this,root,"ยกเลิกบิล",v->new AlertDialog.Builder(this).setMessage(cancelConfirmation).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,created,false)).show());PosUi.back(this,root);
+        String returnConfirm="ยืนยันคืนสินค้าทั้งบิลหรือไม่?";if("PAID".equals(status)){returnConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&feeWaived)returnConfirm+=" (ค่าบริการได้รับการยกเว้นแล้ว)";else if("CREDIT".equals(type)&&fee>0)returnConfirm+=" (ไม่คืนค่าบริการ 5%)";}else if("CREDIT".equals(type))returnConfirm+="\nจะยกเลิกหนี้เต็มจำนวนของบิลนี้";final String confirmationMessage=returnConfirm;PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->{CheckBox damaged=new CheckBox(this);damaged.setText("สินค้าเสีย/หมดอายุทั้งหมด — ไม่เพิ่มกลับเข้าสต๊อก");damaged.setTextSize(15);new AlertDialog.Builder(this).setTitle("ยืนยันคืนสินค้า").setMessage(confirmationMessage+"\nเลือกตัวเลือกนี้เฉพาะเมื่อสินค้าคืนไม่สามารถขายต่อได้").setView(damaged).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,true,!damaged.isChecked())).show();});
+        String cancelConfirm="ยืนยันยกเลิกทั้งบิลหรือไม่?";if("PAID".equals(status)){cancelConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&fee>0&&!feeWaived)cancelConfirm+=" (ไม่คืนค่าบริการ 5%)";}final String cancelConfirmation=cancelConfirm;PosUi.button(this,root,"ยกเลิกบิล",v->new AlertDialog.Builder(this).setMessage(cancelConfirmation+"\nระบบจะคืนสินค้าทั้งหมดกลับเข้าสต๊อก").setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,false,true)).show());PosUi.back(this,root);
     }
-    private void processBill(long id,String code,long created,boolean returning){
-        long firstCheck=PosDatabase.now();
-        if(!PosBusinessRules.withinBillReversalWindow(created,firstCheck)){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",null).show();return;}
+    private void processBill(long id,String code,boolean returning,boolean restockReturnedItems){
         boolean saved=false;String error=null;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
-                Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
+                Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
                 if(!bill.moveToFirst()){bill.close();throw new IllegalStateException("ไม่พบบิล");}
-                String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),currentCreated=bill.getLong(5);bill.close();
+                String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3);bill.close();
                 long now=PosDatabase.now();
-                if(!PosBusinessRules.withinBillReversalWindow(currentCreated,now))throw new IllegalStateException("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้");
                 if(!"PAID".equals(status)&&!"UNPAID".equals(status))throw new IllegalStateException("บิลถูกดำเนินการไปแล้ว");
                 Cursor items=transaction.query("bill_items",new String[]{"product_id","barcode","product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
                 int[] itemCount={0};long[] itemSubtotal={0L};
@@ -101,9 +99,10 @@ public class ManageStoreScreen extends Activity {
                         Cursor p=storedPid>0?transaction.query("products",new String[]{"id","stock"},"id=?",new String[]{String.valueOf(storedPid)},null,null,null):transaction.query("products",new String[]{"id","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null);
                         if(!p.moveToFirst()){p.close();throw new IllegalStateException("ไม่พบสินค้าในคลัง: "+name);}
                         long pid=p.getLong(0);int before=p.getInt(1);p.close();itemSubtotal[0]=Math.addExact(itemSubtotal[0],lineTotal);
-                        ContentValues up=new ContentValues();up.put("stock",Math.addExact(before,qty));up.put("updated_at",PosDatabase.now());
-                        if(transaction.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");
-                        PosEvents.stockChange(transaction,pid,barcode,name,"RETURN_CANCEL",before,Math.addExact(before,qty),code,PosDatabase.now());
+                         boolean restock = !returning || restockReturnedItems;
+                         int after = restock ? Math.addExact(before,qty) : before;
+                         if(restock){ContentValues up=new ContentValues();up.put("stock",after);up.put("updated_at",now);if(transaction.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");}
+                         PosEvents.stockChange(transaction,pid,barcode,name,restock?"RETURN_CANCEL":"RETURN_DAMAGED",before,after,code,now);
                         PosEvents.reversalItem(transaction,id,code,returning?"RETURN":"CANCEL",barcode,name,-qty,unitPrice,-lineTotal,PosDatabase.now());
                     }
                 }finally{items.close();}
@@ -118,7 +117,7 @@ public class ManageStoreScreen extends Activity {
             });
             saved=true;
         }catch(Exception e){error=e.getMessage()==null?"ทำรายการไม่สำเร็จ":e.getMessage();saved=false;}
-        if(saved){StockAlertManager.check(this);PosUi.result(this,true,(returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย",this::home);}
+        if(saved){StockAlertManager.check(this);PosUi.result(this,true,returning?(restockReturnedItems?"คืนสินค้าทั้งบิลและเพิ่มกลับเข้าสต๊อกเรียบร้อย":"คืนสินค้าทั้งบิลแล้ว บันทึกเป็นสินค้าเสีย/หมดอายุและไม่เพิ่มกลับเข้าสต๊อก"):"ยกเลิกบิลและคืนสต๊อกเรียบร้อย",this::home);}
         else PosUi.result(this,false,"ทำรายการไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 }

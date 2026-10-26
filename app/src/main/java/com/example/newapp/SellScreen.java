@@ -21,12 +21,62 @@ import java.util.HashMap;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONException;
 
 public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
-    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    private static final String CART_PREFS = "pos_durable_cart";
+    private static final String CART_KEY = "items";
+    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false; private long entryActorId=-1L; private String entryActorRole="UNKNOWN",entryActorLabel="ยังไม่ระบุผู้ใช้";
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);StaffSecurity.requireCashier(this,()->{entryActorId=PosSession.actorId();entryActorRole=PosSession.role();entryActorLabel=PosSession.actorLabel();restoreCart();home();});}
+
+    /** Persist the in-progress basket across Activity recreation, force-stop, and device restart. */
+    private void persistCart(){
+        JSONArray items=new JSONArray();
+        try {
+            for(Item item:cart.values()){
+                JSONObject row=new JSONObject();
+                row.put("id",item.id);row.put("barcode",item.barcode);row.put("name",item.name);
+                row.put("price",item.price);row.put("qty",item.qty);
+                items.put(row);
+            }
+            getSharedPreferences(CART_PREFS,MODE_PRIVATE).edit().putString(CART_KEY,items.toString()).commit();
+        } catch(JSONException e) {
+            throw new IllegalStateException("บันทึกตะกร้าสินค้าไม่สำเร็จ",e);
+        }
+    }
+
+    private void restoreCart(){
+        String raw=getSharedPreferences(CART_PREFS,MODE_PRIVATE).getString(CART_KEY,"[]");
+        try {
+            JSONArray items=new JSONArray(raw);
+            SQLiteDatabase db=helper.getReadableDatabase();
+            for(int n=0;n<items.length();n++){
+                JSONObject row=items.getJSONObject(n);
+                long id=row.getLong("id");
+                Cursor product=db.query("products",new String[]{"barcode","name","stock","active"},"id=?",new String[]{String.valueOf(id)},null,null,null,"1");
+                if(!product.moveToFirst()){product.close();continue;}
+                String barcode=product.getString(0),name=product.getString(1);
+                int stock=product.getInt(2),active=product.getInt(3);product.close();
+                if(active!=1)continue;
+                int qty=row.getInt("qty");
+                if(qty<=0)continue;
+                Item item=new Item(id,barcode,name,row.getLong("price"),stock);
+                item.qty=qty;
+                cart.put(id,item);
+            }
+            persistCart();
+        } catch(Exception e) {
+            cart.clear();
+            getSharedPreferences(CART_PREFS,MODE_PRIVATE).edit().remove(CART_KEY).commit();
+            android.util.Log.e("SellScreen","Could not restore saved cart; cleared invalid snapshot",e);
+        }
+    }
     private void home(){
+        if(!"UNKNOWN".equals(entryActorRole) && !entryActorRole.equals(PosSession.role()))
+            PosSession.restoreActor(entryActorId,entryActorRole,entryActorLabel);
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         android.widget.LinearLayout sections=new android.widget.LinearLayout(this);
@@ -42,7 +92,7 @@ public class SellScreen extends Activity {
         android.widget.FrameLayout.LayoutParams ap=new android.widget.FrameLayout.LayoutParams(diameter,diameter,android.view.Gravity.CENTER);
         top.addView(sell,sp);bottom.addView(arrears,ap);
         sell.setOnClickListener(v->showScanScreen());
-        arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);i.putExtra("arrears_search_mode",true);startActivity(i);});
+        arrears.setOnClickListener(v->{Intent i=new Intent(SellScreen.this,CreditAccountScreen.class);startActivity(i);});
         PosUi.showRootWithBack(this,sections,this::finish);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
@@ -81,10 +131,14 @@ public class SellScreen extends Activity {
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
         try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
+        persistCart();
         showScanScreen();
     }
-    private long lineTotal(Item i){return Math.multiplyExact(i.price,(long)i.qty);}
-    private long subtotal(){long s=0;for(Item i:cart.values())s=Math.addExact(s,lineTotal(i));return s;}
+    private long unitPrice(Item item,boolean credit){return item.price;}
+    private long lineTotal(Item i){return lineTotal(i,false);}
+    private long lineTotal(Item i,boolean credit){return Math.multiplyExact(unitPrice(i,credit),(long)i.qty);}
+    private long subtotal(){return subtotal(false);}
+    private long subtotal(boolean credit){long s=0;for(Item i:cart.values())s=Math.addExact(s,lineTotal(i,credit));return s;}
     private void addSideBySideButtons(LinearLayout parent,String leftLabel,android.view.View.OnClickListener leftAction,String rightLabel,android.view.View.OnClickListener rightAction){
         LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         Button left=new Button(this);left.setText(leftLabel);left.setTextSize(17);left.setMinHeight(PosUi.dp(this,56));left.setOnClickListener(leftAction);
@@ -133,6 +187,7 @@ public class SellScreen extends Activity {
                     .setNegativeButton("ยกเลิก",null)
                     .setPositiveButton("เคลียร์ตะกร้า",(dialog,which)->{
                         cart.clear();
+                        persistCart();
                         showScanScreen();
                     }).show();
         });
@@ -141,11 +196,17 @@ public class SellScreen extends Activity {
         rowParams.topMargin=PosUi.dp(this,12);
         root.addView(row,rowParams);
     }
+    @Override public void onBackPressed(){
+        if(cart.isEmpty()){super.onBackPressed();return;}
+        new AlertDialog.Builder(this).setTitle("มีสินค้าอยู่ในตะกร้า")
+            .setMessage("ต้องการออกจากหน้าขายหรือไม่? ระบบจะบันทึกตะกร้าไว้เพื่อกลับมาทำรายการต่อ")
+            .setNegativeButton("กลับไปขาย",null)
+            .setPositiveButton("ออกจากหน้าขาย",(d,w)->{persistCart();finish();}).show();
+    }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
-        StringBuilder summary=new StringBuilder("รายการสินค้าในตะกร้าทั้งหมด ");
-        for(Item i:cart.values())summary.append(i.name).append(" จำนวน ").append(i.qty).append(" รายการ ");
-        PosUi.speakThen(this,summary.toString(),this::paymentChoice);
+        /* Payment navigation must never depend on TTS availability or completion. */
+        paymentChoice();
     }
     private void paymentChoice(){
         root=PosUi.page(this,"เลือกวิธีขาย");
@@ -157,8 +218,17 @@ public class SellScreen extends Activity {
         PosUi.button(this,root,"ยืนยันขายเงินสด",v->{try{long cash=PosUi.satang(received);if(cash<subtotal()){received.setError("เงินรับไม่พอ");return;}commitSale(false,-1,null,null,cash);}catch(Exception e){received.setError("กรอกจำนวนเงินให้ถูกต้อง");}});
         PosUi.back(this,root);
     }
-    private void creditSale(){
+    private void creditSale(){OwnerSecurity.requireOwner(this,"อนุมัติการขายเชื่อและสร้างหนี้ลูกค้า",this::openCreditSale);}
+    private void openCreditSale(){
         root=PosUi.page(this,"ขายเชื่อ");
+        PosUi.line(this,root,"ราคาสินค้าตามปกติ และคิดค่าบริการ 5% สำหรับการขายเชื่อ");
+        try{
+            long sub=subtotal(),fee=PosBusinessRules.creditFee(sub),total=Math.addExact(sub,fee);
+            for(Item item:cart.values())PosUi.line(this,root,item.name+"  จำนวน "+item.qty+" × "+PosDatabase.money(item.price)+" = "+PosDatabase.money(lineTotal(item))+" บาท");
+            PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
+            PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
+            PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
+        }catch(ArithmeticException e){PosUi.line(this,root,"ยอดขายเชื่อเกินขอบเขตที่ระบบรองรับ");PosUi.back(this,root);return;}
         PosUi.line(this,root,"เลือกลูกค้าเดิมด้วยรหัส หรือกรอกชื่อและนามสกุลแยกช่องเพื่อสร้างลูกค้าใหม่");
         AutoCompleteTextView existing= new AutoCompleteTextView(this);
         existing.setSingleLine(true);existing.setTextSize(22);existing.setMinHeight(PosUi.dp(this,60));
@@ -189,20 +259,39 @@ public class SellScreen extends Activity {
         PosUi.line(this,root,"หรือสร้างลูกค้าใหม่");
         EditText first=PosUi.input(this,root,"ชื่อ");
         EditText last=PosUi.input(this,root,"นามสกุล");
-        long sub,fee,total;
-        try{sub=subtotal();fee=PosDatabase.creditFee(sub);total=Math.addExact(sub,fee);}
-        catch(ArithmeticException e){PosUi.line(this,root,"ยอดเกินขอบเขตที่ระบบรองรับ จึงไม่สามารถขายเชื่อได้");PosUi.back(this,root);return;}
-        PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(sub)+" บาท");
-        PosUi.line(this,root,"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท");
-        PosUi.line(this,root,"ยอดหนี้รวม "+PosDatabase.money(total)+" บาท");
         PosUi.button(this,root,"สร้างลูกค้าใหม่และยืนยันขายเชื่อ",v->{
             String firstName=first.getText().toString().trim(),lastName=last.getText().toString().trim();
             if(firstName.isEmpty()){first.setError("กรอกชื่อ");return;}
             if(lastName.isEmpty()){last.setError("กรอกนามสกุล");return;}
-            commitSale(true,-1,firstName,lastName,0);
+            confirmNewCustomer(firstName,lastName);
         });
         PosUi.back(this,root);
     }
+    private void confirmNewCustomer(String firstName,String lastName){
+        Cursor matches=helper.getReadableDatabase().query("customers",new String[]{"id"},
+                "first_name=? COLLATE NOCASE AND last_name=? COLLATE NOCASE",
+                new String[]{firstName.trim(),lastName.trim()},null,null,"id ASC","10");
+        java.util.ArrayList<Long> ids=new java.util.ArrayList<>();
+        while(matches.moveToNext())ids.add(matches.getLong(0));
+        matches.close();
+        if(ids.isEmpty()){
+            commitSale(true,-1,firstName,lastName,0);
+            return;
+        }
+        StringBuilder message=new StringBuilder("พบชื่อลูกค้าและนามสกุลตรงกับบัญชีเดิม ");
+        for(int i=0;i<ids.size();i++){
+            if(i>0)message.append(", ");
+            message.append("#").append(ids.get(i));
+        }
+        message.append("\nหากเป็นลูกค้าคนเดิม ให้ยกเลิกหน้าต่างนี้แล้วเลือกบัญชีเดิมจากช่องด้านบน เพื่อไม่ให้ยอดหนี้แยกหลายบัญชี");
+        message.append("\nหากเป็นคนละคน สามารถยืนยันสร้างบัญชีใหม่ได้");
+        new AlertDialog.Builder(this).setTitle("ตรวจสอบบัญชีลูกค้าซ้ำ")
+                .setMessage(message.toString())
+                .setNegativeButton("กลับไปเลือกลูกค้าเดิม",null)
+                .setPositiveButton("ยืนยันว่าเป็นคนละคน",(d,w)->commitSale(true,-1,firstName,lastName,0))
+                .show();
+    }
+
     private void commitSale(boolean credit,long customerId,String firstName,String lastName,long cash){
         if(saleInProgress||duplicatePromptOpen)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
@@ -222,7 +311,7 @@ public class SellScreen extends Activity {
     }
     private String findDuplicate(boolean credit,long customerId,long cash){
         SQLiteDatabase db=helper.getReadableDatabase();
-        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=Math.addExact(sub,fee),change=credit?0:Math.subtractExact(cash,sub);
+        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosBusinessRules.creditFee(sub):0L,total=Math.addExact(sub,fee),change=credit?0:Math.subtractExact(cash,total);
         Cursor bills=db.rawQuery("SELECT b.id,b.bill_code,b.customer_id,b.cash_received_satang,b.change_satang,b.subtotal_satang,b.fee_satang,b.total_satang FROM bills b WHERE b.created_at>=? AND b.created_at<=? AND b.sale_type=? AND b.status IN ('PAID','UNPAID') ORDER BY b.created_at DESC",
                 new String[]{String.valueOf(now-3600000L),String.valueOf(now),credit?"CREDIT":"CASH"});
         java.util.ArrayList<Item> current=new java.util.ArrayList<>(cart.values());
@@ -238,7 +327,7 @@ public class SellScreen extends Activity {
                 if(index>=current.size()){same=false;break;}
                 Item item=current.get(index++);
                 if(!item.barcode.equals(items.getString(0))||!item.name.equals(items.getString(1))
-                        ||item.qty!=items.getInt(2)||item.price!=items.getLong(3)||lineTotal(item)!=items.getLong(4)){same=false;break;}
+                        ||item.qty!=items.getInt(2)||unitPrice(item,credit)!=items.getLong(3)||lineTotal(item,credit)!=items.getLong(4)){same=false;break;}
             }
             items.close();
             if(same&&index==current.size()){match=bills.getString(1);break;}
@@ -248,9 +337,12 @@ public class SellScreen extends Activity {
     private void saveSale(boolean credit,long customerId,String firstName,String lastName,long cash){
         if(saleInProgress)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
-        saleInProgress=true;
         boolean saved=false;String error=null;final String[] savedCode={null};
-        long now=PosDatabase.now(),sub=subtotal(),fee=credit?PosDatabase.creditFee(sub):0,total=Math.addExact(sub,fee);
+        final long now=PosDatabase.now();final long sub,fee,total;
+        try{sub=subtotal();fee=credit?PosBusinessRules.creditFee(sub):0L;total=Math.addExact(sub,fee);}catch(ArithmeticException e){PosUi.result(this,false,"ยอดขายเกินขอบเขตที่ระบบรองรับ",null);return;}
+        // Mark the operation active only after arithmetic validation succeeds; otherwise
+        // an overflow would return before the database try/finally and lock sales forever.
+        saleInProgress=true;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
@@ -275,7 +367,7 @@ public class SellScreen extends Activity {
                         String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
                         if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
                         ContentValues cv=new ContentValues();
-                        cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
+                        cv.put("full_name",f+" "+l);
                         cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
                         selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
                     }
@@ -286,8 +378,9 @@ public class SellScreen extends Activity {
                     if(i.qty>i.stock)throw new IllegalStateException("สินค้า "+i.name+" มีสต๊อกไม่พอ");
                     ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
                     if(transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
-                    ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));transaction.insertOrThrow("bill_items",null,it);
-                    PosEvents.saleItem(transaction,billId,billCode,i.barcode,i.name,i.qty,i.price,lineTotal(i),now);
+                    long soldUnitPrice=unitPrice(i,credit),soldLineTotal=lineTotal(i,credit);
+                    ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("quantity",i.qty);it.put("unit_price_satang",soldUnitPrice);it.put("line_total_satang",soldLineTotal);transaction.insertOrThrow("bill_items",null,it);
+                    PosEvents.saleItem(transaction,billId,billCode,i.barcode,i.name,i.qty,soldUnitPrice,soldLineTotal,now);
                     PosEvents.stockChange(transaction,i.id,i.barcode,i.name,"SALE",i.stock,i.stock-i.qty,billCode,now);
                 }
                 PosEvents.sale(transaction,billId,billCode,credit?"CREDIT":"CASH",sub,fee,total,now);
@@ -297,8 +390,8 @@ public class SellScreen extends Activity {
         }catch(Exception e){error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();saved=false;}
         finally{saleInProgress=false;}
         if(saved){
-            cart.clear();StockAlertManager.check(this);
-            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
+            cart.clear();persistCart();StockAlertManager.check(this);
+            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\n"+(credit?"ยอดสินค้า "+PosDatabase.money(sub)+" บาท\nค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดขายเชื่อรวม "+PosDatabase.money(total)+" บาท":"ยอดสินค้า "+PosDatabase.money(sub)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }

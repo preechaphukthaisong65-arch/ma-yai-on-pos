@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 11;
+    public static final int DB_VERSION = 13;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -19,6 +19,15 @@ public final class PosDatabase extends SQLiteOpenHelper {
     }
 
     private PosDatabase(Context context) { super(context, DB_NAME, null, DB_VERSION); }
+
+    public static synchronized void closeInstance() {
+        if (instance != null) {
+            instance.close();
+            instance = null;
+        }
+    }
+
+    public static String databaseFileName() { return DB_NAME; }
 
     @Override public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
@@ -44,7 +53,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE barcode_registry (barcode TEXT PRIMARY KEY, name TEXT NOT NULL," +
                 "price_satang INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
-        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL UNIQUE COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE bills (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_code TEXT NOT NULL UNIQUE," +
                 "customer_id INTEGER, sale_type TEXT NOT NULL CHECK(sale_type IN ('CASH','CREDIT'))," +
                 "status TEXT NOT NULL CHECK(status IN ('PAID','UNPAID','CANCELLED','RETURNED'))," +
@@ -86,6 +95,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_ledger_items_product ON sales_ledger_items(barcode,created_at)");
         db.execSQL("CREATE INDEX idx_ledger_items_bill_id ON sales_ledger_items(bill_id,event_type)");
         db.execSQL("CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+        db.execSQL("CREATE TABLE staff_users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE COLLATE NOCASE, display_name TEXT NOT NULL, pin_salt TEXT NOT NULL, pin_hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_audit_log_created ON audit_log(created_at)");
         db.execSQL("CREATE INDEX idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
@@ -170,6 +180,15 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
         }
 
+
+        if (oldVersion < 12) {
+            // Remove the legacy UNIQUE constraint without changing customer IDs or bill references.
+            db.execSQL("CREATE TABLE customers_new (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
+            db.execSQL("INSERT INTO customers_new(id,full_name,first_name,last_name,created_at) SELECT id, CASE WHEN TRIM(COALESCE(first_name,''))<>'' AND TRIM(COALESCE(last_name,''))<>'' THEN TRIM(first_name)||' '||TRIM(last_name) ELSE full_name END, COALESCE(first_name,''), COALESCE(last_name,''), created_at FROM customers");
+            db.execSQL("DROP TABLE customers");
+            db.execSQL("ALTER TABLE customers_new RENAME TO customers");
+        }
+
         if (oldVersion < 11) {
             // Permanently remove experimental cost-price and unit-of-measure columns
             // from databases created by earlier app versions, while preserving products
@@ -191,6 +210,9 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
         }
+        if (oldVersion < 13) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS staff_users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE COLLATE NOCASE, display_name TEXT NOT NULL, pin_salt TEXT NOT NULL, pin_hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)");
+        }
     }
 
     private static boolean hasAnyColumn(SQLiteDatabase db, String table, String[] names) {
@@ -208,10 +230,11 @@ public final class PosDatabase extends SQLiteOpenHelper {
 
     public static long now() { return AppClock.now(); }
 
-    /** Append-only operational audit entry. Actor identity remains unknown until user accounts are implemented. */
+    /** Append-only operational audit entry. Local owner-gated actions carry the authenticated owner label; other actions remain unknown. */
     public static void audit(SQLiteDatabase db, String action, String entityType, String entityId, String details) {
         ContentValues row = new ContentValues();
-        row.put("actor_label", "ยังไม่ระบุผู้ใช้");
+        row.put("actor_label", PosSession.actorLabel());
+        if (PosSession.actorId() >= 0L) row.put("actor_id", PosSession.actorId());
         row.put("action", action);
         row.put("entity_type", entityType);
         if (entityId != null) row.put("entity_id", entityId);

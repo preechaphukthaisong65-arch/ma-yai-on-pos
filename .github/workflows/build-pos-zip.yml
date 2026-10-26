@@ -1,10 +1,7 @@
-name: Build Maeyai On POS APK from source ZIP
+name: Build Maeyai On POS from repository source
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "maeyai-pos-offline-step2.zip"
 
 permissions:
   contents: read
@@ -14,55 +11,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
-
-      - name: Check source archive
-        run: |
-          test -f maeyai-pos-offline-step2.zip || {
-            echo "Missing maeyai-pos-offline-step2.zip in repository root."
-            exit 1
-          }
-          unzip -t maeyai-pos-offline-step2.zip
-
-      - name: Extract source
-        run: |
-          mkdir -p source
-          unzip -q maeyai-pos-offline-step2.zip -d source
-          test -f source/--pos-main/app/build.gradle
-          echo "PROJECT_DIR=source/--pos-main" >> "$GITHUB_ENV"
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.7"
-
-      - name: Run project simulations
-        working-directory: source/--pos-main
-        run: |
-          python3 tools/test_retention_simulation.py
-          python3 tools/test_catalog_30000.py
-
-      - name: Build debug APK
-        working-directory: source/--pos-main
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload APK
+          gradle-version: "8.9"
+      - name: Run unit tests and build debug APK
+        run: gradle --no-daemon testDebugUnitTest assembleDebug --stacktrace
+      - name: Run database migration instrumentation tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          script: gradle --no-daemon connectedDebugAndroidTest --stacktrace
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: maeyai-on-pos-debug-apk
-          path: source/--pos-main/app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14

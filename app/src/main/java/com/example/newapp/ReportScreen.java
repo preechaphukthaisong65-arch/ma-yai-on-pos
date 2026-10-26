@@ -11,18 +11,20 @@ import android.widget.TextView;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.TimeZone;
 import java.util.Locale;
 
 public class ReportScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);OwnerSecurity.requireOwner(this,"ดูรายงานทางการเงินของร้าน",this::home);} 
     private SalesChartView annualChart;
     private int chartYear;
     private void home(){
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.WHITE);
-        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
+        annualChart=new SalesChartView(this);Calendar yearCal=new GregorianCalendar(TimeZone.getDefault(),Locale.US);chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,4),PosUi.dp(this,8),PosUi.dp(this,2));lower.setBackgroundColor(android.graphics.Color.WHITE);
         addMenuButton(lower,"📊  สรุปยอดขาย",v->summaryReport());
         addMenuButton(lower,"📈  สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
@@ -44,7 +46,7 @@ public class ReportScreen extends Activity {
         root.addView(summaries,new LinearLayout.LayoutParams(-1,-2));
         TextView chooseTitle=PosUi.text(this,"เลือกช่วงรายงาน",14,android.graphics.Color.rgb(35,80,48));root.addView(chooseTitle,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row1,"วัน",v->period("วันนี้",startOfDay(),PosDatabase.now()));addPeriodButton(row1,"สัปดาห์",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()));root.addView(row1,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));addPeriodButton(row2,"ปี",v->period("ปี "+chartYear,yearStart(chartYear),yearEnd(chartYear)));root.addView(row2,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));addPeriodButton(row2,"ปี",v->period("ปี "+(chartYear+543),yearStart(chartYear),yearEnd(chartYear)));root.addView(row2,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row3=new LinearLayout(this);row3.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row3,"เลือกปีกราฟ",v->chooseChartYear());addPeriodButton(row3,"กำหนดช่วงวันที่",v->custom());root.addView(row3,new LinearLayout.LayoutParams(-1,-2));
     }
     private void addSummary(LinearLayout row,String label,long from,long to){
@@ -59,20 +61,20 @@ public class ReportScreen extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,PosUi.dp(this,44),1f);lp.setMargins(PosUi.dp(this,2),PosUi.dp(this,1),PosUi.dp(this,2),PosUi.dp(this,1));row.addView(b,lp);
     }
     private long netSales(long from,long to){
-        Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
         long total=0;if(c.moveToFirst())total=c.getLong(0);c.close();return total;
     }
-    private long yearStart(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
-    private long yearEnd(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
+    private long yearStart(int year){Calendar c=new GregorianCalendar(TimeZone.getDefault(),Locale.US);c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
+    private long yearEnd(int year){Calendar c=new GregorianCalendar(TimeZone.getDefault(),Locale.US);c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
     private void updateAnnualChart(int year){
         chartYear=year;String[] labels={"ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."};long[] values=new long[12];
-        Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
+        Calendar c=new GregorianCalendar(TimeZone.getDefault(),Locale.US);c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
         for(int i=0;i<12;i++){long from=c.getTimeInMillis();c.add(Calendar.MONTH,1);long to=c.getTimeInMillis()-1;values[i]=netSales(from,to);}
-        annualChart.setData("กราฟยอดขายสุทธิรายเดือน • "+year,labels,values);
+        annualChart.setData("กราฟยอดขายสุทธิรายเดือน • "+(year+543),labels,values);
     }
     private void chooseChartYear(){
-        EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine(true);input.setText(String.valueOf(chartYear));input.setSelectAllOnFocus(true);
-        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี พ.ศ. เช่น 2569").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2400||year>2700)throw new IllegalArgumentException();updateAnnualChart(year);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี พ.ศ. ระหว่าง 2400–2700").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
+        EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine(true);input.setText(String.valueOf(chartYear+543));input.setSelectAllOnFocus(true);
+        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี พ.ศ. เช่น 2569").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2400||year>2700)throw new IllegalArgumentException();updateAnnualChart(year-543);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี พ.ศ. ระหว่าง 2400–2700").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
     }
     private void auditLog(){
         root=PosUi.page(this,"ประวัติการทำรายการสำคัญ");
@@ -84,7 +86,7 @@ public class ReportScreen extends Activity {
             PosUi.line(this,root,new SimpleDateFormat("dd/MM/yyyy HH:mm:ss",Locale.getDefault()).format(new Date(c.getLong(5)))+" • "+c.getString(1)+" • "+entity+"\nผู้ทำรายการ: "+c.getString(0)+details);
         }while(c.moveToNext());
         c.close();
-        PosUi.line(this,root,"หมายเหตุ: จนกว่าจะเพิ่มระบบบัญชีผู้ใช้ รายการยังไม่สามารถระบุตัวบุคคลผู้ทำรายการได้");
+        PosUi.line(this,root,"หมายเหตุ: รายการเก่าหรือรายการที่เกิดก่อนยืนยันตัวตนอาจแสดงผู้ทำรายการเป็น “ยังไม่ระบุผู้ใช้”");
         PosUi.back(this,root);
     }
 
@@ -98,12 +100,12 @@ public class ReportScreen extends Activity {
     private long startOfDay(){Calendar c=AppClock.calendar();c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
     private long startOfWeek(){Calendar c=AppClock.calendar();c.setFirstDayOfWeek(Calendar.MONDAY);c.set(Calendar.DAY_OF_WEEK,Calendar.MONDAY);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
     private long startOfMonth(){Calendar c=AppClock.calendar();c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
-    private void custom(){root=PosUi.page(this,"รายงานตามช่วงวันที่");EditText from=PosUi.input(this,root,"วันที่เริ่ม YYYY-MM-DD");EditText to=PosUi.input(this,root,"วันที่สิ้นสุด YYYY-MM-DD");
-        PosUi.button(this,root,"แสดงรายงาน",v->{try{SimpleDateFormat f=new SimpleDateFormat("yyyy-MM-dd",Locale.US);f.setLenient(false);long a=f.parse(PosUi.str(from)).getTime();long z=f.parse(PosUi.str(to)).getTime()+86400000L-1;if(z<a)throw new IllegalArgumentException();period("ช่วงที่เลือก",a,z);}catch(Exception e){from.setError("กรอกวันที่รูปแบบ YYYY-MM-DD ให้ถูกต้อง");}});PosUi.back(this,root);}
+    private void custom(){root=PosUi.page(this,"รายงานตามช่วงวันที่");EditText from=PosUi.input(this,root,"วันที่เริ่ม YYYY-MM-DD (ค.ศ. หรือ พ.ศ.)");EditText to=PosUi.input(this,root,"วันที่สิ้นสุด YYYY-MM-DD (ค.ศ. หรือ พ.ศ.)");
+        PosUi.button(this,root,"แสดงรายงาน",v->{try{SimpleDateFormat f=new SimpleDateFormat("yyyy-MM-dd",Locale.US);f.setLenient(false);long a=f.parse(PosDateFormat.normalizeIsoDate(PosUi.str(from))).getTime();long z=f.parse(PosDateFormat.normalizeIsoDate(PosUi.str(to))).getTime()+86400000L-1;if(z<a)throw new IllegalArgumentException();period("ช่วงที่เลือก",a,z);}catch(Exception e){from.setError("กรอกวันที่รูปแบบ YYYY-MM-DD ให้ถูกต้อง");}});PosUi.back(this,root);}
     private void period(String label,long from,long to){
         root=PosUi.page(this,"รายงานยอดขาย • "+label);SQLiteDatabase db=helper.getReadableDatabase();
         Cursor gross=db.rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(gross.moveToFirst())PosUi.line(this,root,"ยอดขายก่อนคืน/ยกเลิก: "+PosDatabase.money(gross.getLong(0))+" บาท");gross.close();
-        Cursor c=db.rawQuery("SELECT COALESCE(SUM(subtotal_satang),0),COALESCE(SUM(fee_satang),0),COALESCE(SUM(total_satang),0),COUNT(*),SUM(CASE WHEN sale_type='CREDIT' THEN 1 ELSE 0 END) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});
+        Cursor c=db.rawQuery("SELECT COALESCE(SUM(CASE WHEN event_type IN ('SALE','CANCEL','RETURN') THEN subtotal_satang ELSE 0 END),0),COALESCE(SUM(CASE WHEN event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED') THEN fee_satang ELSE 0 END),0),COALESCE(SUM(CASE WHEN event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED') THEN total_satang ELSE 0 END),0),SUM(CASE WHEN event_type IN ('SALE','CANCEL','RETURN') THEN 1 ELSE 0 END),SUM(CASE WHEN sale_type='CREDIT' AND event_type IN ('SALE','CANCEL','RETURN') THEN 1 ELSE 0 END) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
         if(c.moveToFirst()){PosUi.line(this,root,"ยอดสินค้า (สุทธิ): "+PosDatabase.money(c.getLong(0))+" บาท");if(c.getInt(4)>0)PosUi.line(this,root,"ค่าบริการสุทธิจากการขาย/คืน/ยกเลิก: "+PosDatabase.money(c.getLong(1))+" บาท");PosUi.line(this,root,"ยอดขายสุทธิหลังคืน/ยกเลิก: "+PosDatabase.money(c.getLong(2))+" บาท");PosUi.line(this,root,"จำนวนรายการบัญชี: "+c.getInt(3));}c.close();
         Cursor soldQty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type='SALE'",new String[]{String.valueOf(from),String.valueOf(to)});if(soldQty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าที่ขาย: "+soldQty.getLong(0)+" ชิ้น");soldQty.close();
         Cursor netQty=db.rawQuery("SELECT COALESCE(SUM(quantity),0) FROM sales_ledger_items WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});if(netQty.moveToFirst())PosUi.line(this,root,"จำนวนสินค้าสุทธิหลังคืน/ยกเลิก: "+netQty.getLong(0)+" ชิ้น");netQty.close();
@@ -111,7 +113,7 @@ public class ReportScreen extends Activity {
         long cashSales=0;if(cash.moveToFirst()){cashSales=cash.getLong(0);PosUi.line(this,root,"ยอดขายเงินสดก่อนคืน/ยกเลิก: "+PosDatabase.money(cashSales)+" บาท");}cash.close();
         Cursor receipts=db.rawQuery("SELECT COALESCE(SUM(amount_satang),0) FROM payment_history WHERE created_at BETWEEN ? AND ?",new String[]{String.valueOf(from),String.valueOf(to)});
         long debtReceipts=0;if(receipts.moveToFirst())debtReceipts=receipts.getLong(0);receipts.close();
-        Cursor refunds=db.rawQuery("SELECT COALESCE(SUM(-total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('RETURN','CANCEL') AND total_satang<0 AND (sale_type='CASH' OR (sale_type='CREDIT' AND fee_satang=0))",new String[]{String.valueOf(from),String.valueOf(to)});
+        Cursor refunds=db.rawQuery("SELECT COALESCE(SUM(-total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('RETURN','CANCEL') AND total_satang<0 AND (sale_type='CASH' OR (sale_type='CREDIT' AND EXISTS (SELECT 1 FROM payments p WHERE p.bill_id=sales_ledger.bill_id)))",new String[]{String.valueOf(from),String.valueOf(to)});
         long refundTotal=0;if(refunds.moveToFirst())refundTotal=refunds.getLong(0);refunds.close();
         Cursor waived=db.rawQuery("SELECT COALESCE(SUM(-fee_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(from),String.valueOf(to)});
         long waivedFees=0;if(waived.moveToFirst())waivedFees=waived.getLong(0);waived.close();
