@@ -240,7 +240,7 @@ public class CreditAccountScreen extends Activity {
             Cursor customer=helper.getReadableDatabase().query("customers",new String[]{"first_name","last_name"},"id=?",new String[]{String.valueOf(customerId)},null,null,null);
             if(customer.moveToFirst())customerName=PosDatabase.customerName(customer.getString(0),customer.getString(1));
             customer.close();
-            String printable=receipt+"ลูกค้า: "+customerName+"\\nวันที่: "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(PosDatabase.now()))+"\\nยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\\nเงินทอน "+PosDatabase.money(change)+" บาท";
+            String printable=receipt+"ลูกค้า: "+customerName+"\nวันที่: "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(PosDatabase.now()))+"\nยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท";
             root=PosUi.page(this,"รับชำระหนี้สำเร็จ");
             PosUi.line(this,root,printable);
             PosUi.button(this,root,"แชร์ใบรับชำระ",v->PosReceiptOutput.share(this,printable));
