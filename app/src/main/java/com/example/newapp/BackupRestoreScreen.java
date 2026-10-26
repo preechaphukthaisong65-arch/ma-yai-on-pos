@@ -182,8 +182,8 @@ public final class BackupRestoreScreen extends Activity {
                 if (oldDatabaseSaved && rollback.isFile()) {
                     deleteSidecars(database);
                     copy(rollback, database);
-                    PosDatabase.get(this).getWritableDatabase();
                 }
+                PosDatabase.get(this).getWritableDatabase();
             } catch (Exception rollbackError) {
                 message("กู้คืนไม่สำเร็จ และคืนฐานข้อมูลเดิมอัตโนมัติไม่ได้ กรุณาหยุดใช้งานและเก็บไฟล์สำรองไว้ ติดต่อผู้ดูแลระบบทันที");
                 return;
