@@ -11,7 +11,20 @@ import android.widget.LinearLayout;
 import android.widget.ImageView;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
+import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
+import android.print.PageRange;
+import android.print.pdf.PrintedPdfDocument;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.common.BitMatrix;
@@ -80,8 +93,45 @@ public class BarcodeScreen extends Activity {
             PosUi.line(this,box,"ราคา: "+PosDatabase.money(price)+" บาท");
             ImageView image=new ImageView(this);image.setImageDrawable(new BitmapDrawable(getResources(),bitmap));image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             box.addView(image,new LinearLayout.LayoutParams(-1,PosUi.dp(this,130)));
-            new AlertDialog.Builder(this).setTitle("แสดงบาร์โค้ด").setView(box).setPositiveButton("ปิด",null).show();
+            new AlertDialog.Builder(this).setTitle("แสดงบาร์โค้ด").setView(box)
+                    .setPositiveButton("พิมพ์", (d,w)->printBarcode(name,code,price,bitmap))
+                    .setNegativeButton("ปิด",null).show();
         }catch(Exception e){PosUi.result(this,false,"แสดงบาร์โค้ดไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาด":e.getMessage()),null);}
+    }
+    private void printBarcode(String name,String code,long price,Bitmap bitmap){
+        PrintManager manager=(PrintManager)getSystemService(PRINT_SERVICE);
+        if(manager==null){PosUi.result(this,false,"อุปกรณ์นี้ไม่รองรับการพิมพ์",null);return;}
+        manager.print("MaeyaiPOS-"+code,new PrintDocumentAdapter(){
+            private PrintAttributes attributes;
+            @Override public void onLayout(PrintAttributes oldAttributes,PrintAttributes newAttributes,CancellationSignal signal,LayoutResultCallback callback,android.os.Bundle extras){
+                attributes=newAttributes;
+                if(signal.isCanceled()){callback.onLayoutCancelled();return;}
+                PrintDocumentInfo info=new PrintDocumentInfo.Builder("barcode-"+code+".pdf")
+                        .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).setPageCount(1).build();
+                callback.onLayoutFinished(info,true);
+            }
+            @Override public void onWrite(PageRange[] pages,ParcelFileDescriptor destination,CancellationSignal signal,WriteResultCallback callback){
+                PrintedPdfDocument document=new PrintedPdfDocument(BarcodeScreen.this,attributes);
+                try{
+                    if(signal.isCanceled()){callback.onWriteCancelled();return;}
+                    android.graphics.pdf.PdfDocument.Page page=document.startPage(1);
+                    Canvas canvas=page.getCanvas();Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+                    float width=canvas.getWidth(),height=canvas.getHeight();
+                    paint.setColor(Color.BLACK);paint.setTextSize(22f);
+                    canvas.drawText(name,40f,55f,paint);
+                    paint.setTextSize(18f);canvas.drawText("ราคา "+PosDatabase.money(price)+" บาท",40f,85f,paint);
+                    RectF target=new RectF(40f,110f,width-40f,Math.min(height-90f,310f));
+                    canvas.drawBitmap(bitmap,null,target,paint);
+                    paint.setTextSize(20f);canvas.drawText(code,40f,Math.min(height-45f,340f),paint);
+                    document.finishPage(page);
+                    try(FileOutputStream out=new FileOutputStream(destination.getFileDescriptor())){document.writeTo(out);out.flush();}
+                    if(signal.isCanceled())callback.onWriteCancelled();else callback.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+                }catch(IOException e){callback.onWriteFailed(e.getMessage()==null?"พิมพ์บาร์โค้ดไม่สำเร็จ":e.getMessage());}
+                finally{document.close();}
+            }
+        },new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                .setResolution(new PrintAttributes.Resolution("pos-barcode","POS Barcode",300,300))
+                .setMinMargins(PrintAttributes.Margins.NO_MARGINS).build());
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){super.onActivityResult(requestCode,resultCode,data);IntentResult r=PosBarcode.parseResult(requestCode,resultCode,data);if(r!=null){if(r.getContents()!=null)search(r.getContents());else home();}}
 }
