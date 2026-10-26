@@ -274,10 +274,17 @@ public class SellScreen extends Activity {
                     }else{
                         String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
                         if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
-                        ContentValues cv=new ContentValues();
-                        cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
-                        cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
-                        selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
+                        Cursor existingCustomer=transaction.query("customers",new String[]{"id"},"first_name=? COLLATE NOCASE AND last_name=? COLLATE NOCASE",new String[]{f,l},null,null,"id ASC","1");
+                        if(existingCustomer.moveToFirst()){
+                            selectedCustomerId=existingCustomer.getLong(0);
+                            existingCustomer.close();
+                        }else{
+                            existingCustomer.close();
+                            ContentValues cv=new ContentValues();
+                            cv.put("full_name",f+" "+l);
+                            cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
+                            selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
+                        }
                     }
                 }
                 ContentValues bill=new ContentValues();bill.put("bill_code",billCode);if(selectedCustomerId!=null)bill.put("customer_id",selectedCustomerId);bill.put("sale_type",credit?"CREDIT":"CASH");bill.put("status",credit?"UNPAID":"PAID");bill.put("subtotal_satang",sub);bill.put("fee_satang",fee);bill.put("total_satang",total);bill.put("cash_received_satang",cash);bill.put("change_satang",credit?0:cash-total);bill.put("created_at",now);if(!credit)bill.put("paid_at",now);
