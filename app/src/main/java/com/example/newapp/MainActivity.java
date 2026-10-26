@@ -91,6 +91,9 @@ public class MainActivity extends Activity {
         pageParams.bottomMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.08f);
         frame.addView(page, pageParams);
         PosUi.showRoot(this,frame);
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
         hideSystemBars();
     }
 
