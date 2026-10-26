@@ -109,19 +109,20 @@ public class PosDatabaseMigrationTest {
     }
 
 
-    @Test public void v10UpgradeRemovesLegacyUnitColumnAndPreservesProductBillAndCustomerIds() {
+    @Test public void v9UpgradeRemovesLegacyUnitColumnsAndPreservesProductBillAndCustomerIds() {
         PosDatabase.closeInstance();
         context.deleteDatabase(PosDatabase.databaseFileName());
 
-        // Start from the current schema, then add the legacy v10 column and representative
+        // Start from the current schema, then add the legacy v9 columns and representative
         // linked records. This exercises the v10->v13 destructive table rebuild path.
         SQLiteDatabase seed = PosDatabase.get(context).getWritableDatabase();
         seed.execSQL("ALTER TABLE products ADD COLUMN unit TEXT");
+        seed.execSQL("ALTER TABLE bill_items ADD COLUMN unit TEXT");
         seed.execSQL("INSERT INTO products(id,barcode,name,price_satang,stock,stock_limit,active,created_at,updated_at,unit) VALUES(7,'8850000000001','Rice',10000,8,10,1,1000,1000,'bag')");
         seed.execSQL("INSERT INTO customers(id,full_name,first_name,last_name,created_at) VALUES(61,'Mali Dee','Mali','Dee',1000)");
         seed.execSQL("INSERT INTO bills(id,bill_code,customer_id,sale_type,status,subtotal_satang,fee_satang,total_satang,cash_received_satang,change_satang,created_at) VALUES(91,'B-91',61,'CREDIT','UNPAID',20000,1000,21000,0,0,1000)");
         seed.execSQL("INSERT INTO bill_items(id,bill_id,product_id,barcode,product_name,quantity,unit_price_satang,line_total_satang) VALUES(101,91,7,'8850000000001','Rice',2,10000,20000)");
-        seed.execSQL("PRAGMA user_version=10");
+        seed.execSQL("PRAGMA user_version=9");
         PosDatabase.closeInstance();
 
         SQLiteDatabase upgraded = PosDatabase.get(context).getWritableDatabase();
