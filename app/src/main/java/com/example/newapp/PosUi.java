@@ -5,6 +5,8 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.speech.tts.TextToSpeech;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
@@ -87,6 +89,9 @@ final class PosUi {
     private static boolean ttsInitializing=false;
     private static final ArrayDeque<SpeechRequest> SPEECH_QUEUE=new ArrayDeque<>();
     private static final java.util.HashMap<String,SpeechRequest> SPEECH_CALLBACKS=new java.util.HashMap<>();
+    private static final java.util.HashMap<String,Runnable> SPEECH_TIMEOUTS=new java.util.HashMap<>();
+    private static final Handler SPEECH_HANDLER=new Handler(Looper.getMainLooper());
+    private static final long SPEECH_TIMEOUT_MILLIS=12000L;
     private static final class SpeechRequest {
         final java.lang.ref.WeakReference<Activity> activity;
         final String message;
@@ -141,12 +146,22 @@ final class PosUi {
         }
         SPEECH_CALLBACKS.put(request.id,request);
         int result=sharedTts.speak(request.message,TextToSpeech.QUEUE_ADD,null,request.id);
-        if(result==TextToSpeech.ERROR)completeSpeech(request.id);
+        if(result==TextToSpeech.ERROR) {
+            completeSpeech(request.id);
+        } else {
+            Runnable timeout=()->completeSpeech(request.id);
+            synchronized(PosUi.class) {
+                SPEECH_TIMEOUTS.put(request.id,timeout);
+            }
+            SPEECH_HANDLER.postDelayed(timeout,SPEECH_TIMEOUT_MILLIS);
+        }
     }
     private static void completeSpeech(String id) {
         SpeechRequest request;
         synchronized(PosUi.class) {
             request=SPEECH_CALLBACKS.remove(id);
+            Runnable timeout=SPEECH_TIMEOUTS.remove(id);
+            if(timeout!=null)SPEECH_HANDLER.removeCallbacks(timeout);
             speakNext();
         }
         if(request!=null)runAfter(request);
