@@ -80,7 +80,7 @@ public class StockScreen extends Activity {
             PosTransactions.execute(db,transaction->{
                 ContentValues cv=new ContentValues();cv.put("stock_limit",newLimit);cv.put("updated_at",PosDatabase.now());
                 if(transaction.update("products",cv,"id=? AND stock_limit=?",new String[]{String.valueOf(id),String.valueOf(oldLimit)})!=1)throw new IllegalStateException("ลิมิตเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-                PosDatabase.audit(transaction,"STOCK_LIMIT_CHANGED","PRODUCT",String.valueOf(id),"old_limit="+oldLimit+"; new_limit="+newLimit);
+                PosEvents.stockLimitChanged(transaction,id,oldLimit,newLimit);
                 return null;
             });
             saved=true;
@@ -98,8 +98,7 @@ public class StockScreen extends Activity {
                 ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
                 int n=transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
                 if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-                PosRecords.stockMovement(transaction,id,barcode,name,type,before,after,null,PosDatabase.now());
-                PosDatabase.audit(transaction,"STOCK_"+type,"PRODUCT",String.valueOf(id),"barcode="+barcode+"; before="+before+"; after="+after);
+                PosEvents.stockChange(transaction,id,barcode,name,type,before,after,null,PosDatabase.now());
                 return null;
             });
             saved=true;
@@ -133,7 +132,7 @@ public class StockScreen extends Activity {
                 long id=transaction.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,br);}
                 PosRecords.stockMovement(transaction,id,barcode,nm,"INITIAL",0,q,null,PosDatabase.now());
-                PosDatabase.audit(transaction,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; price_satang="+p+"; stock="+q+"; stock_limit=10");
+                PosEvents.productCreated(transaction,id,barcode,nm,p,q,10);
                 return null;
             });
             StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
