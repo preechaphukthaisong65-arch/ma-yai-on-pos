@@ -6,11 +6,18 @@ import static org.junit.Assert.*;
 public class PosBusinessRulesTest {
     private static final long DAY = 24L * 60L * 60L * 1000L;
 
-    @Test public void creditFeeRoundsUpToWholeSatang() {
+    @Test public void creditFeeRoundsToNearestSatangUsingHalfUpRule() {
         assertEquals(0L, PosBusinessRules.creditFee(0L));
-        assertEquals(1L, PosBusinessRules.creditFee(1L));
+        assertEquals(0L, PosBusinessRules.creditFee(1L));
+        assertEquals(0L, PosBusinessRules.creditFee(9L));
+        assertEquals(1L, PosBusinessRules.creditFee(10L));
+        assertEquals(1L, PosBusinessRules.creditFee(11L));
         assertEquals(5L, PosBusinessRules.creditFee(100L));
-        assertEquals(6L, PosBusinessRules.creditFee(101L));
+        assertEquals(5L, PosBusinessRules.creditFee(101L));
+        assertEquals(5L, PosBusinessRules.creditFee(109L));
+        assertEquals(6L, PosBusinessRules.creditFee(110L));
+        // 10.01 baht x 5% = 0.5005 baht, rounded to 0.50 baht.
+        assertEquals(50L, PosBusinessRules.creditFee(1_001L));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -48,6 +55,7 @@ public class PosBusinessRulesTest {
         assertFalse(PosBusinessRules.isReversibleStatus("CANCELLED"));
         assertFalse(PosBusinessRules.isReversibleStatus("RETURNED"));
     }
+
     @Test public void retentionPolicyNeverPurgesReportOrTransactionSources() {
         assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("stock_history"));
         assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("price_history"));
@@ -57,5 +65,4 @@ public class PosBusinessRulesTest {
         assertFalse(PosHistoryPolicy.mayPurgeHistoryTable("audit_log"));
         assertFalse(PosHistoryPolicy.mayPurgeTransactionDetails());
     }
-
 }
