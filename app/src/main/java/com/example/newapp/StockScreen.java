@@ -13,7 +13,7 @@ import com.google.zxing.integration.android.IntentResult;
 
 public class StockScreen extends Activity {
     private PosDatabase helper; private LinearLayout root; private String mode=""; private String scanned="";
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);PosAuth.requireOwner(this,this::home);}
     private void home(){
         root=PosUi.page(this,"คลังสินค้า");
         PosUi.button(this,root,"สินค้าทั้งหมด",v->showAll());
