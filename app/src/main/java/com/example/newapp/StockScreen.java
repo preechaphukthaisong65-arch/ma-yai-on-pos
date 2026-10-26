@@ -89,25 +89,26 @@ public class StockScreen extends Activity {
     }
 
     private boolean saveStock(long id,String barcode,String name,int before,int after,String type){
-        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
+        boolean saved=false;String error=null;
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
-            int n=db.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
-            if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-            ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
-            h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
-            db.insertOrThrow("stock_history",null,h);
-            PosDatabase.audit(db,"STOCK_"+type,"PRODUCT",String.valueOf(id),"barcode="+barcode+"; before="+before+"; after="+after);
-            db.setTransactionSuccessful();saved=true;
-        }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();saved=false;}
-        finally{
-            if(db!=null&&transactionStarted){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}
-        }
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
+                int n=transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
+                if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
+                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
+                h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
+                transaction.insertOrThrow("stock_history",null,h);
+                PosDatabase.audit(transaction,"STOCK_"+type,"PRODUCT",String.valueOf(id),"barcode="+barcode+"; before="+before+"; after="+after);
+                return null;
+            });
+            saved=true;
+        }catch(Exception e){error=e.getMessage()==null?"บันทึกสต๊อกไม่สำเร็จ":e.getMessage();}
         if(saved){StockAlertManager.check(this);String action="COUNT".equals(type)?"บันทึกผลนับสต๊อกเรียบร้อย":"RECEIVE".equals(type)?"บันทึกรับสินค้าเข้าสต๊อกเรียบร้อย":"บันทึกสต๊อกเรียบร้อย";PosUi.result(this,true,action,this::home);}
         else PosUi.result(this,false,error==null?"บันทึกสต๊อกไม่สำเร็จ":error,null);
         return saved;
     }
+
     private void newProduct(String barcode){
         root=PosUi.page(this,"เพิ่มสินค้าใหม่");
         PosUi.line(this,root,"บาร์โค้ด: "+barcode);PosUi.speak(this,"สินค้าใหม่ค่ะ");
