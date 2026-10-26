@@ -43,7 +43,7 @@ public class BarcodeScreen extends Activity {
         root=PosUi.page(this,"สร้างบาร์โค้ดใหม่");EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
         PosUi.line(this,root,"ระบบกำหนดเลขบาร์โค้ดอัตโนมัติ ไม่สามารถเลือกเลขเองได้");
         PosUi.button(this,root,"สร้างและบันทึก",v->{try{
-            String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}final long generatedPriceHolder=PosUi.satang(price);
+            String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}final long generatedPriceHolder=PosUi.satang(price);if(generatedPriceHolder<=0L){price.setError("ราคาขายต้องมากกว่า 0 บาท");return;}
             final String[] codeHolder={null};
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
