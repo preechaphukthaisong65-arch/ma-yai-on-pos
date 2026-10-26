@@ -150,7 +150,7 @@ public final class BackupRestoreScreen extends Activity {
         boolean oldDatabaseSaved = false;
         try {
             decryptToFile(source, decrypted, password);
-            validateDatabase(decrypted, false);
+            validateDatabase(decrypted, true);
 
             SQLiteDatabase current = PosDatabase.get(this).getWritableDatabase();
             Cursor checkpoint = current.rawQuery("PRAGMA wal_checkpoint(FULL)", null);
@@ -166,6 +166,10 @@ public final class BackupRestoreScreen extends Activity {
 
             SQLiteDatabase restored = PosDatabase.get(this).getWritableDatabase();
             validateOpenDatabase(restored);
+            Cursor restoredVersion = restored.rawQuery("PRAGMA user_version", null);
+            int installedVersion = restoredVersion.moveToFirst() ? restoredVersion.getInt(0) : 0;
+            restoredVersion.close();
+            if (installedVersion != PosDatabase.DB_VERSION) throw new IOException("เวอร์ชันฐานข้อมูลหลังย้ายไม่ถูกต้อง");
             message("กู้คืนข้อมูลสำเร็จ ตรวจสอบความสมบูรณ์ของฐานข้อมูลแล้ว");
         } catch (Exception e) {
             try {
