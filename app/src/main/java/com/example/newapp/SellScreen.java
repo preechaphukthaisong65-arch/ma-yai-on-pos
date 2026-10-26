@@ -34,12 +34,36 @@ public class SellScreen extends Activity {
         out.putLongArray("cart_ids",ids);out.putLongArray("cart_prices",prices);out.putIntArray("cart_qtys",qtys);out.putIntArray("cart_stocks",stocks);out.putStringArray("cart_barcodes",barcodes);out.putStringArray("cart_names",names);
     }
     private void restoreCart(Bundle state){
-        if(state==null)return;
+        if(state==null){
+            String saved=getSharedPreferences("pos_cart",MODE_PRIVATE).getString("items","");
+            if(saved.isEmpty())return;
+            try{
+                org.json.JSONArray rows=new org.json.JSONArray(saved);
+                for(int i=0;i<rows.length();i++){
+                    org.json.JSONObject row=rows.getJSONObject(i);
+                    long id=row.getLong("id"),price=row.getLong("price");int qty=row.getInt("qty"),stock=row.getInt("stock");
+                    if(id>0&&price>=0&&qty>0&&stock>=qty){Item item=new Item(id,row.getString("barcode"),row.getString("name"),price,stock);item.qty=qty;cart.put(id,item);}
+                }
+            }catch(Exception ignored){getSharedPreferences("pos_cart",MODE_PRIVATE).edit().remove("items").apply();cart.clear();}
+            return;
+        }
         long[] ids=state.getLongArray("cart_ids"),prices=state.getLongArray("cart_prices");int[] qtys=state.getIntArray("cart_qtys"),stocks=state.getIntArray("cart_stocks");String[] barcodes=state.getStringArray("cart_barcodes"),names=state.getStringArray("cart_names");
         if(ids==null||prices==null||qtys==null||stocks==null||barcodes==null||names==null)return;
         int size=Math.min(ids.length,Math.min(prices.length,Math.min(qtys.length,Math.min(stocks.length,Math.min(barcodes.length,names.length)))));
         for(int i=0;i<size;i++){if(qtys[i]>0&&prices[i]>=0) {Item item=new Item(ids[i],barcodes[i],names[i],prices[i],stocks[i]);item.qty=qtys[i];cart.put(ids[i],item);}}
     }
+    private void persistCart(){
+        try{
+            org.json.JSONArray rows=new org.json.JSONArray();
+            for(Item item:cart.values()){
+                org.json.JSONObject row=new org.json.JSONObject();
+                row.put("id",item.id);row.put("price",item.price);row.put("qty",item.qty);row.put("stock",item.stock);row.put("barcode",item.barcode);row.put("name",item.name);rows.put(row);
+            }
+            getSharedPreferences("pos_cart",MODE_PRIVATE).edit().putString("items",rows.toString()).commit();
+        }catch(Exception ignored){}
+    }
+    private void clearPersistedCart(){getSharedPreferences("pos_cart",MODE_PRIVATE).edit().remove("items").commit();}
+    @Override protected void onStop(){persistCart();super.onStop();}
     @Override public void onBackPressed(){requestExit();}
     private void requestExit(){
         if(saleInProgress){new AlertDialog.Builder(this).setMessage("กำลังบันทึกรายการขาย กรุณารอให้ระบบทำรายการเสร็จ").setPositiveButton("ตกลง",null).show();return;}
@@ -47,7 +71,7 @@ public class SellScreen extends Activity {
             new AlertDialog.Builder(this).setTitle("มีสินค้าอยู่ในตะกร้า")
                     .setMessage("หากออกจากหน้าขาย รายการสินค้าในตะกร้าจะถูกล้าง ต้องการออกหรือไม่?")
                     .setNegativeButton("ขายต่อ",null)
-                    .setPositiveButton("ล้างตะกร้าและออก",(dialog,which)->{cart.clear();finish();})
+                    .setPositiveButton("ล้างตะกร้าและออก",(dialog,which)->{cart.clear();clearPersistedCart();finish();})
                     .show();
             return;
         }
@@ -107,6 +131,7 @@ public class SellScreen extends Activity {
         Item old=cart.get(id);
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
+        persistCart();
         try{subtotal();}catch(ArithmeticException e){if(old==null)cart.remove(id);else old.qty--;new AlertDialog.Builder(this).setTitle("ยอดเกินขอบเขต").setMessage("ยอดรวมสินค้าเกินขอบเขตที่ระบบรองรับ จึงไม่เพิ่มรายการนี้").setPositiveButton("ตกลง",(d,w)->showScanScreen()).show();return;}
         showScanScreen();
     }
@@ -160,6 +185,7 @@ public class SellScreen extends Activity {
                     .setNegativeButton("ยกเลิก",null)
                     .setPositiveButton("เคลียร์ตะกร้า",(dialog,which)->{
                         cart.clear();
+                        clearPersistedCart();
                         showScanScreen();
                     }).show();
         });
@@ -325,7 +351,7 @@ public class SellScreen extends Activity {
         }catch(Exception e){error=e.getMessage()==null?"บันทึกการขายไม่สำเร็จ":e.getMessage();saved=false;}
         finally{saleInProgress=false;}
         if(saved){
-            cart.clear();StockAlertManager.check(this);
+            cart.clear();clearPersistedCart();StockAlertManager.check(this);
             PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
