@@ -287,8 +287,8 @@ public class SellScreen extends Activity {
                     ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
                     if(transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
                     ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));transaction.insertOrThrow("bill_items",null,it);
-                    PosRecords.salesLedgerItem(transaction,billId,billCode,"SALE",i.barcode,i.name,i.qty,i.price,lineTotal(i),now);
-                    PosRecords.stockMovement(transaction,i.id,i.barcode,i.name,"SALE",i.stock,i.stock-i.qty,billCode,now);
+                    PosEvents.saleItem(transaction,billId,billCode,i.barcode,i.name,i.qty,i.price,lineTotal(i),now);
+                    PosEvents.stockChange(transaction,i.id,i.barcode,i.name,"SALE",i.stock,i.stock-i.qty,billCode,now);
                 }
                 PosEvents.sale(transaction,billId,billCode,credit?"CREDIT":"CASH",sub,fee,total,now);
                 return null;
