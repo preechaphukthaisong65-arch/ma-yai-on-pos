@@ -13,10 +13,12 @@ public class PosBusinessRulesTest {
         assertEquals(6L, PosBusinessRules.creditFee(101L));
     }
 
-    @Test public void creditUnitPriceIncludesFivePercentInsteadOfSeparateFee() {
-        assertEquals(10_500L, PosBusinessRules.creditUnitPrice(10_000L));
-        assertEquals(21_000L, PosBusinessRules.creditUnitPrice(20_000L));
-        assertEquals(107L, PosBusinessRules.creditUnitPrice(101L));
+    @Test public void creditUnitPriceAddsFivePercentAndRoundsToWholeBaht() {
+        assertEquals(10_500L, PosBusinessRules.creditUnitPrice(10_000L)); // 100.00 -> 105.00
+        assertEquals(21_000L, PosBusinessRules.creditUnitPrice(20_000L)); // 200.00 -> 210.00
+        assertEquals(10_600L, PosBusinessRules.creditUnitPrice(10_100L)); // 101.00 -> 106.00
+        assertEquals(10_600L, PosBusinessRules.creditUnitPrice(10_050L)); // 100.50 -> 106.00 (half-up)
+        assertEquals(10_500L, PosBusinessRules.creditUnitPrice(9_999L)); // 99.99 -> 105.00
         assertEquals(0L, PosBusinessRules.creditUnitPrice(0L));
     }
 
