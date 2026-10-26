@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 13;
+    private static final int DB_VERSION = 11;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -19,15 +19,6 @@ public final class PosDatabase extends SQLiteOpenHelper {
     }
 
     private PosDatabase(Context context) { super(context, DB_NAME, null, DB_VERSION); }
-
-    static int currentVersion() { return DB_VERSION; }
-
-    static synchronized void closeInstanceForRestore() {
-        if (instance != null) {
-            instance.close();
-            instance = null;
-        }
-    }
 
     @Override public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
@@ -53,8 +44,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE barcode_registry (barcode TEXT PRIMARY KEY, name TEXT NOT NULL," +
                 "price_satang INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
-        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
-        db.execSQL("CREATE INDEX idx_customers_name ON customers(first_name COLLATE NOCASE,last_name COLLATE NOCASE,id)");
+        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL UNIQUE COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE bills (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_code TEXT NOT NULL UNIQUE," +
                 "customer_id INTEGER, sale_type TEXT NOT NULL CHECK(sale_type IN ('CASH','CREDIT'))," +
                 "status TEXT NOT NULL CHECK(status IN ('PAID','UNPAID','CANCELLED','RETURNED'))," +
@@ -73,8 +63,6 @@ public final class PosDatabase extends SQLiteOpenHelper {
                 "FOREIGN KEY(product_id) REFERENCES products(id))");
         db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
         db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
-        db.execSQL("CREATE TABLE non_saleable_stock (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0), disposition TEXT NOT NULL CHECK(disposition IN ('DAMAGED','EXPIRED')), reference TEXT NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(product_id) REFERENCES products(id))");
-        db.execSQL("CREATE INDEX idx_non_saleable_stock_created ON non_saleable_stock(created_at DESC)");
         db.execSQL("CREATE TABLE stock_history (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER," +
                 "barcode TEXT NOT NULL, product_name TEXT NOT NULL, change_type TEXT NOT NULL," +
                 "before_qty INTEGER NOT NULL, after_qty INTEGER NOT NULL, difference INTEGER NOT NULL," +
@@ -182,16 +170,6 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
         }
 
-        if (oldVersion < 12) {
-            // Customer display names are not unique identifiers. Preserve IDs and bill links,
-            // but remove UNIQUE(full_name) so two people can legitimately share a name.
-            db.execSQL("CREATE TABLE customers_new (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
-            db.execSQL("INSERT INTO customers_new(id,full_name,first_name,last_name,created_at) SELECT id,CASE WHEN TRIM(COALESCE(first_name,''))<>'' OR TRIM(COALESCE(last_name,''))<>'' THEN TRIM(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')) ELSE full_name END,first_name,last_name,created_at FROM customers");
-            db.execSQL("DROP TABLE customers");
-            db.execSQL("ALTER TABLE customers_new RENAME TO customers");
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(first_name COLLATE NOCASE,last_name COLLATE NOCASE,id)");
-        }
-
         if (oldVersion < 11) {
             // Permanently remove experimental cost-price and unit-of-measure columns
             // from databases created by earlier app versions, while preserving products
@@ -213,10 +191,6 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
         }
-        if (oldVersion < 13) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS non_saleable_stock (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0), disposition TEXT NOT NULL CHECK(disposition IN ('DAMAGED','EXPIRED')), reference TEXT NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(product_id) REFERENCES products(id))");
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_non_saleable_stock_created ON non_saleable_stock(created_at DESC)");
-        }
     }
 
     private static boolean hasAnyColumn(SQLiteDatabase db, String table, String[] names) {
@@ -234,10 +208,10 @@ public final class PosDatabase extends SQLiteOpenHelper {
 
     public static long now() { return AppClock.now(); }
 
-    /** Append-only operational audit entry attributed to the authenticated local owner session. */
+    /** Append-only operational audit entry. Actor identity remains unknown until user accounts are implemented. */
     public static void audit(SQLiteDatabase db, String action, String entityType, String entityId, String details) {
         ContentValues row = new ContentValues();
-        row.put("actor_label", PosAuth.actorLabel());
+        row.put("actor_label", "ยังไม่ระบุผู้ใช้");
         row.put("action", action);
         row.put("entity_type", entityType);
         if (entityId != null) row.put("entity_id", entityId);
