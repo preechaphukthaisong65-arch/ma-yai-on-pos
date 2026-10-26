@@ -29,8 +29,8 @@ public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private static final String CART_PREFS = "pos_durable_cart";
     private static final String CART_KEY = "items";
-    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);StaffSecurity.requireCashier(this,()->{restoreCart();home();});}
+    private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false; private long entryActorId=-1L; private String entryActorRole="UNKNOWN",entryActorLabel="ยังไม่ระบุผู้ใช้";
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);StaffSecurity.requireCashier(this,()->{entryActorId=PosSession.actorId();entryActorRole=PosSession.role();entryActorLabel=PosSession.actorLabel();restoreCart();home();});}
 
     /** Persist the in-progress basket across Activity recreation, force-stop, and device restart. */
     private void persistCart(){
@@ -75,6 +75,8 @@ public class SellScreen extends Activity {
         }
     }
     private void home(){
+        if(!"UNKNOWN".equals(entryActorRole) && !entryActorRole.equals(PosSession.role()))
+            PosSession.restoreActor(entryActorId,entryActorRole,entryActorLabel);
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         android.widget.LinearLayout sections=new android.widget.LinearLayout(this);
