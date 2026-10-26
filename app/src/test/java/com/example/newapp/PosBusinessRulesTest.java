@@ -8,7 +8,7 @@ public class PosBusinessRulesTest {
 
     @Test public void ean13CheckDigitUsesStandardWeights() {
         assertEquals("8", PosBusinessRules.ean13CheckDigit("200000000000"));
-        assertEquals("5", PosBusinessRules.ean13CheckDigit("400638133393"));
+        assertEquals("1", PosBusinessRules.ean13CheckDigit("400638133393"));
     }
 
     @Test(expected = IllegalArgumentException.class)
