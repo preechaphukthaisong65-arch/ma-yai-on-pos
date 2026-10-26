@@ -211,10 +211,11 @@ public class CreditAccountScreen extends Activity {
             long change;
             try{change=Math.subtractExact(cash,effectiveTotal);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
             final boolean approvedWaiver=waiveFee.isChecked();
+            final long confirmedTotal=effectiveTotal;
             new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
-                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(effectiveTotal)+" บาท"+(approvedWaiver?"\nเจ้าของร้านอนุมัติยกเว้นค่าบริการ "+PosDatabase.money(feeTotal)+" บาท":"")+"\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
+                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(confirmedTotal)+" บาท"+(approvedWaiver?"\nเจ้าของร้านอนุมัติยกเว้นค่าบริการ "+PosDatabase.money(feeTotal)+" บาท":"")+"\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
                 .setNegativeButton("กลับไปแก้ไข",null)
-                .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,effectiveTotal,cash,change,approvedWaiver)).show();
+                .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,confirmedTotal,cash,change,approvedWaiver)).show();
         });
         PosUi.back(this,root);
     }
