@@ -68,6 +68,7 @@ public final class OwnerSecurity {
                     SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
                     if (verify(pin.getText().toString(), p.getString("pin_salt", ""), p.getString("pin_hash", ""))) {
                         p.edit().putInt("failures", 0).putLong("lock_until", 0L).apply();
+                        PosSession.setOwnerAuthenticated();
                         action.run();
                     } else {
                         int failures = p.getInt("failures", 0) + 1;
@@ -129,7 +130,7 @@ public final class OwnerSecurity {
                         showRecovery(a, recovery, action);
                     } else {
                         edit.apply();
-                        new AlertDialog.Builder(a).setMessage("เปลี่ยน PIN เรียบร้อยแล้ว").setPositiveButton("ดำเนินการต่อ", (x, y) -> action.run()).show();
+                        new AlertDialog.Builder(a).setMessage("เปลี่ยน PIN เรียบร้อยแล้ว").setPositiveButton("ดำเนินการต่อ", (x, y) -> { PosSession.setOwnerAuthenticated(); action.run(); }).show();
                     }
                 }).show();
     }
@@ -146,7 +147,7 @@ public final class OwnerSecurity {
                     if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("POS recovery code", recovery));
                     showRecovery(a, recovery, action);
                 })
-                .setPositiveButton("บันทึกแล้ว", (d, w) -> action.run()).show();
+                .setPositiveButton("บันทึกแล้ว", (d, w) -> { PosSession.setOwnerAuthenticated(); action.run(); }).show();
     }
 
     private static EditText passwordInput(Activity a, String hint) {
