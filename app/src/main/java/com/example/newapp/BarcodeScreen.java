@@ -63,7 +63,7 @@ public class BarcodeScreen extends Activity {
         }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
-    private static int upcCheckDigit(String elevenDigits){
+    static int upcCheckDigit(String elevenDigits){
         if(elevenDigits==null||elevenDigits.length()!=11||!elevenDigits.matches("[0-9]{11}"))throw new IllegalArgumentException("เลขบาร์โค้ดภายในไม่ถูกต้อง");
         int sum=0;
         for(int i=0;i<elevenDigits.length();i++)sum+=(elevenDigits.charAt(i)-'0')*((i%2==0)?3:1);
