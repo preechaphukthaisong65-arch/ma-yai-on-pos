@@ -13,6 +13,7 @@ public class HistoryScreen extends Activity {
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);OwnerSecurity.requireOwner(this,"ดูประวัติการขายและข้อมูลลูกค้า",this::home);} 
     private void home(){root=PosUi.page(this,"ประวัติการขาย");
         PosUi.button(this,root,"รายการขายทั้งหมด",v->listBills());
+        PosUi.button(this,root,"ประวัติบิลตามลูกค้า",v->customerHistory());
         PosUi.back(this,root);
     }
     private void listBills(){
@@ -71,6 +72,31 @@ public class HistoryScreen extends Activity {
         Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(billId)},null,null,null,"1");
         boolean found=c.moveToFirst();c.close();return found;
     }
+
+    private void customerHistory(){
+        root=PosUi.page(this,"เลือกลูกค้าเพื่อดูประวัติบิล");
+        Cursor customers=helper.getReadableDatabase().query("customers",new String[]{"id","full_name"},null,null,null,null,"full_name COLLATE NOCASE ASC,id ASC");
+        if(!customers.moveToFirst())PosUi.line(this,root,"ยังไม่มีข้อมูลลูกค้า");
+        else do{
+            long customerId=customers.getLong(0);String name=customers.getString(1);
+            PosUi.button(this,root,"#"+customerId+" — "+name,v->customerBillHistory(customerId,name));
+        }while(customers.moveToNext());
+        customers.close();PosUi.back(this,root);
+    }
+
+    private void customerBillHistory(long customerId,String name){
+        root=PosUi.page(this,"ประวัติบิล • "+name);
+        Cursor bills=helper.getReadableDatabase().query("bills",new String[]{"id","bill_code","status","total_satang","created_at"},"customer_id=?",new String[]{String.valueOf(customerId)},null,null,"created_at DESC","200");
+        if(!bills.moveToFirst())PosUi.line(this,root,"ไม่พบประวัติบิลของลูกค้ารายนี้");
+        else do{
+            long id=bills.getLong(0),amount=bills.getLong(3),created=bills.getLong(4);String code=bills.getString(1),status=bills.getString(2);
+            String label=code+" • "+status+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(created));
+            PosUi.button(this,root,label,v->details(id));
+        }while(bills.moveToNext());
+        if(bills.getCount()>=200)PosUi.line(this,root,"แสดง 200 บิลล่าสุดของลูกค้ารายนี้");
+        bills.close();PosUi.back(this,root);
+    }
+
     private void customers(){
         root=PosUi.page(this,"บัญชีลูกค้าเชื่อทั้งหมด");
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT c.id,c.full_name,SUM(b.total_satang) due,MIN(b.created_at) oldest FROM customers c JOIN bills b ON b.customer_id=c.id WHERE b.status='UNPAID' GROUP BY c.id ORDER BY due DESC,oldest ASC",null);
