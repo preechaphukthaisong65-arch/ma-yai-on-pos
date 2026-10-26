@@ -24,7 +24,7 @@ public class HistoryScreen extends Activity {
             String type=c.getString(4),status=c.getString(6);
             String amountLabel="ยอดบิล";
             if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id)){amount=c.getLong(5);amountLabel="รับจริง";}
-            String statusLabel="PAID".equals(status)?"ชำระแล้ว":"ค้างชำระ";
+            String statusLabel="PAID".equals(status)?"ชำระแล้ว":"UNPAID".equals(status)?"ค้างชำระ":"CANCELLED".equals(status)?"ยกเลิกแล้ว":"RETURNED".equals(status)?"คืนสินค้าแล้ว":status;
             String label=c.getString(0)+" • "+statusLabel+" • "+amountLabel+" "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2)));
             PosUi.button(this,root,label,v->details(id));
         }
@@ -40,8 +40,8 @@ public class HistoryScreen extends Activity {
             PosUi.line(this,root,"ยอดบิลเดิม: "+PosDatabase.money(total)+" บาท");
             if(waived)PosUi.line(this,root,"ยอดรับเงินจริง: "+PosDatabase.money(subtotal)+" บาท");
         }c.close();
-        Cursor it=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-        while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" "+it.getInt(1)+" "+it.getString(2)+" × "+PosDatabase.money(it.getLong(3))+" = "+PosDatabase.money(it.getLong(4)));it.close();PosUi.back(this,root);
+        Cursor it=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
+        while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" × "+it.getInt(1)+" • ราคา "+PosDatabase.money(it.getLong(2))+" บาท • รวม "+PosDatabase.money(it.getLong(3))+" บาท);it.close();PosUi.back(this,root);
     }
     private boolean feeWaived(long billId){
         Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(billId)},null,null,null,"1");
