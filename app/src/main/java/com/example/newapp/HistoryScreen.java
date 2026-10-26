@@ -48,20 +48,20 @@ public class HistoryScreen extends Activity {
     }
 
     private String receiptText(long id){
-        StringBuilder out=new StringBuilder("ร้านแม่ใหญ่อ่อน POS\\nใบเสร็จ / รายการขาย\\n");
+        StringBuilder out=new StringBuilder("ร้านแม่ใหญ่อ่อน POS\nใบเสร็จ / รายการขาย\n");
         Cursor b=helper.getReadableDatabase().rawQuery("SELECT b.bill_code,b.sale_type,b.status,b.subtotal_satang,b.fee_satang,b.total_satang,b.created_at,c.full_name FROM bills b LEFT JOIN customers c ON c.id=b.customer_id WHERE b.id=?",new String[]{String.valueOf(id)});
         if(b.moveToFirst()){
             String code=b.getString(0),type=b.getString(1),status=b.getString(2);long subtotal=b.getLong(3),fee=b.getLong(4),total=b.getLong(5),created=b.getLong(6);String customer=b.isNull(7)?"":b.getString(7);
-            out.append("เลขที่บิล: ").append(code).append("\\nวันที่: ").append(new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(created))).append("\\nประเภท: ").append(type).append("\\nสถานะ: ").append(status).append("\\n");
-            if(!customer.isEmpty())out.append("ลูกค้า: ").append(customer).append("\\n");
-            out.append("------------------------------\\n");
+            out.append("เลขที่บิล: ").append(code).append("\nวันที่: ").append(new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(created))).append("\nประเภท: ").append(type).append("\nสถานะ: ").append(status).append("\n");
+            if(!customer.isEmpty())out.append("ลูกค้า: ").append(customer).append("\n");
+            out.append("------------------------------\n");
             Cursor items=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-            while(items.moveToNext())out.append(items.getString(0)).append(" x").append(items.getInt(1)).append(" @ ").append(PosDatabase.money(items.getLong(2))).append(" = ").append(PosDatabase.money(items.getLong(3))).append(" บาท\\n");
+            while(items.moveToNext())out.append(items.getString(0)).append(" x").append(items.getInt(1)).append(" @ ").append(PosDatabase.money(items.getLong(2))).append(" = ").append(PosDatabase.money(items.getLong(3))).append(" บาท\n");
             items.close();
-            out.append("------------------------------\\nยอดสินค้า: ").append(PosDatabase.money(subtotal)).append(" บาท\\n");
-            if("CREDIT".equals(type)&&fee>0){out.append("ค่าบริการเดิม 5%: ").append(PosDatabase.money(fee)).append(" บาท\\n");if("PAID".equals(status)&&feeWaived(id))out.append("หมายเหตุ: เจ้าของร้านอนุมัติยกเว้นค่าบริการ\\n");}
-            out.append("ยอดบิลเดิม: ").append(PosDatabase.money(total)).append(" บาท\\n");
-            if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id))out.append("ยอดรับจริง: ").append(PosDatabase.money(subtotal)).append(" บาท\\n");
+            out.append("------------------------------\nยอดสินค้า: ").append(PosDatabase.money(subtotal)).append(" บาท\n");
+            if("CREDIT".equals(type)&&fee>0){out.append("ค่าบริการเดิม 5%: ").append(PosDatabase.money(fee)).append(" บาท\n");if("PAID".equals(status)&&feeWaived(id))out.append("หมายเหตุ: เจ้าของร้านอนุมัติยกเว้นค่าบริการ\n");}
+            out.append("ยอดบิลเดิม: ").append(PosDatabase.money(total)).append(" บาท\n");
+            if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id))out.append("ยอดรับจริง: ").append(PosDatabase.money(subtotal)).append(" บาท\n");
             out.append("ขอบคุณที่ใช้บริการ");
         }
         b.close();return out.toString();
