@@ -6,7 +6,7 @@ package com.example.newapp;
  */
 final class PosBusinessRules {
     static final long CREDIT_FEE_WINDOW_MILLIS = 24L * 60L * 60L * 1000L;
-    static final long BILL_REVERSAL_WINDOW_MILLIS = 24L * 60L * 60L * 1000L;
+    static final long BILL_REVERSAL_WINDOW_MILLIS = CREDIT_FEE_WINDOW_MILLIS;
 
     private PosBusinessRules() {}
 
