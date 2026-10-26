@@ -49,13 +49,26 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build Debug APK
-        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Test and build APK
+        env:
+          MAEYAI_KEYSTORE_BASE64: ${{ secrets.MAEYAI_KEYSTORE_BASE64 }}
+          MAEYAI_STORE_PASSWORD: ${{ secrets.MAEYAI_STORE_PASSWORD }}
+          MAEYAI_KEY_ALIAS: ${{ secrets.MAEYAI_KEY_ALIAS }}
+          MAEYAI_KEY_PASSWORD: ${{ secrets.MAEYAI_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon testDebugUnitTest assembleDebug
+          if [ -n "$MAEYAI_KEYSTORE_BASE64" ] && [ -n "$MAEYAI_STORE_PASSWORD" ] && [ -n "$MAEYAI_KEY_ALIAS" ] && [ -n "$MAEYAI_KEY_PASSWORD" ]; then
+            echo "$MAEYAI_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/maeyai-release.jks"
+            export MAEYAI_STORE_FILE="$RUNNER_TEMP/maeyai-release.jks"
+            gradle --no-daemon assembleRelease
+          else
+            echo "Release signing secrets are not configured; only the debug APK will be produced."
+          fi
 
-      - name: Upload APK
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: maeyai-on-pos-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: maeyai-on-pos-apks
+          path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
