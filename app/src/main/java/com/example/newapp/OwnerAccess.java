@@ -45,7 +45,27 @@ final class OwnerAccess {
 
     static void changePin(Activity activity) {
         SharedPreferences prefs = activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE);
-        showPinSetup(activity, prefs, () -> {}, false);
+        confirmOwnerAction(activity, "เปลี่ยน PIN เจ้าของร้าน", () -> showPinSetup(activity, prefs, () -> {}, false));
+    }
+
+    static void confirmOwnerAction(Activity activity, String action, Runnable authorized) {
+        SharedPreferences prefs = activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE);
+        EditText pin = pinField(activity, "PIN เจ้าของร้าน 6 หลัก");
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setTitle("ยืนยันสิทธิ์เจ้าของร้าน")
+                .setMessage("กรอก PIN เพื่อยืนยัน: " + action)
+                .setView(pin)
+                .setPositiveButton("ยืนยัน", null)
+                .setNegativeButton("ยกเลิก", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String value = pin.getText().toString();
+            if (!value.matches("[0-9]{6}")) { pin.setError("กรอก PIN 6 หลัก"); return; }
+            if (!verify(prefs, "pin", value)) { pin.setError("PIN ไม่ถูกต้อง"); pin.setText(""); return; }
+            dialog.dismiss();
+            authorized.run();
+        }));
+        dialog.show();
     }
 
     private static void showUnlock(Activity activity, SharedPreferences prefs, Runnable onUnlocked) {
