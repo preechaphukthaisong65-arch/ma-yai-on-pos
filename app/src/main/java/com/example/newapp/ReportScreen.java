@@ -15,7 +15,7 @@ import java.util.Locale;
 
 public class ReportScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);OwnerSecurity.requireOwner(this,"ดูรายงานทางการเงินของร้าน",this::home);} 
     private SalesChartView annualChart;
     private int chartYear;
     private void home(){
