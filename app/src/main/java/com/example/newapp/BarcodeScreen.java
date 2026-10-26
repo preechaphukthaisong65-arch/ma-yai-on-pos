@@ -45,7 +45,7 @@ public class BarcodeScreen extends Activity {
                 if(seq<200000000000L||seq>299999999999L)seq=200000000000L;
                 while(seq<=299999999999L){
                     String payload=String.format(java.util.Locale.US,"%012d",seq);
-                    String candidate=payload+ean13CheckDigit(payload);
+                    String candidate=payload+PosBusinessRules.ean13CheckDigit(payload);
                     Cursor exists=transaction.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});
                     boolean used=exists.moveToFirst();exists.close();
                     if(!used){codeHolder[0]=candidate;break;}
@@ -61,12 +61,6 @@ public class BarcodeScreen extends Activity {
             showBarcodeResult(n,codeHolder[0],generatedPriceHolder[0]);
         }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
-    }
-    private String ean13CheckDigit(String payload){
-        if(payload==null||payload.length()!=12||!payload.matches("[0-9]{12}"))throw new IllegalArgumentException("ข้อมูลบาร์โค้ดไม่ถูกต้อง");
-        int sum=0;
-        for(int i=0;i<payload.length();i++)sum+=(payload.charAt(i)-'0')*((i%2)==0?1:3);
-        return String.valueOf((10-(sum%10))%10);
     }
     private void showBarcodeResult(String name,String code,long price){
         root=PosUi.page(this,"บาร์โค้ดสินค้า");
