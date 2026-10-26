@@ -52,7 +52,7 @@ public final class OwnerSecurity {
         new AlertDialog.Builder(a).setTitle("ตั้งค่า PIN เจ้าของร้าน")
                 .setMessage("ยังไม่ได้ตั้ง PIN เจ้าของร้าน ก่อนดำเนินการ: " + reason +
                         "\n\nตั้งค่านี้ต่อหน้าเจ้าของร้านเท่านั้น ผู้ที่ตั้ง PIN ครั้งแรกจะเป็นผู้ควบคุมการเข้าถึงหน้าที่ป้องกันไว้ รหัสนี้เก็บในเครื่องและไม่ใช่ระบบบัญชีพนักงาน")
-                .setNegativeButton("ยกเลิก", null)
+                .setNegativeButton("ยกเลิก", (d, w) -> a.finish())
                 .setPositiveButton("ตั้ง PIN", (d, w) -> setupPin(a, action, null))
                 .show();
     }
@@ -62,7 +62,7 @@ public final class OwnerSecurity {
         pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         new AlertDialog.Builder(a).setTitle("ยืนยันเจ้าของร้าน")
                 .setMessage(reason).setView(pin)
-                .setNegativeButton("ยกเลิก", null)
+                .setNegativeButton("ยกเลิก", (d, w) -> a.finish())
                 .setNeutralButton("กู้คืน PIN", (d, w) -> promptRecovery(a, action))
                 .setPositiveButton("ยืนยัน", (d, w) -> {
                     SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -87,7 +87,7 @@ public final class OwnerSecurity {
         recovery.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         new AlertDialog.Builder(a).setTitle("กู้คืน PIN เจ้าของร้าน").setView(recovery)
                 .setMessage("ใช้รหัสกู้คืนที่แสดงตอนตั้งค่า PIN ครั้งแรก")
-                .setNegativeButton("ยกเลิก", null)
+                .setNegativeButton("ยกเลิก", (d, w) -> a.finish())
                 .setPositiveButton("ตรวจสอบ", (d, w) -> {
                     SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
                     if (verify(recovery.getText().toString(), p.getString("recovery_salt", ""), p.getString("recovery_hash", ""))) {
@@ -121,7 +121,7 @@ public final class OwnerSecurity {
                     SharedPreferences.Editor edit = p.edit().putString("pin_salt", Base64.encodeToString(pinSalt, Base64.NO_WRAP))
                             .putString("pin_hash", hash(one, pinSalt)).putInt("failures", 0).putLong("lock_until", 0L);
                     if (oldRecoveryHash == null || !p.contains("recovery_hash")) {
-                        String recovery = String.format(java.util.Locale.US, "%012d", new java.util.Random().nextLong() & 0x7fffffffffffffffL).substring(0, 12);
+                        StringBuilder recoveryBuilder = new StringBuilder(12); SecureRandom recoveryRandom = new SecureRandom(); for (int i = 0; i < 12; i++) recoveryBuilder.append(recoveryRandom.nextInt(10)); String recovery = recoveryBuilder.toString();
                         byte[] recoverySalt = random(SALT_BYTES);
                         edit.putString("recovery_salt", Base64.encodeToString(recoverySalt, Base64.NO_WRAP))
                                 .putString("recovery_hash", hash(recovery, recoverySalt));
