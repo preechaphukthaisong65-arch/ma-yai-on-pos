@@ -25,7 +25,21 @@ import java.util.Locale;
 public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);PosAuth.requireOwner(this,this::home);}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);restoreCart(b);PosAuth.requireOwner(this,this::home);}
+    @Override protected void onSaveInstanceState(Bundle out){
+        super.onSaveInstanceState(out);
+        int size=cart.size(),i=0;long[] ids=new long[size],prices=new long[size];int[] qtys=new int[size],stocks=new int[size];
+        String[] barcodes=new String[size],names=new String[size];
+        for(Item item:cart.values()){ids[i]=item.id;prices[i]=item.price;qtys[i]=item.qty;stocks[i]=item.stock;barcodes[i]=item.barcode;names[i]=item.name;i++;}
+        out.putLongArray("cart_ids",ids);out.putLongArray("cart_prices",prices);out.putIntArray("cart_qtys",qtys);out.putIntArray("cart_stocks",stocks);out.putStringArray("cart_barcodes",barcodes);out.putStringArray("cart_names",names);
+    }
+    private void restoreCart(Bundle state){
+        if(state==null)return;
+        long[] ids=state.getLongArray("cart_ids"),prices=state.getLongArray("cart_prices");int[] qtys=state.getIntArray("cart_qtys"),stocks=state.getIntArray("cart_stocks");String[] barcodes=state.getStringArray("cart_barcodes"),names=state.getStringArray("cart_names");
+        if(ids==null||prices==null||qtys==null||stocks==null||barcodes==null||names==null)return;
+        int size=Math.min(ids.length,Math.min(prices.length,Math.min(qtys.length,Math.min(stocks.length,Math.min(barcodes.length,names.length)))));
+        for(int i=0;i<size;i++){if(qtys[i]>0&&prices[i]>=0) {Item item=new Item(ids[i],barcodes[i],names[i],prices[i],stocks[i]);item.qty=qtys[i];cart.put(ids[i],item);}}
+    }
     @Override public void onBackPressed(){requestExit();}
     private void requestExit(){
         if(saleInProgress){new AlertDialog.Builder(this).setMessage("กำลังบันทึกรายการขาย กรุณารอให้ระบบทำรายการเสร็จ").setPositiveButton("ตกลง",null).show();return;}
