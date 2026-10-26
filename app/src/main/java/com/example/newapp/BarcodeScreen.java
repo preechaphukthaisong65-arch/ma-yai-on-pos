@@ -27,7 +27,7 @@ public class BarcodeScreen extends Activity {
             final String[] codeHolder={null};final boolean[] reusedHolder={false};
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
-                Cursor found=transaction.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
+                Cursor found=transaction.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE AND price_satang=?",new String[]{n,String.valueOf(generatedPriceHolder[0])},null,null,"created_at ASC","1");
                 if(found.moveToFirst()){codeHolder[0]=found.getString(0);generatedPriceHolder[0]=found.getLong(1);reusedHolder[0]=true;}found.close();
                 if(!reusedHolder[0]){
                     long seq=100000000000L;Cursor c=transaction.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
