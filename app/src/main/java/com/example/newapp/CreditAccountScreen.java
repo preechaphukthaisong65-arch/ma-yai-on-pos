@@ -197,7 +197,7 @@ public class CreditAccountScreen extends Activity {
             items.close();
         }
         spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
-        PosUi.speakThen(this,spoken.toString(),()->cashPaymentScreen(customerId,ids,total));
+        // Keep customer names, balances, and item details off public speakers; proceed directly to confirmation.\n        cashPaymentScreen(customerId,ids,total);
     }
 
     private void cashPaymentScreen(long customerId,ArrayList<Long> ids,long total){
