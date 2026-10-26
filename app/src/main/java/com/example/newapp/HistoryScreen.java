@@ -9,15 +9,18 @@ import android.os.Bundle;
 import android.widget.LinearLayout;
 
 public class HistoryScreen extends Activity {
-    private PosDatabase helper; private LinearLayout root;
+    private PosDatabase helper; private LinearLayout root;\n    private static final int PAGE_SIZE=100;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ประวัติการขาย");
-        PosUi.button(this,root,"รายการขายทั้งหมด",v->listBills());
+        PosUi.button(this,root,"รายการขายทั้งหมด",v->listBills(0));
         PosUi.back(this,root);
     }
-    private void listBills(){
+    private void listBills(int offset){
         root=PosUi.page(this,"รายการขายทั้งหมด");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC");
+        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC",PAGE_SIZE+" OFFSET "+offset);
+        int pageCount=c.getCount();
+        if(pageCount==0&&offset>0){c.close();listBills(Math.max(0,offset-PAGE_SIZE));return;}
+        PosUi.line(this,root,"รายการ "+(offset+1)+"–"+(offset+pageCount)+" (หน้าละ "+PAGE_SIZE+" บิล)");
         while(c.moveToNext()){
             final long id=c.getLong(3);
             long amount=c.getLong(1);
@@ -28,7 +31,10 @@ public class HistoryScreen extends Activity {
             String label=c.getString(0)+" • "+statusLabel+" • "+amountLabel+" "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2)));
             PosUi.button(this,root,label,v->details(id));
         }
-        c.close();PosUi.back(this,root);
+        c.close();
+        if(offset>0)PosUi.button(this,root,"← รายการใหม่กว่า",v->listBills(Math.max(0,offset-PAGE_SIZE)));
+        if(pageCount==PAGE_SIZE)PosUi.button(this,root,"รายการเก่ากว่า →",v->listBills(offset+PAGE_SIZE));
+        PosUi.back(this,root);
     }
     private void details(long id){
         root=PosUi.page(this,"รายละเอียดบิล");
