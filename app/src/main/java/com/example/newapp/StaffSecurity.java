@@ -31,6 +31,15 @@ public final class StaffSecurity {
             OwnerSecurity.requireOwner(activity, "ตั้งค่า PIN เจ้าของร้านก่อนเริ่มใช้งานการขาย", action::run);
             return;
         }
+        SharedPreferences lock = activity.getSharedPreferences("pos_staff_login", Context.MODE_PRIVATE);
+        long lockUntil = lock.getLong("lock_until", 0L);
+        if (System.currentTimeMillis() < lockUntil) {
+            long seconds = Math.max(1L, (lockUntil-System.currentTimeMillis()+999L)/1000L);
+            new AlertDialog.Builder(activity).setTitle("ล็อกการเข้าสู่ระบบ")
+                    .setMessage("ลองเข้าสู่ระบบผิดหลายครั้ง กรุณารอ "+seconds+" วินาที")
+                    .setPositiveButton("ตกลง", (d,w)->activity.finish()).show();
+            return;
+        }
         EditText username = new EditText(activity); username.setSingleLine(true); username.setHint("ชื่อผู้ใช้พนักงาน");
         EditText pin = new EditText(activity); pin.setSingleLine(true); pin.setHint("PIN 6 หลัก");
         pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
@@ -53,11 +62,16 @@ public final class StaffSecurity {
                     }
                     c.close();
                     if (ok) {
+                        lock.edit().putInt("failures",0).putLong("lock_until",0L).apply();
                         PosSession.setStaffAuthenticated(id, name);
                         action.run();
                     } else {
+                        int failures=lock.getInt("failures",0)+1;
+                        SharedPreferences.Editor edit=lock.edit().putInt("failures",failures);
+                        if(failures>=5)edit.putInt("failures",0).putLong("lock_until",System.currentTimeMillis()+5*60*1000L);
+                        edit.apply();
                         new AlertDialog.Builder(activity).setTitle("เข้าสู่ระบบไม่สำเร็จ")
-                                .setMessage("ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง")
+                                .setMessage(failures>=5?"ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง ระบบล็อก 5 นาที":"ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง")
                                 .setPositiveButton("ลองอีกครั้ง", (x,y) -> requireCashier(activity, action))
                                 .setNegativeButton("ยกเลิก", (x,y) -> activity.finish()).show();
                     }
