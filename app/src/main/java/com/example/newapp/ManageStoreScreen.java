@@ -81,17 +81,16 @@ public class ManageStoreScreen extends Activity {
         String cancelConfirm="ยืนยันยกเลิกทั้งบิลหรือไม่?";if("PAID".equals(status)){cancelConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&fee>0&&!feeWaived)cancelConfirm+=" (ไม่คืนค่าบริการ 5%)";}final String cancelConfirmation=cancelConfirm;PosUi.button(this,root,"ยกเลิกบิล",v->new AlertDialog.Builder(this).setMessage(cancelConfirmation).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,created,false)).show());PosUi.back(this,root);
     }
     private void processBill(long id,String code,long created,boolean returning){
-        long firstCheck=PosDatabase.now();
-        if(!PosBusinessRules.withinBillReversalWindow(created,firstCheck)){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",null).show();return;}
+        // This screen is owner-PIN protected. Do not use the editable device clock as a hard
+        // authorization boundary for legitimate returns/cancellations.
         boolean saved=false;String error=null;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
-                Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
+                Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
                 if(!bill.moveToFirst()){bill.close();throw new IllegalStateException("ไม่พบบิล");}
-                String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),currentCreated=bill.getLong(5);bill.close();
+                String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3);bill.close();
                 long now=PosDatabase.now();
-                if(!PosBusinessRules.withinBillReversalWindow(currentCreated,now))throw new IllegalStateException("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้");
                 if(!"PAID".equals(status)&&!"UNPAID".equals(status))throw new IllegalStateException("บิลถูกดำเนินการไปแล้ว");
                 Cursor items=transaction.query("bill_items",new String[]{"product_id","barcode","product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
                 int[] itemCount={0};long[] itemSubtotal={0L};
