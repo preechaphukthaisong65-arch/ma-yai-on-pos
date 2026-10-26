@@ -62,6 +62,9 @@ final class DebtReminderNotifier {
     static boolean hasOverdue(Context context){return !overdue(context).isEmpty();}
     static String homeSummary(Context context){return hasOverdue(context)?"มีรายการลูกหนี้ที่ต้องตรวจสอบ":"";}
     static void showOverdue(Activity activity){
+        PosAuth.requireOwner(activity,()->showOverdueAfterAuth(activity));
+    }
+    private static void showOverdueAfterAuth(Activity activity){
         ArrayList<Debt> debts=overdue(activity);
         if(debts.isEmpty()){new AlertDialog.Builder(activity).setMessage("ไม่มีลูกหนี้ค้างชำระเกิน 1 เดือน").setPositiveButton("ตกลง",null).show();return;}
         StringBuilder message=new StringBuilder();for(Debt d:debts)message.append(d.message).append('\n');
