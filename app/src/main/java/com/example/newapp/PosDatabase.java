@@ -20,6 +20,15 @@ public final class PosDatabase extends SQLiteOpenHelper {
 
     private PosDatabase(Context context) { super(context, DB_NAME, null, DB_VERSION); }
 
+    static synchronized void closeForRestore() {
+        if (instance != null) {
+            instance.close();
+            instance = null;
+        }
+    }
+
+    static int databaseVersion() { return DB_VERSION; }
+
     @Override public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
         // Keep FK checks disabled only while SQLiteOpenHelper creates/upgrades the schema.
