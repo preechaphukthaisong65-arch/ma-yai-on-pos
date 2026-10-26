@@ -19,6 +19,26 @@ final class PosEvents {
                         + "; fee_satang=" + feeSatang + "; total_satang=" + totalSatang);
     }
 
+    static void saleItem(SQLiteDatabase db, long billId, String billCode, String barcode,
+                         String productName, int quantity, long unitPriceSatang,
+                         long lineTotalSatang, long now) {
+        if (quantity <= 0 || unitPriceSatang < 0L || lineTotalSatang < 0L)
+            throw new IllegalArgumentException("รายการขายไม่ถูกต้อง");
+        PosRecords.salesLedgerItem(db, billId, billCode, "SALE", barcode, productName,
+                quantity, unitPriceSatang, lineTotalSatang, now);
+    }
+
+    static void reversalItem(SQLiteDatabase db, long billId, String billCode, String eventType,
+                             String barcode, String productName, int quantity,
+                             long unitPriceSatang, long lineTotalSatang, long now) {
+        if (!"RETURN".equals(eventType) && !"CANCEL".equals(eventType))
+            throw new IllegalArgumentException("ชนิดการย้อนรายการไม่ถูกต้อง");
+        if (quantity >= 0 || lineTotalSatang > 0L || unitPriceSatang < 0L)
+            throw new IllegalArgumentException("จำนวนรายการย้อนบิลไม่ถูกต้อง");
+        PosRecords.salesLedgerItem(db, billId, billCode, eventType, barcode, productName,
+                quantity, unitPriceSatang, lineTotalSatang, now);
+    }
+
     static void payment(SQLiteDatabase db, long billId, String billCode, long amountSatang,
                         long cashReceivedSatang, long changeSatang, long now) {
         PosRecords.paymentHistory(db, billId, billCode, amountSatang, now);
