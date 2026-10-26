@@ -8,6 +8,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.EditText;
+import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
@@ -75,20 +76,17 @@ public class ManageStoreScreen extends Activity {
         if(!c.moveToFirst()){c.close();new AlertDialog.Builder(this).setMessage("ไม่พบบิลนี้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         long id=c.getLong(0),sub=c.getLong(3),fee=c.getLong(4),total=c.getLong(5),created=c.getLong(6);String type=c.getString(1),status=c.getString(2);c.close();
         boolean feeWaived=false;if("CREDIT".equals(type)&&"PAID".equals(status)){Cursor waived=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(id)},null,null,null,"1");if(waived.moveToFirst()){feeWaived=true;fee=0;total=sub;}waived.close();}
-        if(!PosBusinessRules.withinBillReversalWindow(created,PosDatabase.now())){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         if(!PosBusinessRules.isReversibleStatus(status)){new AlertDialog.Builder(this).setMessage("บิลนี้ถูกยกเลิกหรือคืนไปแล้ว").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");PosUi.line(this,root,"เลขที่บิล: "+code);PosUi.line(this,root,"ประเภท: "+type);PosUi.line(this,root,"สถานะ: "+status);PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(sub)+" บาท");if("CREDIT".equals(type)&&fee>0)PosUi.line(this,root,"ค่าบริการ: "+PosDatabase.money(fee)+" บาท");PosUi.line(this,root,"ยอดบิล: "+PosDatabase.money(total)+" บาท");
-        String returnConfirm="ยืนยันคืนสินค้าทั้งบิลหรือไม่?";if("PAID".equals(status)){returnConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&feeWaived)returnConfirm+=" (ค่าบริการได้รับการยกเว้นตั้งแต่ชำระหนี้)";else if("CREDIT".equals(type)&&fee>0)returnConfirm+=" (ไม่คืนค่าบริการ 5%)";}else if("CREDIT".equals(type))returnConfirm+="\nจะยกเลิกหนี้เต็มจำนวนของบิลนี้";final String confirmationMessage=returnConfirm;PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->new AlertDialog.Builder(this).setMessage(confirmationMessage).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,created,true)).show());
-        String cancelConfirm="ยืนยันยกเลิกทั้งบิลหรือไม่?";if("PAID".equals(status)){cancelConfirm+="\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&fee>0&&!feeWaived)cancelConfirm+=" (ไม่คืนค่าบริการ 5%)";}final String cancelConfirmation=cancelConfirm;PosUi.button(this,root,"ยกเลิกบิล",v->new AlertDialog.Builder(this).setMessage(cancelConfirmation).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,created,false)).show());PosUi.back(this,root);
+        String returnConfirm="ยืนยันคืนสินค้าทั้งบิลหรือไม่?";if("PAID".equals(status)){returnConfirm+="\\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&feeWaived)returnConfirm+=" (ค่าบริการได้รับการยกเว้นแล้ว)";else if("CREDIT".equals(type)&&fee>0)returnConfirm+=" (ไม่คืนค่าบริการ 5%)";}else if("CREDIT".equals(type))returnConfirm+="\\nจะยกเลิกหนี้เต็มจำนวนของบิลนี้";final String confirmationMessage=returnConfirm;PosUi.button(this,root,"คืนสินค้าทั้งบิล",v->{CheckBox damaged=new CheckBox(this);damaged.setText("สินค้าเสีย/หมดอายุทั้งหมด — ไม่เพิ่มกลับเข้าสต๊อก");damaged.setTextSize(15);new AlertDialog.Builder(this).setTitle("ยืนยันคืนสินค้า").setMessage(confirmationMessage+"\\nเลือกตัวเลือกนี้เฉพาะเมื่อสินค้าคืนไม่สามารถขายต่อได้").setView(damaged).setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,true,!damaged.isChecked())).show();});
+        String cancelConfirm="ยืนยันยกเลิกทั้งบิลหรือไม่?";if("PAID".equals(status)){cancelConfirm+="\\nยอดเงินคืน: "+PosDatabase.money(sub)+" บาท";if("CREDIT".equals(type)&&fee>0&&!feeWaived)cancelConfirm+=" (ไม่คืนค่าบริการ 5%)";}final String cancelConfirmation=cancelConfirm;PosUi.button(this,root,"ยกเลิกบิล",v->new AlertDialog.Builder(this).setMessage(cancelConfirmation+"\\nระบบจะคืนสินค้าทั้งหมดกลับเข้าสต๊อก").setNegativeButton("ไม่ใช่",null).setPositiveButton("ยืนยัน",(d,w)->processBill(id,code,false,true)).show());PosUi.back(this,root);
     }
-    private void processBill(long id,String code,long created,boolean returning){
-        long firstCheck=PosDatabase.now();
-        if(!PosBusinessRules.withinBillReversalWindow(created,firstCheck)){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",null).show();return;}
+    private void processBill(long id,String code,boolean returning,boolean restockReturnedItems){
         boolean saved=false;String error=null;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
-                Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
+                Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
                 if(!bill.moveToFirst()){bill.close();throw new IllegalStateException("ไม่พบบิล");}
                 String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),currentCreated=bill.getLong(5);bill.close();
                 long now=PosDatabase.now();
