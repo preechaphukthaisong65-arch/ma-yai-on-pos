@@ -86,23 +86,8 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -wipe-data -noaudio -no-boot-anim
-          script: |
-            set +e
-            adb wait-for-device
-            adb shell settings put global window_animation_scale 0
-            adb shell settings put global transition_animation_scale 0
-            adb shell settings put global animator_duration_scale 0
-            gradle --no-daemon connectedDebugAndroidTest --stacktrace
-            test_status=$?
-            if [ "$test_status" -ne 0 ]; then
-              mkdir -p migration-debug
-              adb logcat -d -v threadtime > migration-debug/logcat.txt 2>&1 || true
-              adb shell dumpsys activity processes > migration-debug/activity-processes.txt 2>&1 || true
-              adb shell getprop > migration-debug/getprop.txt 2>&1 || true
-              find app/build/reports/androidTests app/build/outputs/androidTest-results -type f -print 2>/dev/null > migration-debug/test-files.txt || true
-              echo "Instrumentation failed with exit code $test_status; diagnostic files will be uploaded."
-            fi
-            exit "$test_status"
+          # This action executes script lines as separate shell commands; keep the Gradle invocation atomic.
+          script: gradle --no-daemon connectedDebugAndroidTest --stacktrace
 
       - name: Upload emulator diagnostics and test reports
         if: always()
