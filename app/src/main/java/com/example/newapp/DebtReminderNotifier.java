@@ -45,27 +45,40 @@ final class DebtReminderNotifier {
         NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
         if(manager!=null&&Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel(CHANNEL,"แจ้งเตือนลูกหนี้ค้างชำระ",NotificationManager.IMPORTANCE_DEFAULT));
         boolean notificationsEnabled=manager!=null&&(Build.VERSION.SDK_INT<24||manager.areNotificationsEnabled());
-        Set<String> currentIds=new HashSet<>();
-        for(Debt debt:debts){
-            currentIds.add(String.valueOf(debt.id));
-            if(!notificationsEnabled)continue;
+        final int summaryId=7412;
+        if(manager!=null&&notificationsEnabled&&!debts.isEmpty()){
             Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,CHANNEL):new Notification.Builder(context);
-            String privateMessage="มีลูกหนี้ค้างชำระเกิน 1 เดือน เปิดแอปเพื่อดูรายละเอียด";
-            builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แจ้งเตือนร้านค้า").setContentText(privateMessage).setStyle(new Notification.BigTextStyle().bigText(privateMessage)).setAutoCancel(true);
-            manager.notify(200000+(int)(debt.id%1000000L),builder.build());
+            String message="มีบัญชีลูกหนี้ที่ต้องตรวจสอบ เปิดแอปและยืนยัน PIN เจ้าของร้านเพื่อดูรายละเอียด";
+            builder.setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle("แจ้งเตือนร้านค้า")
+                    .setContentText(message)
+                    .setStyle(new Notification.BigTextStyle().bigText(message))
+                    .setVisibility(Notification.VISIBILITY_PRIVATE)
+                    .setAutoCancel(true);
+            manager.notify(summaryId,builder.build());
+        }else if(manager!=null){
+            manager.cancel(summaryId);
         }
+        // Cancel per-customer notifications from older versions so no stale reminders remain.
         SQLiteDatabase db=PosDatabase.get(context).getWritableDatabase();
         Cursor old=db.query("app_meta",new String[]{"value"},"key='debt_notification_ids'",null,null,null,null);
-        if(old.moveToFirst()){String v=old.getString(0);if(manager!=null&&v!=null&&!v.isEmpty())for(String id:v.split(",")){if(!currentIds.contains(id)){try{manager.cancel(200000+(int)(Long.parseLong(id)%1000000L));}catch(NumberFormatException ignored){}}}}old.close();
-        StringBuilder ids=new StringBuilder();for(String id:currentIds){if(ids.length()>0)ids.append(',');ids.append(id);}
-        ContentValues cv=new ContentValues();cv.put("key","debt_notification_ids");cv.put("value",ids.toString());db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);
+        if(old.moveToFirst()){
+            String v=old.getString(0);
+            if(manager!=null&&v!=null&&!v.isEmpty())for(String id:v.split(",")){
+                try{manager.cancel(200000+(int)(Long.parseLong(id)%1000000L));}catch(NumberFormatException ignored){}
+            }
+        }
+        old.close();
+        ContentValues cv=new ContentValues();cv.put("key","debt_notification_ids");cv.put("value","");
+        db.insertWithOnConflict("app_meta",null,cv,SQLiteDatabase.CONFLICT_REPLACE);
     }
     static boolean hasOverdue(Context context){return !overdue(context).isEmpty();}
-    static String homeSummary(Context context){return overdue(context).isEmpty()?"":"มีลูกหนี้ค้างชำระเกิน 1 เดือน • แตะเพื่อดูรายละเอียด";}
+    static String homeSummary(Context context){return overdue(context).isEmpty()?"":"มีบัญชีลูกหนี้ค้างชำระที่ต้องตรวจสอบ";}
     static void showOverdue(Activity activity){
         ArrayList<Debt> debts=overdue(activity);
         if(debts.isEmpty()){new AlertDialog.Builder(activity).setMessage("ไม่มีลูกหนี้ค้างชำระเกิน 1 เดือน").setPositiveButton("ตกลง",null).show();return;}
-        StringBuilder message=new StringBuilder();for(Debt d:debts)message.append(d.message).append('\n');
-        new AlertDialog.Builder(activity).setTitle("ลูกหนี้ค้างชำระเกิน 1 เดือน").setMessage(message.toString()).setPositiveButton("ตกลง",null).show();
+        new AlertDialog.Builder(activity).setTitle("ลูกหนี้ค้างชำระเกิน 1 เดือน")
+                .setMessage("พบ "+debts.size()+" บัญชีที่ต้องตรวจสอบ กรุณาเปิดหน้าบัญชีลูกหนี้หลังยืนยัน PIN เจ้าของร้าน")
+                .setPositiveButton("ตกลง",null).show();
     }
 }
