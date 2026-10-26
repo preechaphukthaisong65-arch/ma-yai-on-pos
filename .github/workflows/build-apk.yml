@@ -15,6 +15,7 @@ on:
       - fix/server-committed-local-sync
       - work/complete-pos-no-backup
       - fix/offline-pos-integrity-2026-10
+      - fix/complete-pos-audit-2026-10-26
   pull_request:
     branches:
       - main
@@ -51,6 +52,14 @@ jobs:
 
       - name: Build Debug APK
         run: gradle --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Run database migration instrumentation tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          script: gradle --no-daemon connectedDebugAndroidTest --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
