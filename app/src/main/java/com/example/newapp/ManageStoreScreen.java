@@ -20,7 +20,7 @@ public class ManageStoreScreen extends Activity {
     private static final int BACKUP_REQUEST_CODE=7301;
     private PosDatabase helper;private LinearLayout root;private String mode="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.button(this,root,"ส่งออกข้อมูลสำรองร้านค้า",v->confirmBackupExport());PosUi.back(this,root);}
+    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.button(this,root,"ส่งออกข้อมูลสำรองร้านค้า",v->confirmBackupExport());PosUi.button(this,root,"เปลี่ยน PIN เจ้าของร้าน",v->OwnerAccess.changePin(this));PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosBarcode.launch(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
