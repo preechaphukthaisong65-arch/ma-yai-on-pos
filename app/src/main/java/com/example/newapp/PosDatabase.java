@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 12;
+    private static final int DB_VERSION = 13;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -73,6 +73,8 @@ public final class PosDatabase extends SQLiteOpenHelper {
                 "FOREIGN KEY(product_id) REFERENCES products(id))");
         db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
         db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
+        db.execSQL("CREATE TABLE non_saleable_stock (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0), disposition TEXT NOT NULL CHECK(disposition IN ('DAMAGED','EXPIRED')), reference TEXT NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(product_id) REFERENCES products(id))");
+        db.execSQL("CREATE INDEX idx_non_saleable_stock_created ON non_saleable_stock(created_at DESC)");
         db.execSQL("CREATE TABLE stock_history (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER," +
                 "barcode TEXT NOT NULL, product_name TEXT NOT NULL, change_type TEXT NOT NULL," +
                 "before_qty INTEGER NOT NULL, after_qty INTEGER NOT NULL, difference INTEGER NOT NULL," +
@@ -210,6 +212,10 @@ public final class PosDatabase extends SQLiteOpenHelper {
             }
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_products_stock_name ON products(active,stock,name COLLATE NOCASE)");
+        }
+        if (oldVersion < 13) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS non_saleable_stock (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, barcode TEXT NOT NULL, product_name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0), disposition TEXT NOT NULL CHECK(disposition IN ('DAMAGED','EXPIRED')), reference TEXT NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(product_id) REFERENCES products(id))");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_non_saleable_stock_created ON non_saleable_stock(created_at DESC)");
         }
     }
 
