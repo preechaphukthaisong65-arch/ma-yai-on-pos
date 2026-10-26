@@ -120,7 +120,7 @@ public class StockScreen extends Activity {
         EditText qty=PosUi.input(this,root,"จำนวนสินค้าเริ่มต้น");
         PosUi.button(this,root,"บันทึกสินค้า",v->{OwnerAccess.confirmOwnerAction(this,"เพิ่มสินค้าเข้าสต๊อก",()->{try{
             String nm=PosUi.str(name);if(nm.isEmpty())throw new IllegalArgumentException("กรุณากรอกชื่อสินค้า");
-            int q=Integer.parseInt(PosUi.str(qty));long p=PosUi.satang(price);if(q<=0)throw new IllegalArgumentException("จำนวนสินค้าเริ่มต้นต้องมากกว่า 0");
+            int q=Integer.parseInt(PosUi.str(qty));long p=PosUi.satang(price);if(p<=0)throw new IllegalArgumentException("ราคาขายต้องมากกว่า 0 บาท");if(q<=0)throw new IllegalArgumentException("จำนวนสินค้าเริ่มต้นต้องมากกว่า 0");
             int l=10;
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
