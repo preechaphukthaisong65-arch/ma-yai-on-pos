@@ -27,6 +27,11 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
         hideSystemBars();
         FrameLayout frame = new FrameLayout(this);
         int bg = getResources().getIdentifier("app_background", "drawable", getPackageName());
