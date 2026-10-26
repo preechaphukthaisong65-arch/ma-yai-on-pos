@@ -23,21 +23,23 @@ public class BarcodeScreen extends Activity {
         root=PosUi.page(this,"สร้างบาร์โค้ดใหม่");EditText name=PosUi.input(this,root,"ชื่อสินค้า");EditText price=PosUi.input(this,root,"ราคาขาย (บาท)");
         PosUi.line(this,root,"ระบบกำหนดเลขบาร์โค้ดอัตโนมัติ ไม่สามารถเลือกเลขเองได้");
         PosUi.button(this,root,"สร้างและบันทึก",v->{try{
-            String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}long p=PosUi.satang(price);
-            SQLiteDatabase db=helper.getWritableDatabase();db.beginTransaction();String code=null;boolean reused=false;
-            try{
-                Cursor found=db.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
-                if(found.moveToFirst()){code=found.getString(0);p=found.getLong(1);price.setText(PosDatabase.money(p));reused=true;}found.close();
-                if(!reused){
-                    long seq=100000000000L;Cursor c=db.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
-                    while(seq<=999999999999L){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=db.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});boolean used=exists.moveToFirst();exists.close();if(!used){code=candidate;break;}seq++;}
-                    if(code==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
-                    ContentValues reg=new ContentValues();reg.put("barcode",code);reg.put("name",n);reg.put("price_satang",p);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,reg);
-                    ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));db.update("app_meta",meta,"key='barcode_sequence'",null);
+            String n=PosUi.str(name);if(n.isEmpty()){name.setError("กรอกชื่อสินค้า");return;}final long[] generatedPriceHolder={PosUi.satang(price)};
+            final String[] codeHolder={null};final boolean[] reusedHolder={false};
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                Cursor found=transaction.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
+                if(found.moveToFirst()){codeHolder[0]=found.getString(0);generatedPriceHolder[0]=found.getLong(1);reusedHolder[0]=true;}found.close();
+                if(!reusedHolder[0]){
+                    long seq=100000000000L;Cursor c=transaction.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
+                    while(seq<=999999999999L){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=transaction.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});boolean used=exists.moveToFirst();exists.close();if(!used){codeHolder[0]=candidate;break;}seq++;}
+                    if(codeHolder[0]==null)throw new IllegalStateException("ไม่สามารถหาเลขบาร์โค้ดว่างได้");
+                    ContentValues reg=new ContentValues();reg.put("barcode",codeHolder[0]);reg.put("name",n);reg.put("price_satang",generatedPriceHolder[0]);reg.put("source","STORE");reg.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,reg);
+                    ContentValues meta=new ContentValues();meta.put("value",String.valueOf(seq+1));transaction.update("app_meta",meta,"key='barcode_sequence'",null);
                 }
-                db.setTransactionSuccessful();
-            }finally{db.endTransaction();}
-            final String generatedCode=code;final long generatedPrice=p;final boolean wasReused=reused;
+                return null;
+            });
+            price.setText(PosDatabase.money(generatedPriceHolder[0]));
+            final String generatedCode=codeHolder[0];final long generatedPrice=generatedPriceHolder[0];final boolean wasReused=reusedHolder[0];
             PosUi.result(this,true,"สินค้า: "+n+"\\nบาร์โค้ด: "+generatedCode+"\\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\\nใช้บาร์โค้ดเดิมจากคลัง":""),this::home);
         }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
