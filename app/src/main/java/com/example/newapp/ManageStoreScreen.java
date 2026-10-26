@@ -18,9 +18,10 @@ import com.google.zxing.integration.android.IntentResult;
 
 public class ManageStoreScreen extends Activity {
     private static final int BACKUP_REQUEST_CODE=7301;
+    private static final int RESTORE_REQUEST_CODE=7302;
     private PosDatabase helper;private LinearLayout root;private String mode="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.button(this,root,"ส่งออกข้อมูลสำรองร้านค้า",v->confirmBackupExport());PosUi.button(this,root,"เปลี่ยน PIN เจ้าของร้าน",v->OwnerAccess.changePin(this));PosUi.back(this,root);}
+    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.button(this,root,"ส่งออกข้อมูลสำรองร้านค้า",v->confirmBackupExport());PosUi.button(this,root,"กู้คืนข้อมูลจากไฟล์สำรอง",v->confirmBackupRestore());PosUi.button(this,root,"เปลี่ยน PIN เจ้าของร้าน",v->OwnerAccess.changePin(this));PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosBarcode.launch(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
@@ -39,6 +40,10 @@ public class ManageStoreScreen extends Activity {
             if(resultCode==RESULT_OK&&data!=null&&data.getData()!=null)writeBackup(data.getData());
             return;
         }
+        if(requestCode==RESTORE_REQUEST_CODE){
+            if(resultCode==RESULT_OK&&data!=null&&data.getData()!=null)restoreBackup(data.getData());
+            return;
+        }
         IntentResult r=PosBarcode.parseResult(requestCode,resultCode,data);
         if(r!=null){if(r.getContents()==null){home();return;}if("cancel".equals(mode))findBill(r.getContents());else findProduct(r.getContents());}
     }
@@ -55,6 +60,90 @@ public class ManageStoreScreen extends Activity {
                     intent.putExtra(Intent.EXTRA_TITLE,"maeyai-on-pos-backup-"+stamp+".db");
                     startActivityForResult(intent,BACKUP_REQUEST_CODE);
                 }).show();
+    }
+    private void confirmBackupRestore(){
+        new AlertDialog.Builder(this)
+                .setTitle("กู้คืนข้อมูลสำรอง")
+                .setMessage("การกู้คืนจะแทนที่ข้อมูลสินค้า ลูกค้า บิล หนี้ และประวัติการเงินในเครื่องนี้ทั้งหมด ควรส่งออกข้อมูลปัจจุบันไว้ก่อน")
+                .setNegativeButton("ยกเลิก",null)
+                .setPositiveButton("เลือกไฟล์สำรอง",(d,w)->OwnerAccess.confirmOwnerAction(this,"กู้คืนข้อมูลสำรองและแทนที่ข้อมูลปัจจุบัน",()->{
+                    Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    startActivityForResult(intent,RESTORE_REQUEST_CODE);
+                })).show();
+    }
+    private void restoreBackup(Uri sourceUri){
+        java.io.File databaseFile=getDatabasePath("maeyai_on_pos.db");
+        java.io.File directory=databaseFile.getParentFile();
+        java.io.File temporary=new java.io.File(directory,"maeyai_on_pos.restore.tmp");
+        java.io.File rollback=new java.io.File(directory,"maeyai_on_pos.before-restore.db");
+        boolean replaced=false;
+        try{
+            try(java.io.InputStream input=getContentResolver().openInputStream(sourceUri);
+                java.io.OutputStream output=new java.io.FileOutputStream(temporary)){
+                if(input==null)throw new IOException("เปิดไฟล์สำรองไม่ได้");
+                byte[] buffer=new byte[8192];int count;
+                while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+                output.flush();
+            }
+            validateBackup(temporary);
+            android.database.Cursor checkpoint=helper.getWritableDatabase().rawQuery("PRAGMA wal_checkpoint(FULL)",null);
+            try{if(checkpoint.moveToFirst()&&checkpoint.getInt(0)!=0)throw new IOException("ฐานข้อมูลกำลังใช้งาน กรุณาลองใหม่");}
+            finally{checkpoint.close();}
+            PosDatabase.closeForRestore();
+            copyFile(databaseFile,rollback);
+            deleteDatabaseSidecars(databaseFile);
+            if(!temporary.renameTo(databaseFile)){
+                copyFile(temporary,databaseFile);
+                temporary.delete();
+            }
+            replaced=true;
+            helper=PosDatabase.get(this);
+            helper.getWritableDatabase(); // Apply supported schema upgrades before declaring success.
+            rollback.delete();
+            PosUi.result(this,true,"กู้คืนข้อมูลสำรองเรียบร้อย กรุณาตรวจสอบสินค้า ยอดหนี้ และประวัติบิล",this::home);
+        }catch(Exception e){
+            try{
+                if(replaced&&rollback.isFile()){
+                    PosDatabase.closeForRestore();
+                    if(databaseFile.exists())databaseFile.delete();
+                    copyFile(rollback,databaseFile);
+                    deleteDatabaseSidecars(databaseFile);
+                }
+                helper=PosDatabase.get(this);
+            }catch(Exception ignored){}
+            temporary.delete();
+            PosUi.result(this,false,"กู้คืนไม่สำเร็จ ข้อมูลเดิมได้รับการเก็บรักษาไว้เมื่อสามารถกู้กลับได้: "+(e.getMessage()==null?"ไฟล์สำรองไม่ถูกต้อง":e.getMessage()),this::home);
+        }
+    }
+    private void validateBackup(java.io.File file) throws IOException{
+        android.database.sqlite.SQLiteDatabase backup=android.database.sqlite.SQLiteDatabase.openDatabase(file.getAbsolutePath(),null,android.database.sqlite.SQLiteDatabase.OPEN_READONLY);
+        try{
+            android.database.Cursor integrity=backup.rawQuery("PRAGMA integrity_check",null);
+            boolean valid=integrity.moveToFirst()&&"ok".equalsIgnoreCase(integrity.getString(0));integrity.close();
+            if(!valid)throw new IOException("ไฟล์ฐานข้อมูลเสียหาย");
+            android.database.Cursor versionCursor=backup.rawQuery("PRAGMA user_version",null);
+            int version=versionCursor.moveToFirst()?versionCursor.getInt(0):0;versionCursor.close();
+            if(version<=0||version>PosDatabase.databaseVersion())throw new IOException("เวอร์ชันฐานข้อมูลไม่รองรับ");
+            String[] required={"products","customers","bills","bill_items","sales_ledger","app_meta"};
+            for(String table:required){
+                android.database.Cursor found=backup.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",new String[]{table});
+                boolean exists=found.moveToFirst();found.close();
+                if(!exists)throw new IOException("ไฟล์สำรองขาดตาราง "+table);
+            }
+        }finally{backup.close();}
+    }
+    private void deleteDatabaseSidecars(java.io.File databaseFile){
+        new java.io.File(databaseFile.getPath()+"-wal").delete();
+        new java.io.File(databaseFile.getPath()+"-shm").delete();
+    }
+    private void copyFile(java.io.File source,java.io.File destination) throws IOException{
+        try(FileInputStream input=new FileInputStream(source);OutputStream output=new java.io.FileOutputStream(destination)){
+            byte[] buffer=new byte[8192];int count;
+            while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+            output.flush();
+        }
     }
     private void writeBackup(Uri destination){
         try{
