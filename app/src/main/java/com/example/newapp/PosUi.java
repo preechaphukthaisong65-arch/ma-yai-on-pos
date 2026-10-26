@@ -167,7 +167,7 @@ final class PosUi {
             request=SPEECH_CALLBACKS.remove(id);
             Runnable timeout=SPEECH_TIMEOUTS.remove(id);
             if(timeout!=null)SPEECH_HANDLER.removeCallbacks(timeout);
-            speakNext();
+            if(request!=null)speakNext();
         }
         if(request!=null)runAfter(request);
     }
