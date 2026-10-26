@@ -28,7 +28,11 @@ public class BarcodeScreen extends Activity {
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
                 Cursor found=transaction.query("barcode_registry",new String[]{"barcode","price_satang"},"name=? COLLATE NOCASE",new String[]{n},null,null,"created_at ASC","1");
-                if(found.moveToFirst()){codeHolder[0]=found.getString(0);generatedPriceHolder[0]=found.getLong(1);reusedHolder[0]=true;}found.close();
+                if(found.moveToFirst()){
+                    codeHolder[0]=found.getString(0);long oldPrice=found.getLong(1);reusedHolder[0]=true;
+                    if(oldPrice!=generatedPriceHolder[0])throw new IllegalStateException("ชื่อนี้มีบาร์โค้ด "+codeHolder[0]+" และราคาเดิม "+PosDatabase.money(oldPrice)+" บาทอยู่แล้ว กรุณาใช้คลังบาร์โค้ดเพื่อแก้ราคาอย่างชัดเจน");
+                    generatedPriceHolder[0]=oldPrice;
+                }found.close();
                 if(!reusedHolder[0]){
                     long seq=100000000000L;Cursor c=transaction.query("app_meta",new String[]{"value"},"key='barcode_sequence'",null,null,null,null);if(c.moveToFirst())seq=Long.parseLong(c.getString(0));c.close();
                     while(seq<=999999999999L){String candidate=String.format(java.util.Locale.US,"%012d",seq);Cursor exists=transaction.rawQuery("SELECT 1 FROM barcode_registry WHERE barcode=? UNION ALL SELECT 1 FROM products WHERE barcode=? LIMIT 1",new String[]{candidate,candidate});boolean used=exists.moveToFirst();exists.close();if(!used){codeHolder[0]=candidate;break;}seq++;}
