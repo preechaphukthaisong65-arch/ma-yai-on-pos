@@ -50,6 +50,34 @@ final class PosEvents {
                         + reversalFeeSatang + "; total_satang=" + reversalTotalSatang);
     }
 
+    static void stockChange(SQLiteDatabase db, long productId, String barcode, String productName,
+                            String changeType, int beforeQty, int afterQty, String reference, long now) {
+        PosRecords.stockMovement(db, productId, barcode, productName, changeType,
+                beforeQty, afterQty, reference, now);
+        PosDatabase.audit(db, "STOCK_" + changeType, "PRODUCT", String.valueOf(productId),
+                "barcode=" + barcode + "; before_qty=" + beforeQty + "; after_qty=" + afterQty
+                        + "; reference=" + (reference == null ? "" : reference));
+    }
+
+    static void stockLimitChanged(SQLiteDatabase db, long productId, int oldLimit, int newLimit) {
+        if (oldLimit < 0 || newLimit < 0) throw new IllegalArgumentException("ลิมิตสต็อกไม่ถูกต้อง");
+        PosDatabase.audit(db, "STOCK_LIMIT_CHANGED", "PRODUCT", String.valueOf(productId),
+                "old_limit=" + oldLimit + "; new_limit=" + newLimit);
+    }
+
+    static void productCreated(SQLiteDatabase db, long productId, String barcode, String name,
+                               long priceSatang, int initialQty, int stockLimit) {
+        PosDatabase.audit(db, "PRODUCT_CREATED", "PRODUCT", String.valueOf(productId),
+                "barcode=" + barcode + "; name=" + name + "; price_satang=" + priceSatang
+                        + "; stock=" + initialQty + "; stock_limit=" + stockLimit);
+    }
+
+    static void customerProfileUpdated(SQLiteDatabase db, long customerId,
+                                       String oldName, String newName) {
+        PosDatabase.audit(db, "CUSTOMER_PROFILE_UPDATED", "CUSTOMER", String.valueOf(customerId),
+                "name_before=" + oldName + "; name_after=" + newName);
+    }
+
     static void priceChange(SQLiteDatabase db, long productId, String barcode, String productName,
                             long oldPriceSatang, long newPriceSatang, long now) {
         PosRecords.priceChange(db, productId, barcode, productName, oldPriceSatang, newPriceSatang, now);
