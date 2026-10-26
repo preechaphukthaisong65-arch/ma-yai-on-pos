@@ -89,7 +89,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, actor_label TEXT NOT NULL DEFAULT 'ยังไม่ระบุผู้ใช้', action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details TEXT, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_audit_log_created ON audit_log(created_at)");
         db.execSQL("CREATE INDEX idx_audit_log_entity ON audit_log(entity_type,entity_id,created_at)");
-        db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','100000000000')");
+        db.execSQL("INSERT INTO app_meta(key,value) VALUES('barcode_sequence','10000000000')");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
