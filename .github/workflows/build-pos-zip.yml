@@ -2,13 +2,6 @@ name: Build Maeyai On POS from repository source
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "app/**"
-      - "build.gradle"
-      - "settings.gradle"
-      - "gradle.properties"
-      - ".github/workflows/build-pos-zip.yml"
 
 permissions:
   contents: read
