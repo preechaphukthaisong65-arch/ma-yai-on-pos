@@ -22,7 +22,7 @@ public class ReportScreen extends Activity {
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.WHITE);
-        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
+        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR)+543;updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,4),PosUi.dp(this,8),PosUi.dp(this,2));lower.setBackgroundColor(android.graphics.Color.WHITE);
         addMenuButton(lower,"📊  สรุปยอดขาย",v->summaryReport());
         addMenuButton(lower,"📈  สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
@@ -62,11 +62,11 @@ public class ReportScreen extends Activity {
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(CASE WHEN event_type IN ('SALE','CANCEL','RETURN') THEN total_satang ELSE 0 END),0)-COALESCE(SUM(CASE WHEN event_type='CREDIT_FEE_WAIVED' THEN -fee_satang ELSE 0 END),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ?",new String[]{String.valueOf(from),String.valueOf(to)});
         long total=0;if(c.moveToFirst())total=c.getLong(0);c.close();return total;
     }
-    private long yearStart(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
-    private long yearEnd(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
+    private long yearStart(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year-543);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
+    private long yearEnd(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year-543);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
     private void updateAnnualChart(int year){
         chartYear=year;String[] labels={"ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."};long[] values=new long[12];
-        Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
+        Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year-543);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
         for(int i=0;i<12;i++){long from=c.getTimeInMillis();c.add(Calendar.MONTH,1);long to=c.getTimeInMillis()-1;values[i]=netSales(from,to);}
         annualChart.setData("กราฟยอดขายสุทธิรายเดือน • "+year,labels,values);
     }
