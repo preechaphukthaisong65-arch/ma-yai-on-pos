@@ -6,6 +6,16 @@ import static org.junit.Assert.*;
 public class PosBusinessRulesTest {
     private static final long DAY = 24L * 60L * 60L * 1000L;
 
+    @Test public void upcACheckDigitMatchesKnownExample() {
+        assertEquals(2, BarcodeScreen.upcACheckDigit("03600029145"));
+        assertEquals(7, BarcodeScreen.upcACheckDigit("10000000000"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void upcACheckDigitRejectsWrongLength() {
+        BarcodeScreen.upcACheckDigit("123");
+    }
+
     @Test public void creditFeeRoundsUpToWholeSatang() {
         assertEquals(0L, PosBusinessRules.creditFee(0L));
         assertEquals(1L, PosBusinessRules.creditFee(1L));
