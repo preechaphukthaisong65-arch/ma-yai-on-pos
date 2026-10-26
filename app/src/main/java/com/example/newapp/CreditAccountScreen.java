@@ -142,7 +142,7 @@ public class CreditAccountScreen extends Activity {
         long dueTotal=0;
         while(c.moveToNext()){
             long id=c.getLong(0),amount=c.getLong(2);String code=c.getString(1);long created=c.getLong(3);
-            allIds.add(id);selected.add(id);dueTotal+=amount;
+            allIds.add(id);dueTotal+=amount;
             CheckBox box=new CheckBox(this);
             box.setText(code+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(created)));
             box.setChecked(false);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
@@ -196,8 +196,8 @@ public class CreditAccountScreen extends Activity {
             while(items.moveToNext())spoken.append(items.getString(0)).append(" จำนวน ").append(items.getInt(1)).append(" ราคา ").append(PosDatabase.money(items.getLong(2))).append(" บาท ");
             items.close();
         }
-        spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
-        PosUi.speakThen(this,spoken.toString(),()->cashPaymentScreen(customerId,ids,total));
+        /* Do not read customer names, debt amounts, or purchased items aloud in a public shop. */
+        cashPaymentScreen(customerId,ids,total);
     }
 
     private void cashPaymentScreen(long customerId,ArrayList<Long> ids,long total){
