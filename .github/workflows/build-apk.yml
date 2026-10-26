@@ -17,6 +17,10 @@ on:
       - feature/complete-missing-menus
       - fix/server-committed-local-sync
 
+concurrency:
+  group: pos-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
