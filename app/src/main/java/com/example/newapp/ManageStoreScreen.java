@@ -84,7 +84,7 @@ public class ManageStoreScreen extends Activity {
     }
     private void processBill(long id,String code,long created,boolean returning){
         long firstCheck=PosDatabase.now();
-        if(firstCheck<created||firstCheck-created>86400000L){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",null).show();return;}
+        if(firstCheck<created||firstCheck-created>PosBusinessRules.CREDIT_FEE_WINDOW_MILLIS){new AlertDialog.Builder(this).setMessage("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้").setPositiveButton("ตกลง",null).show();return;}
         boolean saved=false;String error=null;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
@@ -93,7 +93,7 @@ public class ManageStoreScreen extends Activity {
                 if(!bill.moveToFirst()){bill.close();throw new IllegalStateException("ไม่พบบิล");}
                 String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),currentCreated=bill.getLong(5);bill.close();
                 long now=PosDatabase.now();
-                if(now<currentCreated||now-currentCreated>86400000L)throw new IllegalStateException("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้");
+                if(now<currentCreated||now-currentCreated>PosBusinessRules.CREDIT_FEE_WINDOW_MILLIS)throw new IllegalStateException("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้");
                 if(!"PAID".equals(status)&&!"UNPAID".equals(status))throw new IllegalStateException("บิลถูกดำเนินการไปแล้ว");
                 Cursor items=transaction.query("bill_items",new String[]{"product_id","barcode","product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
                 int[] itemCount={0};long[] itemSubtotal={0L};
@@ -112,8 +112,9 @@ public class ManageStoreScreen extends Activity {
                 if(itemCount[0]==0||itemSubtotal[0]!=sub)throw new IllegalStateException("รายละเอียดสินค้าในบิลไม่ตรงกับยอดบิล จึงยกเลิกการดำเนินการ");
                 ContentValues b=new ContentValues();b.put("status",returning?"RETURNED":"CANCELLED");b.put("archived_at",PosDatabase.now());b.put("archive_until",PosDatabase.now()+30L*86400000L);
                 if(transaction.update("bills",b,"id=? AND bill_code=? AND status=?",new String[]{String.valueOf(id),code,status})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว ไม่สามารถดำเนินการซ้ำได้");
-                long ledgerFee="CREDIT".equals(type)?("PAID".equals(status)?0:-fee):0;
-                long ledgerSubtotal=-sub;long ledgerTotal=Math.addExact(ledgerSubtotal,ledgerFee);
+                long ledgerFee=PosBusinessRules.reversalFee(type,status,fee);
+                long ledgerSubtotal=PosBusinessRules.reversalSubtotal(sub);
+                long ledgerTotal=PosBusinessRules.reversalTotal(ledgerSubtotal,ledgerFee);
                 PosRecords.salesLedger(transaction,id,code,type,returning?"RETURN":"CANCEL",ledgerSubtotal,ledgerFee,ledgerTotal,PosDatabase.now());
                 PosDatabase.audit(transaction,returning?"RETURN":"CANCEL","BILL",code,"subtotal_satang="+ledgerSubtotal+"; fee_satang="+ledgerFee+"; total_satang="+ledgerTotal);
                 return null;
