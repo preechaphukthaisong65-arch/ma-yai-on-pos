@@ -26,6 +26,18 @@ public class SellScreen extends Activity {
     private static final class Item { long id,price;String barcode,name;int qty,stock; Item(long i,String b,String n,long p,int s){id=i;barcode=b;name=n;price=p;stock=s;qty=1;} }
     private PosDatabase helper; private final LinkedHashMap<Long,Item> cart=new LinkedHashMap<>(); private LinearLayout root; private boolean scanning=false; private boolean saleInProgress=false,duplicatePromptOpen=false;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override public void onBackPressed(){
+        if(saleInProgress){new AlertDialog.Builder(this).setMessage("กำลังบันทึกรายการขาย กรุณารอให้ระบบทำรายการเสร็จ").setPositiveButton("ตกลง",null).show();return;}
+        if(!cart.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("มีสินค้าอยู่ในตะกร้า")
+                    .setMessage("หากออกจากหน้าขาย รายการสินค้าในตะกร้าจะถูกล้าง ต้องการออกหรือไม่?")
+                    .setNegativeButton("ขายต่อ",null)
+                    .setPositiveButton("ล้างตะกร้าและออก",(dialog,which)->{cart.clear();finish();})
+                    .show();
+            return;
+        }
+        super.onBackPressed();
+    }
     private void home(){
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
