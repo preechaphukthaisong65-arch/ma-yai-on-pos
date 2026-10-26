@@ -131,8 +131,7 @@ public class StockScreen extends Activity {
                 ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
                 long id=transaction.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,br);}
-                PosRecords.stockMovement(transaction,id,barcode,nm,"INITIAL",0,q,null,PosDatabase.now());
-                PosEvents.productCreated(transaction,id,barcode,nm,p,q,10);
+                PosEvents.productCreated(transaction,id,barcode,nm,p,q,10,PosDatabase.now());
                 return null;
             });
             StockAlertManager.check(this);PosUi.result(this,true,"เพิ่มสินค้า "+nm+" เข้าคลังเรียบร้อย",this::home);
