@@ -87,6 +87,8 @@ final class PosUi {
     private static boolean ttsInitializing=false;
     private static final ArrayDeque<SpeechRequest> SPEECH_QUEUE=new ArrayDeque<>();
     private static final java.util.HashMap<String,SpeechRequest> SPEECH_CALLBACKS=new java.util.HashMap<>();
+    private static final java.util.HashMap<String,Runnable> SPEECH_TIMEOUTS=new java.util.HashMap<>();
+    private static final android.os.Handler SPEECH_HANDLER=new android.os.Handler(android.os.Looper.getMainLooper());
     private static final class SpeechRequest {
         final java.lang.ref.WeakReference<Activity> activity;
         final String message;
@@ -140,6 +142,13 @@ final class PosUi {
             return;
         }
         SPEECH_CALLBACKS.put(request.id,request);
+        Runnable timeout=()->{
+            synchronized(PosUi.class){if(!SPEECH_CALLBACKS.containsKey(request.id))return;}
+            if(sharedTts!=null)try{sharedTts.stop();}catch(Exception ignored){}
+            completeSpeech(request.id);
+        };
+        SPEECH_TIMEOUTS.put(request.id,timeout);
+        SPEECH_HANDLER.postDelayed(timeout,12000L);
         int result=sharedTts.speak(request.message,TextToSpeech.QUEUE_ADD,null,request.id);
         if(result==TextToSpeech.ERROR)completeSpeech(request.id);
     }
@@ -147,6 +156,8 @@ final class PosUi {
         SpeechRequest request;
         synchronized(PosUi.class) {
             request=SPEECH_CALLBACKS.remove(id);
+            Runnable timeout=SPEECH_TIMEOUTS.remove(id);
+            if(timeout!=null)SPEECH_HANDLER.removeCallbacks(timeout);
             speakNext();
         }
         if(request!=null)runAfter(request);
