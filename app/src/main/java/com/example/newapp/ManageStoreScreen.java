@@ -2,6 +2,11 @@ package com.example.newapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
+import android.net.Uri;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import java.io.IOException;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -12,9 +17,10 @@ import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
 public class ManageStoreScreen extends Activity {
+    private static final int BACKUP_REQUEST_CODE=7301;
     private PosDatabase helper;private LinearLayout root;private String mode="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
+    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.button(this,root,"ส่งออกข้อมูลสำรองร้านค้า",v->confirmBackupExport());PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosBarcode.launch(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
@@ -27,7 +33,49 @@ public class ManageStoreScreen extends Activity {
         while(c.moveToNext())PosUi.line(this,root,c.getString(0)+" • "+(c.getString(1).equals("RETURNED")?"คืนสินค้า":"ยกเลิก")+" • "+PosDatabase.money(c.getLong(4))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(5))));
         c.close();PosUi.back(this,root);
     }
-    @Override protected void onActivityResult(int requestCode,int resultCode,android.content.Intent data){super.onActivityResult(requestCode,resultCode,data);IntentResult r=PosBarcode.parseResult(requestCode,resultCode,data);if(r!=null){if(r.getContents()==null){home();return;}if("cancel".equals(mode))findBill(r.getContents());else findProduct(r.getContents());}}
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==BACKUP_REQUEST_CODE){
+            if(resultCode==RESULT_OK&&data!=null&&data.getData()!=null)writeBackup(data.getData());
+            return;
+        }
+        IntentResult r=PosBarcode.parseResult(requestCode,resultCode,data);
+        if(r!=null){if(r.getContents()==null){home();return;}if("cancel".equals(mode))findBill(r.getContents());else findProduct(r.getContents());}
+    }
+    private void confirmBackupExport(){
+        new AlertDialog.Builder(this)
+                .setTitle("ส่งออกข้อมูลสำรอง")
+                .setMessage("ไฟล์นี้มีข้อมูลสินค้า ลูกค้า ยอดหนี้ และประวัติการเงินทั้งหมด เก็บไว้ในที่ปลอดภัยและอย่าส่งให้บุคคลอื่น")
+                .setNegativeButton("ยกเลิก",null)
+                .setPositiveButton("เลือกที่บันทึก",(d,w)->{
+                    String stamp=new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",java.util.Locale.US).format(new java.util.Date());
+                    Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("application/octet-stream");
+                    intent.putExtra(Intent.EXTRA_TITLE,"maeyai-on-pos-backup-"+stamp+".db");
+                    startActivityForResult(intent,BACKUP_REQUEST_CODE);
+                }).show();
+    }
+    private void writeBackup(Uri destination){
+        try{
+            android.database.sqlite.SQLiteDatabase db=helper.getWritableDatabase();
+            android.database.Cursor checkpoint=db.rawQuery("PRAGMA wal_checkpoint(FULL)",null);
+            if(checkpoint.moveToFirst()&&checkpoint.getInt(0)!=0)throw new IOException("ฐานข้อมูลยังไม่พร้อมสำหรับสำรองข้อมูล กรุณาลองใหม่");
+            checkpoint.close();
+            java.io.File source=getDatabasePath("maeyai_on_pos.db");
+            if(!source.isFile()||source.length()==0)throw new IOException("ไม่พบไฟล์ฐานข้อมูล");
+            try(FileInputStream input=new FileInputStream(source);
+                OutputStream output=getContentResolver().openOutputStream(destination,"w")){
+                if(output==null)throw new IOException("เปิดปลายทางสำหรับบันทึกไม่ได้");
+                byte[] buffer=new byte[8192];int count;
+                while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+                output.flush();
+            }
+            PosUi.result(this,true,"ส่งออกข้อมูลสำรองแล้ว กรุณาเก็บไฟล์ไว้ในที่ปลอดภัย",this::home);
+        }catch(Exception e){
+            PosUi.result(this,false,"ส่งออกข้อมูลสำรองไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดไฟล์":e.getMessage()),this::home);
+        }
+    }
     private void findProduct(String barcode){
         Cursor c=helper.findProduct(helper.getReadableDatabase(),PosBarcode.trimmed(barcode));
         if(!c.moveToFirst()){c.close();new AlertDialog.Builder(this).setMessage("ไม่พบสินค้า").setPositiveButton("ตกลง",(d,w)->home()).show();return;}
