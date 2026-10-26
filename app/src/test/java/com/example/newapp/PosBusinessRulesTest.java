@@ -6,6 +6,16 @@ import static org.junit.Assert.*;
 public class PosBusinessRulesTest {
     private static final long DAY = 24L * 60L * 60L * 1000L;
 
+    @Test public void ean13CheckDigitUsesStandardWeights() {
+        assertEquals("8", PosBusinessRules.ean13CheckDigit("200000000000"));
+        assertEquals("5", PosBusinessRules.ean13CheckDigit("400638133393"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void ean13CheckDigitRejectsInvalidPayload() {
+        PosBusinessRules.ean13CheckDigit("123");
+    }
+
     @Test public void creditFeeRoundsUpToWholeSatang() {
         assertEquals(0L, PosBusinessRules.creditFee(0L));
         assertEquals(1L, PosBusinessRules.creditFee(1L));
