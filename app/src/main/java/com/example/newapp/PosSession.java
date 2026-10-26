@@ -11,5 +11,10 @@ public final class PosSession {
     public static String actorLabel() { return actorLabel; }
     public static long actorId() { return actorId; }
     public static String role() { return role; }
+    public static void restoreActor(long id, String restoredRole, String label) {
+        actorId = id;
+        role = restoredRole == null ? "UNKNOWN" : restoredRole;
+        actorLabel = label == null ? "ยังไม่ระบุผู้ใช้" : label;
+    }
     public static void clearActor() { actorId = -1L; role = "UNKNOWN"; actorLabel = "ยังไม่ระบุผู้ใช้"; }
 }
