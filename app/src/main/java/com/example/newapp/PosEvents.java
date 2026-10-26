@@ -79,6 +79,12 @@ final class PosEvents {
                 "name_before=" + oldName + "; name_after=" + newName);
     }
 
+    static void barcodeRegistered(SQLiteDatabase db, String barcode, String name,
+                                  long priceSatang, String source) {
+        PosDatabase.audit(db, "BARCODE_REGISTERED", "BARCODE", barcode,
+                "name=" + name + "; price_satang=" + priceSatang + "; source=" + source);
+    }
+
     static void priceChange(SQLiteDatabase db, long productId, String barcode, String productName,
                             long oldPriceSatang, long newPriceSatang, long now) {
         PosRecords.priceChange(db, productId, barcode, productName, oldPriceSatang, newPriceSatang, now);
