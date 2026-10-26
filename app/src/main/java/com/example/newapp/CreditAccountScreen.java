@@ -194,7 +194,7 @@ public class CreditAccountScreen extends Activity {
             long change;
             try{change=Math.subtractExact(cash,total);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
             new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
-                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\\nรับเงิน "+PosDatabase.money(cash)+" บาท\\nเงินทอน "+PosDatabase.money(change)+" บาท")
+                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
                 .setNegativeButton("กลับไปแก้ไข",null)
                 .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,total,cash,change)).show();
         });
