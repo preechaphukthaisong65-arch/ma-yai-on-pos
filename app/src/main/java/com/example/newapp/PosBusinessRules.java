@@ -10,14 +10,6 @@ final class PosBusinessRules {
 
     private PosBusinessRules() {}
 
-    /** Credit unit price: cash price plus 5%, rounded to the nearest whole baht (half-up). */
-    static long creditUnitPrice(long cashUnitPriceSatang) {
-        if (cashUnitPriceSatang < 0L) throw new IllegalArgumentException("ราคาสินค้าต้องไม่ติดลบ");
-        long numerator = Math.addExact(Math.multiplyExact(cashUnitPriceSatang, 105L), 5_000L);
-        long wholeBaht = numerator / 10_000L;
-        return Math.multiplyExact(wholeBaht, 100L);
-    }
-
     /** Legacy fee helper retained only for historical bills created by older app versions. */
     static long creditFee(long subtotalSatang) {
         if (subtotalSatang < 0L) throw new IllegalArgumentException("ยอดขายเชื่อต้องไม่ติดลบ");
