@@ -111,7 +111,7 @@ public class ReportScreen extends Activity {
         long cashSales=0;if(cash.moveToFirst()){cashSales=cash.getLong(0);PosUi.line(this,root,"ยอดขายเงินสดก่อนคืน/ยกเลิก: "+PosDatabase.money(cashSales)+" บาท");}cash.close();
         Cursor receipts=db.rawQuery("SELECT COALESCE(SUM(amount_satang),0) FROM payment_history WHERE created_at BETWEEN ? AND ?",new String[]{String.valueOf(from),String.valueOf(to)});
         long debtReceipts=0;if(receipts.moveToFirst())debtReceipts=receipts.getLong(0);receipts.close();
-        Cursor refunds=db.rawQuery("SELECT COALESCE(SUM(-total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('RETURN','CANCEL') AND total_satang<0 AND (sale_type='CASH' OR (sale_type='CREDIT' AND fee_satang=0))",new String[]{String.valueOf(from),String.valueOf(to)});
+        Cursor refunds=db.rawQuery("SELECT COALESCE(SUM(-total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('RETURN','CANCEL') AND total_satang<0 AND (sale_type='CASH' OR (sale_type='CREDIT' AND EXISTS (SELECT 1 FROM payments p WHERE p.bill_id=sales_ledger.bill_id)))",new String[]{String.valueOf(from),String.valueOf(to)});
         long refundTotal=0;if(refunds.moveToFirst())refundTotal=refunds.getLong(0);refunds.close();
         Cursor waived=db.rawQuery("SELECT COALESCE(SUM(-fee_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(from),String.valueOf(to)});
         long waivedFees=0;if(waived.moveToFirst())waivedFees=waived.getLong(0);waived.close();
