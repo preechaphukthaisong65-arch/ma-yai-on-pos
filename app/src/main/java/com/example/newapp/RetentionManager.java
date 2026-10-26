@@ -9,27 +9,26 @@ final class RetentionManager {
     private RetentionManager(){}
     static void run(Context context){
         PosDatabase helper=PosDatabase.get(context);
-        SQLiteDatabase db=null;boolean transactionStarted=false;
         long now=PosDatabase.now();
         long detailCutoff=now-30L*86400000L;
         Calendar operationsCalendar=AppClock.calendar();operationsCalendar.setTimeInMillis(now);operationsCalendar.add(Calendar.MONTH,-3);long operationsCutoff=operationsCalendar.getTimeInMillis();
         Calendar calendar=AppClock.calendar();calendar.setTimeInMillis(now);calendar.add(Calendar.MONTH,-15);
         long ledgerCutoff=calendar.getTimeInMillis();
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            String expired="((status='PAID' AND paid_at IS NOT NULL AND paid_at<?) OR (status IN ('CANCELLED','RETURNED') AND archive_until IS NOT NULL AND archive_until<?))";
-            db.delete("payments","bill_id IN (SELECT id FROM bills WHERE "+expired+")",new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
-            db.delete("bills",expired,new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
-            db.delete("stock_history","created_at<? AND change_type!='COUNT'",new String[]{String.valueOf(operationsCutoff)});
-            db.delete("price_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
-            db.delete("payment_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
-            db.delete("sales_ledger_items","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
-            db.delete("sales_ledger","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
-            db.setTransactionSuccessful();
-        }catch(android.database.sqlite.SQLiteException ignored){
-            // Keep the app usable if storage is full; transaction rollback prevents partial cleanup.
-        }finally{
-            if(db!=null&&transactionStarted&&db.inTransaction()){try{db.endTransaction();}catch(android.database.sqlite.SQLiteException ignored){}}
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                String expired="((status='PAID' AND paid_at IS NOT NULL AND paid_at<?) OR (status IN ('CANCELLED','RETURNED') AND archive_until IS NOT NULL AND archive_until<?))";
+                transaction.delete("payments","bill_id IN (SELECT id FROM bills WHERE "+expired+")",new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
+                transaction.delete("bills",expired,new String[]{String.valueOf(detailCutoff),String.valueOf(now)});
+                transaction.delete("stock_history","created_at<? AND change_type!='COUNT'",new String[]{String.valueOf(operationsCutoff)});
+                transaction.delete("price_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
+                transaction.delete("payment_history","created_at<?",new String[]{String.valueOf(operationsCutoff)});
+                transaction.delete("sales_ledger_items","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
+                transaction.delete("sales_ledger","created_at<?",new String[]{String.valueOf(ledgerCutoff)});
+                return null;
+            });
+        }catch(Exception ignored){
+            // Keep the app usable if storage is full; the shared transaction runner rolls back partial cleanup.
         }
     }
 }
