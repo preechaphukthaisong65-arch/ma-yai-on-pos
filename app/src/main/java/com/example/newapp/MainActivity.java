@@ -13,7 +13,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
-    private TextView tickerView;\n    private boolean notificationPermissionRequested;
+    private TextView tickerView;
+    private boolean notificationPermissionRequested;
     private static final String TICKER_BASE = "ยินดีต้อนรับสู่ร้านแม่ใหญ่อ่อน POS     •     ระบบขายสินค้าและจัดการร้านค้า";
     private int dp(int n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
 
