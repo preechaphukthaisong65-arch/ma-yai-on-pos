@@ -16,6 +16,16 @@ public class PosBusinessRulesTest {
         PosBusinessRules.ean13CheckDigit("123");
     }
 
+    @Test public void ean13CheckDigitMatchesKnownBarcode() {
+        assertEquals("1", PosBusinessRules.ean13CheckDigit("400638133393"));
+        assertEquals("7", PosBusinessRules.ean13CheckDigit("200000000000"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void ean13CheckDigitRejectsInvalidPayload() {
+        PosBusinessRules.ean13CheckDigit("123");
+    }
+
     @Test public void creditFeeRoundsUpToWholeSatang() {
         assertEquals(0L, PosBusinessRules.creditFee(0L));
         assertEquals(1L, PosBusinessRules.creditFee(1L));
