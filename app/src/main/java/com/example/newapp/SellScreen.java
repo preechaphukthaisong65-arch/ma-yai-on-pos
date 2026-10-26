@@ -290,8 +290,7 @@ public class SellScreen extends Activity {
                     PosRecords.salesLedgerItem(transaction,billId,billCode,"SALE",i.barcode,i.name,i.qty,i.price,lineTotal(i),now);
                     PosRecords.stockMovement(transaction,i.id,i.barcode,i.name,"SALE",i.stock,i.stock-i.qty,billCode,now);
                 }
-                PosRecords.salesLedger(transaction,billId,billCode,credit?"CREDIT":"CASH","SALE",sub,fee,total,now);
-                PosDatabase.audit(transaction,"SALE","BILL",billCode,"type="+(credit?"CREDIT":"CASH")+"; subtotal_satang="+sub+"; fee_satang="+fee+"; total_satang="+total);
+                PosEvents.sale(transaction,billId,billCode,credit?"CREDIT":"CASH",sub,fee,total,now);
                 return null;
             });
             saved=true;
