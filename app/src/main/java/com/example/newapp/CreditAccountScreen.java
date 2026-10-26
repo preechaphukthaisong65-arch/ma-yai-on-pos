@@ -123,7 +123,8 @@ public class CreditAccountScreen extends Activity {
                 PosTransactions.execute(db,transaction->{
                     ContentValues values=new ContentValues();values.put("first_name",f);values.put("last_name",l);
                     if(transaction.update("customers",values,"id=?",new String[]{String.valueOf(customerId)})!=1)throw new IllegalStateException("บันทึกข้อมูลลูกค้าไม่สำเร็จ");
-                    PosDatabase.audit(transaction,"CUSTOMER_PROFILE_UPDATED","CUSTOMER",String.valueOf(customerId),"name_before="+PosDatabase.customerName(oldFirst,oldLast)+"; name_after="+PosDatabase.customerName(f,l));
+                    PosEvents.customerProfileUpdated(transaction,customerId,
+                            PosDatabase.customerName(oldFirst,oldLast),PosDatabase.customerName(f,l));
                     return null;
                 });
                 saved=true;
