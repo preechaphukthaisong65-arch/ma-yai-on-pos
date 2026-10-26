@@ -41,24 +41,30 @@ public class ManageStoreScreen extends Activity {
         PosUi.back(this,root);
     }
     private void savePrice(long id,String barcode,String name,long old,long next){
-        SQLiteDatabase db=null;boolean transactionStarted=false,saved=false;String error=null;
+        boolean saved=false;String error=null;
         try{
-            db=helper.getWritableDatabase();db.beginTransaction();transactionStarted=true;
-            Cursor c=db.query("products",new String[]{"price_satang"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-            if(!c.moveToFirst()||c.getLong(0)!=old){c.close();throw new IllegalStateException("ราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนใหม่");}c.close();
-            ContentValues p=new ContentValues();p.put("price_satang",next);p.put("updated_at",PosDatabase.now());
-            if(db.update("products",p,"id=?",new String[]{String.valueOf(id)})!=1)throw new IllegalStateException("บันทึกราคาไม่สำเร็จ");
-            ContentValues registryPrice=new ContentValues();registryPrice.put("price_satang",next);if(db.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode})==0){ContentValues legacy=new ContentValues();legacy.put("barcode",barcode);legacy.put("name",name);legacy.put("price_satang",next);legacy.put("source","LEGACY");legacy.put("created_at",PosDatabase.now());db.insertOrThrow("barcode_registry",null,legacy);}
-            ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());db.insertOrThrow("price_history",null,h);
-            PosDatabase.audit(db,"PRICE_CHANGED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; old_price_satang="+old+"; new_price_satang="+next);
-            db.setTransactionSuccessful();saved=true;
+            SQLiteDatabase db=helper.getWritableDatabase();
+            PosTransactions.execute(db,transaction->{
+                Cursor c=transaction.query("products",new String[]{"price_satang"},"id=?",new String[]{String.valueOf(id)},null,null,null);
+                if(!c.moveToFirst()||c.getLong(0)!=old){c.close();throw new IllegalStateException("ราคาสินค้าเปลี่ยนแล้ว กรุณาสแกนใหม่");}c.close();
+                ContentValues p=new ContentValues();p.put("price_satang",next);p.put("updated_at",PosDatabase.now());
+                if(transaction.update("products",p,"id=?",new String[]{String.valueOf(id)})!=1)throw new IllegalStateException("บันทึกราคาไม่สำเร็จ");
+                ContentValues registryPrice=new ContentValues();registryPrice.put("price_satang",next);
+                if(transaction.update("barcode_registry",registryPrice,"barcode=?",new String[]{barcode})==0){
+                    ContentValues legacy=new ContentValues();legacy.put("barcode",barcode);legacy.put("name",name);legacy.put("price_satang",next);legacy.put("source","LEGACY");legacy.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,legacy);
+                }
+                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("old_price_satang",old);h.put("new_price_satang",next);h.put("created_at",PosDatabase.now());transaction.insertOrThrow("price_history",null,h);
+                PosDatabase.audit(transaction,"PRICE_CHANGED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; old_price_satang="+old+"; new_price_satang="+next);
+                return null;
+            });
+            saved=true;
         }catch(Exception e){error=e.getMessage();}
-        finally{if(db!=null&&transactionStarted&&db.inTransaction()){try{db.endTransaction();}catch(Exception e){saved=false;error="ยืนยันธุรกรรมไม่สำเร็จ: "+(e.getMessage()==null?"ข้อผิดพลาดฐานข้อมูล":e.getMessage());}}}
         if(saved){
             try{StoreNotificationManager.priceChanged(this,name);}catch(Exception ignored){}
             PosUi.result(this,true,"บันทึกราคาใหม่เรียบร้อย",this::home);
         }else PosUi.result(this,false,error==null?"บันทึกราคาไม่สำเร็จ":error,null);
     }
+
     private void history(String barcode,String name){
         root=PosUi.page(this,"ประวัติแก้ไขราคา • "+name);PosUi.line(this,root,"บาร์โค้ด: "+barcode);Cursor c=helper.getReadableDatabase().query("price_history",new String[]{"old_price_satang","new_price_satang","created_at"},"barcode=?",new String[]{barcode},null,null,"created_at ASC");
         if(!c.moveToFirst())PosUi.line(this,root,"ไม่พบประวัติแก้ไขราคา");else do{PosUi.line(this,root,PosDatabase.money(c.getLong(0))+" → "+PosDatabase.money(c.getLong(1))+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2))));}while(c.moveToNext());c.close();PosUi.back(this,root);
