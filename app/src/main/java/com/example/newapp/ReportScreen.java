@@ -59,7 +59,7 @@ public class ReportScreen extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,PosUi.dp(this,44),1f);lp.setMargins(PosUi.dp(this,2),PosUi.dp(this,1),PosUi.dp(this,2),PosUi.dp(this,1));row.addView(b,lp);
     }
     private long netSales(long from,long to){
-        Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN')",new String[]{String.valueOf(from),String.valueOf(to)});
+        Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
         long total=0;if(c.moveToFirst())total=c.getLong(0);c.close();return total;
     }
     private long yearStart(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
