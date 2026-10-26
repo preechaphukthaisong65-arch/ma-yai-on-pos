@@ -9,6 +9,8 @@ import android.os.Bundle;
 import android.widget.LinearLayout;
 
 public class HistoryScreen extends Activity {
+    private static final int BILL_PAGE_SIZE=100;
+    private int billOffset=0;
     private PosDatabase helper; private LinearLayout root;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ประวัติการขาย");
@@ -17,8 +19,9 @@ public class HistoryScreen extends Activity {
     }
     private void listBills(){
         root=PosUi.page(this,"รายการขายทั้งหมด");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC");
-        while(c.moveToNext()){
+        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC",String.valueOf(BILL_PAGE_SIZE+1)+" OFFSET "+billOffset);
+        int displayed=0;
+        while(c.moveToNext()&&displayed<BILL_PAGE_SIZE){
             final long id=c.getLong(3);
             long amount=c.getLong(1);
             String type=c.getString(4),status=c.getString(6);
@@ -26,9 +29,12 @@ public class HistoryScreen extends Activity {
             if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id)){amount=c.getLong(5);amountLabel="รับจริง";}
             String statusLabel="PAID".equals(status)?"ชำระแล้ว":"UNPAID".equals(status)?"ค้างชำระ":"CANCELLED".equals(status)?"ยกเลิกแล้ว":"RETURNED".equals(status)?"คืนแล้ว":status;
             String label=c.getString(0)+" • "+statusLabel+" • "+amountLabel+" "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2)));
-            PosUi.button(this,root,label,v->details(id));
+            PosUi.button(this,root,label,v->details(id));displayed++;
         }
-        c.close();PosUi.back(this,root);
+        boolean hasNext=c.getCount()>BILL_PAGE_SIZE;c.close();
+        if(billOffset>0)PosUi.button(this,root,"← รายการก่อนหน้า",v->{billOffset=Math.max(0,billOffset-BILL_PAGE_SIZE);listBills();});
+        if(hasNext)PosUi.button(this,root,"รายการถัดไป →",v->{billOffset+=BILL_PAGE_SIZE;listBills();});
+        PosUi.back(this,root);
     }
     private void details(long id){
         root=PosUi.page(this,"รายละเอียดบิล");
