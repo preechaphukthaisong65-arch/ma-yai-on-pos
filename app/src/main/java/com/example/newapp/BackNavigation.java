@@ -19,6 +19,23 @@ final class BackNavigation {
 
     static ImageView attach(Activity activity, FrameLayout overlay, Runnable onBack) {
         if (activity == null || overlay == null || onBack == null) return null;
+
+        // Reserve the bottom 10% of every screen using this shared back button.
+        // Resize the screen's content container to the top 90% so content and
+        // menu controls cannot occupy the back button's dedicated area.
+        int contentHeight = Math.round(
+                activity.getResources().getDisplayMetrics().heightPixels * 0.90f);
+        if (overlay.getChildCount() > 0) {
+            View content = overlay.getChildAt(0);
+            android.view.ViewGroup.LayoutParams rawParams = content.getLayoutParams();
+            if (rawParams instanceof FrameLayout.LayoutParams) {
+                FrameLayout.LayoutParams contentParams = (FrameLayout.LayoutParams) rawParams;
+                contentParams.height = contentHeight;
+                contentParams.gravity = Gravity.TOP;
+                overlay.updateViewLayout(content, contentParams);
+            }
+        }
+
         int imageId = activity.getResources().getIdentifier(
                 "allback_button", "drawable", activity.getPackageName());
         if (imageId == 0) return null;
