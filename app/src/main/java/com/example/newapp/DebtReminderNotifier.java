@@ -50,7 +50,8 @@ final class DebtReminderNotifier {
             currentIds.add(String.valueOf(debt.id));
             if(!notificationsEnabled)continue;
             Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,CHANNEL):new Notification.Builder(context);
-            builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แจ้งเตือนลูกหนี้").setContentText(debt.message).setStyle(new Notification.BigTextStyle().bigText(debt.message)).setAutoCancel(true);
+            String privateMessage="มีรายการลูกหนี้ที่ต้องตรวจสอบ เปิดแอปเพื่อดูรายละเอียด";
+            builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("แจ้งเตือนร้านค้า").setContentText(privateMessage).setStyle(new Notification.BigTextStyle().bigText(privateMessage)).setAutoCancel(true);
             manager.notify(200000+(int)(debt.id%1000000L),builder.build());
         }
         SQLiteDatabase db=PosDatabase.get(context).getWritableDatabase();
