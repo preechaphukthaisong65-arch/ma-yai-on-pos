@@ -13,7 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
-    private TextView tickerView;
+    private TextView tickerView;\n    private boolean notificationPermissionRequested;
     private static final String TICKER_BASE = "ยินดีต้อนรับสู่ร้านแม่ใหญ่อ่อน POS     •     ระบบขายสินค้าและจัดการร้านค้า";
     private int dp(int n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
 
@@ -27,11 +27,6 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
-        if (android.os.Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
-        }
         OwnerAccess.ensureUnlocked(this, this::buildHome);
     }
 
@@ -100,6 +95,7 @@ public class MainActivity extends Activity {
         pageParams.bottomMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.08f);
         frame.addView(page, pageParams);
         PosUi.showRoot(this,frame);
+        requestNotificationPermissionIfNeeded();
         hideSystemBars();
     }
 
@@ -127,6 +123,14 @@ public class MainActivity extends Activity {
 
     private void space(LinearLayout parent) {
         parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(3)));
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (notificationPermissionRequested || android.os.Build.VERSION.SDK_INT < 33) return;
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        notificationPermissionRequested = true;
+        requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
     }
 
     @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); DebtReminderScheduler.scheduleIfMissing(this); boolean low=StockAlertManager.check(this); DebtReminderNotifier.hasOverdue(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;String debtSummary=DebtReminderNotifier.homeSummary(this);if(!debtSummary.isEmpty())message+="     •     "+debtSummary;tickerView.setText(message);tickerView.setOnClickListener(null);} }
