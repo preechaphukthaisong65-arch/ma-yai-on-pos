@@ -337,10 +337,12 @@ public class SellScreen extends Activity {
     private void saveSale(boolean credit,long customerId,String firstName,String lastName,long cash){
         if(saleInProgress)return;
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ไม่มีสินค้าในบิล").setPositiveButton("ตกลง",null).show();return;}
-        saleInProgress=true;
         boolean saved=false;String error=null;final String[] savedCode={null};
         final long now=PosDatabase.now();final long sub,fee,total;
         try{sub=subtotal();fee=credit?PosBusinessRules.creditFee(sub):0L;total=Math.addExact(sub,fee);}catch(ArithmeticException e){PosUi.result(this,false,"ยอดขายเกินขอบเขตที่ระบบรองรับ",null);return;}
+        // Mark the operation active only after arithmetic validation succeeds; otherwise
+        // an overflow would return before the database try/finally and lock sales forever.
+        saleInProgress=true;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
             PosTransactions.execute(db,transaction->{
