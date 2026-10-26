@@ -100,9 +100,10 @@ public class ManageStoreScreen extends Activity {
                         Cursor p=storedPid>0?transaction.query("products",new String[]{"id","stock"},"id=?",new String[]{String.valueOf(storedPid)},null,null,null):transaction.query("products",new String[]{"id","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null);
                         if(!p.moveToFirst()){p.close();throw new IllegalStateException("ไม่พบสินค้าในคลัง: "+name);}
                         long pid=p.getLong(0);int before=p.getInt(1);p.close();itemSubtotal[0]=Math.addExact(itemSubtotal[0],lineTotal);
-                        ContentValues up=new ContentValues();up.put("stock",Math.addExact(before,qty));up.put("updated_at",PosDatabase.now());
-                        if(transaction.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");
-                        PosEvents.stockChange(transaction,pid,barcode,name,"RETURN_CANCEL",before,Math.addExact(before,qty),code,PosDatabase.now());
+                         boolean restock = !returning || restockReturnedItems;
+                         int after = restock ? Math.addExact(before,qty) : before;
+                         if(restock){ContentValues up=new ContentValues();up.put("stock",after);up.put("updated_at",now);if(transaction.update("products",up,"id=? AND stock=?",new String[]{String.valueOf(pid),String.valueOf(before)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างคืนบิล กรุณาลองใหม่");}
+                         PosEvents.stockChange(transaction,pid,barcode,name,restock?"RETURN_CANCEL":"RETURN_DAMAGED",before,after,code,now);
                         PosEvents.reversalItem(transaction,id,code,returning?"RETURN":"CANCEL",barcode,name,-qty,unitPrice,-lineTotal,PosDatabase.now());
                     }
                 }finally{items.close();}
