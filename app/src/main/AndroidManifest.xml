@@ -27,6 +27,7 @@
         <activity android:name=".StockScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".HistoryScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".ManageStoreScreen" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".BackupRestoreScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".BarcodeScreen" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".ReportScreen" android:screenOrientation="portrait" android:exported="false" />
         <receiver android:name=".DebtReminderReceiver" android:exported="false" />
