@@ -141,6 +141,17 @@ public class SellScreen extends Activity {
         rowParams.topMargin=PosUi.dp(this,12);
         root.addView(row,rowParams);
     }
+    @Override public void onBackPressed(){PosNavigation.back(this);}
+    void confirmExitIfCartNotEmpty(){
+        if(saleInProgress)return;
+        if(cart.isEmpty()){finish();return;}
+        new AlertDialog.Builder(this)
+                .setTitle("ยังมีสินค้าในตะกร้า")
+                .setMessage("หากออกจากหน้าขาย รายการสินค้าในตะกร้าจะหายไป ต้องการออกหรือไม่?")
+                .setNegativeButton("กลับไปขาย",null)
+                .setPositiveButton("ทิ้งตะกร้าและออก",(dialog,which)->{cart.clear();finish();})
+                .show();
+    }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
         paymentChoice();
