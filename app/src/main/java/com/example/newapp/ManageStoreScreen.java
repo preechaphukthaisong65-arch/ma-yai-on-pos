@@ -88,9 +88,8 @@ public class ManageStoreScreen extends Activity {
             PosTransactions.execute(db,transaction->{
                 Cursor bill=transaction.query("bills",new String[]{"sale_type","status","subtotal_satang","fee_satang","total_satang"},"id=? AND bill_code=?",new String[]{String.valueOf(id),code},null,null,null);
                 if(!bill.moveToFirst()){bill.close();throw new IllegalStateException("ไม่พบบิล");}
-                String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),currentCreated=bill.getLong(5);bill.close();
+                String type=bill.getString(0),status=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3);bill.close();
                 long now=PosDatabase.now();
-                if(!PosBusinessRules.withinBillReversalWindow(currentCreated,now))throw new IllegalStateException("ซื้อสินค้าเกิน 1 วัน ไม่สามารถคืนสินค้าหรือยกเลิกบิลได้");
                 if(!"PAID".equals(status)&&!"UNPAID".equals(status))throw new IllegalStateException("บิลถูกดำเนินการไปแล้ว");
                 Cursor items=transaction.query("bill_items",new String[]{"product_id","barcode","product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
                 int[] itemCount={0};long[] itemSubtotal={0L};
@@ -118,7 +117,7 @@ public class ManageStoreScreen extends Activity {
             });
             saved=true;
         }catch(Exception e){error=e.getMessage()==null?"ทำรายการไม่สำเร็จ":e.getMessage();saved=false;}
-        if(saved){StockAlertManager.check(this);PosUi.result(this,true,(returning?"คืนสินค้าทั้งบิล":"ยกเลิกบิล")+"และคืนสต๊อกเรียบร้อย",this::home);}
+        if(saved){StockAlertManager.check(this);PosUi.result(this,true,returning?(restockReturnedItems?"คืนสินค้าทั้งบิลและเพิ่มกลับเข้าสต๊อกเรียบร้อย":"คืนสินค้าทั้งบิลแล้ว บันทึกเป็นสินค้าเสีย/หมดอายุและไม่เพิ่มกลับเข้าสต๊อก"):"ยกเลิกบิลและคืนสต๊อกเรียบร้อย",this::home);}
         else PosUi.result(this,false,"ทำรายการไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 }
