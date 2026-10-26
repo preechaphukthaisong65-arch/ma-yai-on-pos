@@ -235,10 +235,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         return d.movePointRight(2).setScale(0, java.math.RoundingMode.CEILING).longValueExact();
     }
     public static long creditFee(long subtotalSatang) {
-        // 5% in satang, rounded upward to the next satang.
-        if (subtotalSatang < 0L) throw new IllegalArgumentException("ยอดขายเชื่อต้องไม่ติดลบ");
-        long whole = subtotalSatang / 20L;
-        return whole + (subtotalSatang % 20L == 0L ? 0L : 1L);
+        return PosBusinessRules.creditFee(subtotalSatang);
     }
     public Cursor findProduct(SQLiteDatabase db, String barcode) {
         return db.query("products", null, "barcode=? AND active=1", new String[]{barcode}, null, null, null, "1");
