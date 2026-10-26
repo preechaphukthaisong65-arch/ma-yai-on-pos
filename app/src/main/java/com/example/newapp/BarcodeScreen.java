@@ -47,7 +47,7 @@ public class BarcodeScreen extends Activity {
         }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
-    private static int upcACheckDigit(String elevenDigits){
+    static int upcACheckDigit(String elevenDigits){
         if(elevenDigits==null||elevenDigits.length()!=11)throw new IllegalArgumentException("UPC-A ต้องมีเลขตั้งต้น 11 หลัก");
         int odd=0,even=0;
         for(int i=0;i<elevenDigits.length();i++){
