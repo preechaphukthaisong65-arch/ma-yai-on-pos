@@ -222,6 +222,30 @@ final class PosUi {
         if(container==null)return;
         BackNavigation.attach(a,container,()->PosNavigation.back(a));
     }
+    static void receipt(Activity a,String message,Runnable after) {
+        AlertDialog dialog=new AlertDialog.Builder(a)
+                .setTitle("ใบเสร็จ / ใบรับชำระเงิน")
+                .setMessage(message)
+                .setNeutralButton("แชร์ใบเสร็จ",null)
+                .setPositiveButton("ปิด",(d,w)->{if(after!=null)after.run();})
+                .create();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->{
+            Intent send=new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_TEXT,message);
+            try{
+                a.startActivity(Intent.createChooser(send,"แชร์ใบเสร็จ"));
+                dialog.dismiss();
+                if(after!=null)after.run();
+            }catch(Exception e){
+                new AlertDialog.Builder(a).setMessage("ไม่สามารถเปิดเมนูแชร์ได้ กรุณาแสดงใบเสร็จบนหน้าจอ")
+                        .setPositiveButton("ตกลง",null).show();
+            }
+        }));
+        dialog.show();
+        speak(a,"บันทึกสำเร็จค่ะ");
+    }
+
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
         new AlertDialog.Builder(a).setTitle(title).setMessage(message).setPositiveButton("ตกลง",(d,w)->{if(after!=null)after.run();}).show();
