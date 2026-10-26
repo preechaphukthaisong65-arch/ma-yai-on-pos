@@ -277,7 +277,7 @@ public class SellScreen extends Activity {
             message.append("#").append(ids.get(i));
         }
         message.append("\nหากเป็นลูกค้าคนเดิม ให้ยกเลิกหน้าต่างนี้แล้วเลือกบัญชีเดิมจากช่องด้านบน เพื่อไม่ให้ยอดหนี้แยกหลายบัญชี");
-        message.append("\\nหากเป็นคนละคน สามารถยืนยันสร้างบัญชีใหม่ได้");
+        message.append("\nหากเป็นคนละคน สามารถยืนยันสร้างบัญชีใหม่ได้");
         new AlertDialog.Builder(this).setTitle("ตรวจสอบบัญชีลูกค้าซ้ำ")
                 .setMessage(message.toString())
                 .setNegativeButton("กลับไปเลือกลูกค้าเดิม",null)
