@@ -142,6 +142,7 @@ jobs:
           keystore="$RUNNER_TEMP/maeyai-production.jks"
           printf '%s' "$MAEYAI_KEYSTORE_BASE64" | base64 --decode > "$keystore"
           test -s "$keystore"
+          keytool -list -keystore "$keystore" -storepass "$MAEYAI_KEYSTORE_PASSWORD" -alias "$MAEYAI_KEY_ALIAS" >/dev/null
           echo "MAEYAI_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
 
       - name: Build production-signed release APK
