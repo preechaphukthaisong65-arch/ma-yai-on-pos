@@ -203,7 +203,7 @@ public class CreditAccountScreen extends Activity {
             if(cash<total){received.setError("เงินรับไม่พอ");return;}
             long change;try{change=Math.subtractExact(cash,total);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
             new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
-                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\\nรับเงิน "+PosDatabase.money(cash)+" บาท\\nเงินทอน "+PosDatabase.money(change)+" บาท")
+                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
                 .setNegativeButton("กลับไปแก้ไข",null)
                 .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,total,cash,change,waiveFees)).show();
         });
@@ -227,7 +227,7 @@ public class CreditAccountScreen extends Activity {
                     if(transaction.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                     ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);transaction.insertOrThrow("payments",null,pay);
                     PosEvents.payment(transaction,id,code,collected,cashReceived,change,now);
-                    receipt.append("บิล ").append(code).append(" รับชำระ ").append(PosDatabase.money(collected)).append(" บาท");if(waiveFee)receipt.append(" (เจ้าของร้านยกเว้นค่าบริการ)");receipt.append("\\n");
+                    receipt.append("บิล ").append(code).append(" รับชำระ ").append(PosDatabase.money(collected)).append(" บาท");if(waiveFee)receipt.append(" (เจ้าของร้านยกเว้นค่าบริการ)");receipt.append("\n");
                     if(waiveFee)PosEvents.creditFeeWaived(transaction,id,code,type,fee,now);
                 }
                 if(actualTotal[0]!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
@@ -239,8 +239,4 @@ public class CreditAccountScreen extends Activity {
         else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 
-    private long getBillTime(SQLiteDatabase db,long id){
-        Cursor c=db.query("bills",new String[]{"created_at"},"id=?",new String[]{String.valueOf(id)},null,null,null);
-        long created=c.moveToFirst()?c.getLong(0):0;c.close();return created;
-    }
 }
