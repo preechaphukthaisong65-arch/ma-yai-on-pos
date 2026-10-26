@@ -16,7 +16,7 @@ public class CreditAccountScreen extends Activity {
     private PosDatabase helper;
     private LinearLayout root;
 
-    @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);if(getIntent().getBooleanExtra("arrears_search_mode",false))arrearsSearch();else home();}
+    @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);OwnerAccess.confirmOwnerAction(this,"ดูข้อมูลลูกค้าและหนี้",()->{if(getIntent().getBooleanExtra("arrears_search_mode",false))arrearsSearch();else home();});}
 
     private void arrearsSearch(){
         root=PosUi.page(this,"ชำระบิลค้างชำระ");
