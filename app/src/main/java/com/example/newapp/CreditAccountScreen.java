@@ -180,24 +180,7 @@ public class CreditAccountScreen extends Activity {
     }
 
     private void payAll(long customerId,ArrayList<Long> ids,long total){
-        StringBuilder spoken=new StringBuilder();
-        SQLiteDatabase readDb=helper.getReadableDatabase();
-        for(long id:ids){
-            Cursor bill=readDb.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
-            if(bill.moveToFirst()){
-                String type=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),amount=bill.getLong(4),created=bill.getLong(5),now=PosDatabase.now();
-                boolean waive="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
-                spoken.append("บิล ").append(bill.getString(0)).append(" ยอดสินค้า ").append(PosDatabase.money(sub)).append(" บาท ");
-                if(fee>0){if(waive)spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ได้รับการยกเว้นเนื่องจากชำระภายใน 24 ชั่วโมง ");else spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ");}
-                spoken.append("ยอดที่ต้องชำระ ").append(PosDatabase.money(waive?sub:amount)).append(" บาท ");
-            }
-            bill.close();
-            Cursor items=readDb.query("bill_items",new String[]{"product_name","quantity","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-            while(items.moveToNext())spoken.append(items.getString(0)).append(" จำนวน ").append(items.getInt(1)).append(" ราคา ").append(PosDatabase.money(items.getLong(2))).append(" บาท ");
-            items.close();
-        }
-        spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
-        PosUi.speakThen(this,spoken.toString(),()->cashPaymentScreen(customerId,ids,total));
+        cashPaymentScreen(customerId,ids,total);
     }
 
     private void cashPaymentScreen(long customerId,ArrayList<Long> ids,long total){
