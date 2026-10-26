@@ -5,30 +5,32 @@ import static org.junit.Assert.*;
 
 public class BarcodeRulesTest {
     @Test public void upcACheckDigitMatchesKnownExamples() {
-        assertEquals(2, BarcodeScreen.upcCheckDigit("03600029145"));
-        assertEquals(5, BarcodeScreen.upcCheckDigit("01234567890"));
+        assertEquals(2, BarcodeRules.upcCheckDigit("03600029145"));
+        assertEquals(5, BarcodeRules.upcCheckDigit("01234567890"));
     }
 
     @Test public void generatedInternalBarcodeHasValidUpcACheckDigit() {
         String body = "29000000042";
-        String code = body + BarcodeScreen.upcCheckDigit(body);
+        String code = body + BarcodeRules.upcCheckDigit(body);
         assertEquals(12, code.length());
         assertTrue(code.matches("[0-9]{12}"));
-        assertEquals(code.charAt(11) - '0', BarcodeScreen.upcCheckDigit(code.substring(0, 11)));
-        int sum = 0;
-        for (int i = 0; i < code.length(); i++) {
-            sum += (code.charAt(i) - '0') * ((i % 2 == 0) ? 3 : 1);
-        }
-        assertEquals(0, sum % 10);
+        assertEquals(code.charAt(11) - '0', BarcodeRules.upcCheckDigit(code.substring(0, 11)));
+        assertTrue(BarcodeRules.isValidUpcA(code));
+    }
+
+    @Test public void rejectsInvalidFullUpcACodes() {
+        assertFalse(BarcodeRules.isValidUpcA("123"));
+        assertFalse(BarcodeRules.isValidUpcA("012345678901"));
+        assertFalse(BarcodeRules.isValidUpcA(null));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsWrongLengthForCheckDigit() {
-        BarcodeScreen.upcCheckDigit("1234567890");
+        BarcodeRules.upcCheckDigit("1234567890");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsNonNumericCheckDigitInput() {
-        BarcodeScreen.upcCheckDigit("1234567890A");
+        BarcodeRules.upcCheckDigit("1234567890A");
     }
 }
