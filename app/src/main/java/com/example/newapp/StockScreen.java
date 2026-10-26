@@ -98,9 +98,7 @@ public class StockScreen extends Activity {
                 ContentValues p=new ContentValues();p.put("stock",after);p.put("updated_at",PosDatabase.now());
                 int n=transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(id),String.valueOf(before)});
                 if(n!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างทำรายการ กรุณาสแกนใหม่");
-                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",name);h.put("change_type",type);
-                h.put("before_qty",before);h.put("after_qty",after);h.put("difference",after-before);h.put("created_at",PosDatabase.now());
-                transaction.insertOrThrow("stock_history",null,h);
+                PosRecords.stockMovement(transaction,id,barcode,name,type,before,after,null,PosDatabase.now());
                 PosDatabase.audit(transaction,"STOCK_"+type,"PRODUCT",String.valueOf(id),"barcode="+barcode+"; before="+before+"; after="+after);
                 return null;
             });
@@ -134,7 +132,7 @@ public class StockScreen extends Activity {
                 ContentValues cv=new ContentValues();cv.put("barcode",barcode);cv.put("name",nm);cv.put("price_satang",p);cv.put("stock",q);cv.put("stock_limit",l);cv.put("created_at",PosDatabase.now());cv.put("updated_at",PosDatabase.now());
                 long id=transaction.insertOrThrow("products",null,cv);
                 if(!registryExists){ContentValues br=new ContentValues();br.put("barcode",barcode);br.put("name",nm);br.put("price_satang",p);br.put("source","FACTORY");br.put("created_at",PosDatabase.now());transaction.insertOrThrow("barcode_registry",null,br);}
-                ContentValues h=new ContentValues();h.put("product_id",id);h.put("barcode",barcode);h.put("product_name",nm);h.put("change_type","INITIAL");h.put("before_qty",0);h.put("after_qty",q);h.put("difference",q);h.put("created_at",PosDatabase.now());transaction.insertOrThrow("stock_history",null,h);
+                PosRecords.stockMovement(transaction,id,barcode,nm,"INITIAL",0,q,null,PosDatabase.now());
                 PosDatabase.audit(transaction,"PRODUCT_CREATED","PRODUCT",String.valueOf(id),"barcode="+barcode+"; name="+nm+"; price_satang="+p+"; stock="+q+"; stock_limit=10");
                 return null;
             });
