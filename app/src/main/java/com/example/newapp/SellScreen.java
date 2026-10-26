@@ -274,8 +274,14 @@ public class SellScreen extends Activity {
                     }else{
                         String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
                         if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
+                        Cursor duplicateCustomer=transaction.query("customers",new String[]{"id"},"first_name=? COLLATE NOCASE AND last_name=? COLLATE NOCASE",new String[]{f,l},null,null,null,"1");
+                        if(duplicateCustomer.moveToFirst()){
+                            long existingId=duplicateCustomer.getLong(0);duplicateCustomer.close();
+                            throw new IllegalStateException("มีลูกค้าชื่อนี้อยู่แล้ว (รหัส #"+existingId+") กรุณาเลือกลูกค้าเดิมจากรายการ เพื่อไม่ให้ยอดหนี้แยกบัญชี");
+                        }
+                        duplicateCustomer.close();
                         ContentValues cv=new ContentValues();
-                        cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
+                        cv.put("full_name",f+" "+l);
                         cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
                         selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
                     }
