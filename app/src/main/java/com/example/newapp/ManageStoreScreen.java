@@ -37,10 +37,11 @@ public class ManageStoreScreen extends Activity {
         if(!"history".equals(mode))PosUi.speak(this,name+"ค่ะ");
         if("history".equals(mode)){history(barcode,name);return;}
         root=PosUi.page(this,"แก้ไขราคาสินค้า");PosUi.line(this,root,name);PosUi.line(this,root,"บาร์โค้ด: "+barcode);PosUi.line(this,root,"ราคาเดิม: "+PosDatabase.money(old)+" บาท");EditText price=PosUi.input(this,root,"ราคาขายใหม่ (บาท)");
-        PosUi.button(this,root,"บันทึกราคาใหม่",v->{try{long p=PosUi.satang(price);new AlertDialog.Builder(this).setMessage("ยืนยันเปลี่ยนราคา "+PosDatabase.money(old)+" เป็น "+PosDatabase.money(p)+" บาท?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->savePrice(id,barcode,name,old,p)).show();}catch(Exception e){price.setError("กรอกราคาให้ถูกต้อง");}});
+        PosUi.button(this,root,"บันทึกราคาใหม่",v->{try{long p=PosUi.satang(price);if(p<=0L){price.setError("ราคาขายต้องมากกว่า 0 บาท");return;}new AlertDialog.Builder(this).setMessage("ยืนยันเปลี่ยนราคา "+PosDatabase.money(old)+" เป็น "+PosDatabase.money(p)+" บาท?").setNegativeButton("ยกเลิก",null).setPositiveButton("ยืนยัน",(d,w)->savePrice(id,barcode,name,old,p)).show();}catch(Exception e){price.setError("กรอกราคาให้ถูกต้อง");}});
         PosUi.back(this,root);
     }
     private void savePrice(long id,String barcode,String name,long old,long next){
+        if(next<=0L){PosUi.result(this,false,"ราคาขายต้องมากกว่า 0 บาท",null);return;}
         boolean saved=false;String error=null;
         try{
             SQLiteDatabase db=helper.getWritableDatabase();
