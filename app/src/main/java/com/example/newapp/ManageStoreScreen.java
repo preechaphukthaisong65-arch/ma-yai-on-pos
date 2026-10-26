@@ -14,12 +14,19 @@ import com.google.zxing.integration.android.IntentResult;
 public class ManageStoreScreen extends Activity {
     private PosDatabase helper;private LinearLayout root;private String mode="";
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);PosAuth.requireOwner(this,this::home);}
-    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"จัดการข้อมูลลูกค้า",v->startActivity(new android.content.Intent(this,CreditAccountScreen.class)));PosUi.button(this,root,"สำรอง / กู้คืนข้อมูลร้าน",v->startActivity(new android.content.Intent(this,BackupRestoreScreen.class)));PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.back(this,root);}
+    private void home(){root=PosUi.page(this,"จัดการร้านค้า");PosUi.button(this,root,"แก้ไขราคาสินค้า",v->{mode="price";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"ค้นหาประวัติแก้ไขราคา",v->{mode="history";PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");});PosUi.button(this,root,"จัดการข้อมูลลูกค้า",v->startActivity(new android.content.Intent(this,CreditAccountScreen.class)));PosUi.button(this,root,"สำรอง / กู้คืนข้อมูลร้าน",v->startActivity(new android.content.Intent(this,BackupRestoreScreen.class)));PosUi.button(this,root,"คืนสินค้า / ยกเลิกบิล",v->returnMenu());PosUi.button(this,root,"รายการสินค้าชำรุด / หมดอายุ",v->showQuarantine());PosUi.back(this,root);}
     private void returnMenu(){
         root=PosUi.page(this,"คืนสินค้า / ยกเลิกบิล");
         PosUi.button(this,root,"สแกนบาร์โค้ดบนใบเสร็จ",v->{mode="cancel";PosBarcode.launch(this,"สแกนบาร์โค้ดบนใบเสร็จ");});
         PosUi.button(this,root,"คลังบิลคืนสินค้า / ยกเลิก",v->archive());
         PosUi.back(this,root);
+    }
+    private void showQuarantine(){
+        root=PosUi.page(this,"สินค้าชำรุด / หมดอายุ");
+        Cursor c=helper.getReadableDatabase().query("non_saleable_stock",new String[]{"product_name","barcode","quantity","disposition","reference","created_at"},null,null,null,null,"created_at DESC","200");
+        if(!c.moveToFirst())PosUi.line(this,root,"ยังไม่มีสินค้าที่ถูกแยกกัก");
+        else do{String disposition="DAMAGED".equals(c.getString(3))?"ชำรุด":"หมดอายุ";String line=c.getString(0)+" • "+disposition+" • จำนวน "+c.getInt(2)+" • บิล "+c.getString(4)+" • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(5)));PosUi.line(this,root,line);}while(c.moveToNext());
+        c.close();PosUi.back(this,root);
     }
     private void archive(){
         root=PosUi.page(this,"คลังบิลคืนสินค้า / ยกเลิก");
