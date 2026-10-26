@@ -14,7 +14,9 @@ final class PosBusinessRules {
     static long creditFee(long subtotalSatang) {
         if (subtotalSatang < 0L) throw new IllegalArgumentException("ยอดขายเชื่อต้องไม่ติดลบ");
         long whole = subtotalSatang / 20L;
-        return Math.addExact(whole, subtotalSatang % 20L == 0L ? 0L : 1L);
+        long remainder = subtotalSatang % 20L;
+        // 5% is subtotal / 20. Round to the nearest satang, with exact halves rounded up.
+        return Math.addExact(whole, remainder >= 10L ? 1L : 0L);
     }
 
     /** Amount due from an unpaid bill. Fee waivers must be explicitly approved by the owner; device time is not authorization. */
