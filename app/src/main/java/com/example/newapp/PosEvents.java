@@ -66,7 +66,8 @@ final class PosEvents {
     }
 
     static void productCreated(SQLiteDatabase db, long productId, String barcode, String name,
-                               long priceSatang, int initialQty, int stockLimit) {
+                               long priceSatang, int initialQty, int stockLimit, long now) {
+        PosRecords.stockMovement(db, productId, barcode, name, "INITIAL", 0, initialQty, null, now);
         PosDatabase.audit(db, "PRODUCT_CREATED", "PRODUCT", String.valueOf(productId),
                 "barcode=" + barcode + "; name=" + name + "; price_satang=" + priceSatang
                         + "; stock=" + initialQty + "; stock_limit=" + stockLimit);
