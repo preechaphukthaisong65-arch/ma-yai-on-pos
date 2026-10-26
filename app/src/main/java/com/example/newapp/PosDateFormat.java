@@ -16,7 +16,7 @@ public final class PosDateFormat {
         if (!value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}"))
             throw new IllegalArgumentException("ใช้รูปแบบ YYYY-MM-DD");
         int year = Integer.parseInt(value.substring(0, 4));
-        if (year >= 2400 && year <= 2700) year -= 543;
+        if (year >= 2443 && year <= 2743) year -= 543;
         if (year < 1900 || year > 2200)
             throw new IllegalArgumentException("ปีต้องเป็น ค.ศ. 1900–2200 หรือ พ.ศ. 2443–2743");
         return String.format(Locale.US, "%04d%s", year, value.substring(4));
