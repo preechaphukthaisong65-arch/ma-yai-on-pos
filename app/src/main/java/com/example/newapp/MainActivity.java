@@ -27,6 +27,10 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        OwnerAccess.ensureUnlocked(this, this::buildHome);
+    }
+
+    private void buildHome() {
         hideSystemBars();
         FrameLayout frame = new FrameLayout(this);
         int bg = getResources().getIdentifier("app_background", "drawable", getPackageName());
@@ -120,5 +124,5 @@ public class MainActivity extends Activity {
         parent.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(3)));
     }
 
-    @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); DebtReminderScheduler.scheduleIfMissing(this); boolean low=StockAlertManager.check(this); boolean overdue=DebtReminderNotifier.hasOverdue(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;String debtSummary=DebtReminderNotifier.homeSummary(this);if(!debtSummary.isEmpty())message+="     •     "+debtSummary;tickerView.setText(message);tickerView.setOnClickListener(overdue?v->DebtReminderNotifier.showOverdue(this):null);} }
+    @Override protected void onResume() { super.onResume(); hideSystemBars(); RetentionManager.run(this); DebtReminderScheduler.scheduleIfMissing(this); boolean low=StockAlertManager.check(this); DebtReminderNotifier.hasOverdue(this); if(tickerView!=null){String message=low?TICKER_BASE+"     •     มีสินค้า ต่ำกว่า ลิมิตสต๊อก":TICKER_BASE;String notice=StoreNotificationManager.recentHomeNotice(this);if(!notice.isEmpty())message+="     •     "+notice;String debtSummary=DebtReminderNotifier.homeSummary(this);if(!debtSummary.isEmpty())message+="     •     "+debtSummary;tickerView.setText(message);tickerView.setOnClickListener(null);} }
 }
