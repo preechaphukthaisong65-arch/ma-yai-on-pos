@@ -41,7 +41,7 @@ public class BarcodeScreen extends Activity {
             });
             price.setText(PosDatabase.money(generatedPriceHolder[0]));
             final String generatedCode=codeHolder[0];final long generatedPrice=generatedPriceHolder[0];final boolean wasReused=reusedHolder[0];
-            PosUi.result(this,true,"สินค้า: "+n+"\\nบาร์โค้ด: "+generatedCode+"\\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\\nใช้บาร์โค้ดเดิมจากคลัง":""),this::home);
+            PosUi.result(this,true,"สินค้า: "+n+"\nบาร์โค้ด: "+generatedCode+"\nราคา: "+PosDatabase.money(generatedPrice)+" บาท"+(wasReused?"\nใช้บาร์โค้ดเดิมจากคลัง":""),this::home);
         }catch(Exception e){PosUi.result(this,false,"สร้างไม่สำเร็จ: "+e.getMessage(),null);}});
         PosUi.back(this,root);
     }
