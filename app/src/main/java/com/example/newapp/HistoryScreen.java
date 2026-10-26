@@ -37,13 +37,36 @@ public class HistoryScreen extends Activity {
         if(c.moveToFirst()){
             String code=c.getString(0),type=c.getString(1),status=c.getString(2);long subtotal=c.getLong(3),fee=c.getLong(4),total=c.getLong(5);boolean waived="CREDIT".equals(type)&&"PAID".equals(status)&&feeWaived(id);
             PosUi.line(this,root,"เลขที่บิล: "+code);PosUi.line(this,root,"ประเภท: "+type);PosUi.line(this,root,"สถานะ: "+status);PosUi.line(this,root,"ยอดสินค้า: "+PosDatabase.money(subtotal)+" บาท");
-            if("CREDIT".equals(type)&&fee>0)PosUi.line(this,root,"ค่าบริการเดิม: "+PosDatabase.money(fee)+" บาท"+(waived?" (ยกเว้นแล้วเมื่อชำระภายใน 24 ชั่วโมง)":""));
+            if("CREDIT".equals(type)&&fee>0)PosUi.line(this,root,"ค่าบริการเดิม: "+PosDatabase.money(fee)+" บาท"+(waived?" (เจ้าของร้านอนุมัติยกเว้นแล้ว)":""));
             PosUi.line(this,root,"ยอดบิลเดิม: "+PosDatabase.money(total)+" บาท");
             if(waived)PosUi.line(this,root,"ยอดรับเงินจริง: "+PosDatabase.money(subtotal)+" บาท");
         }c.close();
+        PosUi.button(this,root,"แชร์ใบเสร็จ",v->PosReceiptOutput.share(this,receiptText(id)));
+        PosUi.button(this,root,"พิมพ์ใบเสร็จ",v->{try{PosReceiptOutput.print(this,"ใบเสร็จ POS",receiptText(id));}catch(Exception e){new AlertDialog.Builder(this).setMessage(e.getMessage()==null?"เปิดระบบพิมพ์ไม่สำเร็จ":e.getMessage()).setPositiveButton("ตกลง",null).show();}});
         Cursor it=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
         while(it.moveToNext())PosUi.line(this,root,it.getString(0)+" จำนวน "+it.getInt(1)+" × "+PosDatabase.money(it.getLong(2))+" = "+PosDatabase.money(it.getLong(3)));it.close();PosUi.back(this,root);
     }
+
+    private String receiptText(long id){
+        StringBuilder out=new StringBuilder("ร้านแม่ใหญ่อ่อน POS\\nใบเสร็จ / รายการขาย\\n");
+        Cursor b=helper.getReadableDatabase().rawQuery("SELECT b.bill_code,b.sale_type,b.status,b.subtotal_satang,b.fee_satang,b.total_satang,b.created_at,c.full_name FROM bills b LEFT JOIN customers c ON c.id=b.customer_id WHERE b.id=?",new String[]{String.valueOf(id)});
+        if(b.moveToFirst()){
+            String code=b.getString(0),type=b.getString(1),status=b.getString(2);long subtotal=b.getLong(3),fee=b.getLong(4),total=b.getLong(5),created=b.getLong(6);String customer=b.isNull(7)?"":b.getString(7);
+            out.append("เลขที่บิล: ").append(code).append("\\nวันที่: ").append(new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(created))).append("\\nประเภท: ").append(type).append("\\nสถานะ: ").append(status).append("\\n");
+            if(!customer.isEmpty())out.append("ลูกค้า: ").append(customer).append("\\n");
+            out.append("------------------------------\\n");
+            Cursor items=helper.getReadableDatabase().query("bill_items",new String[]{"product_name","quantity","unit_price_satang","line_total_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
+            while(items.moveToNext())out.append(items.getString(0)).append(" x").append(items.getInt(1)).append(" @ ").append(PosDatabase.money(items.getLong(2))).append(" = ").append(PosDatabase.money(items.getLong(3))).append(" บาท\\n");
+            items.close();
+            out.append("------------------------------\\nยอดสินค้า: ").append(PosDatabase.money(subtotal)).append(" บาท\\n");
+            if("CREDIT".equals(type)&&fee>0){out.append("ค่าบริการเดิม 5%: ").append(PosDatabase.money(fee)).append(" บาท\\n");if("PAID".equals(status)&&feeWaived(id))out.append("หมายเหตุ: เจ้าของร้านอนุมัติยกเว้นค่าบริการ\\n");}
+            out.append("ยอดบิลเดิม: ").append(PosDatabase.money(total)).append(" บาท\\n");
+            if("PAID".equals(status)&&"CREDIT".equals(type)&&feeWaived(id))out.append("ยอดรับจริง: ").append(PosDatabase.money(subtotal)).append(" บาท\\n");
+            out.append("ขอบคุณที่ใช้บริการ");
+        }
+        b.close();return out.toString();
+    }
+
     private boolean feeWaived(long billId){
         Cursor c=helper.getReadableDatabase().query("sales_ledger",new String[]{"id"},"bill_id=? AND event_type='CREDIT_FEE_WAIVED'",new String[]{String.valueOf(billId)},null,null,null,"1");
         boolean found=c.moveToFirst();c.close();return found;
