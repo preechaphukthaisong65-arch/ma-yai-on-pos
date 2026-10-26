@@ -26,7 +26,6 @@ public final class PosReceiptOutput {
         web.getSettings().setJavaScriptEnabled(false);
         web.setWebViewClient(new WebViewClient() {
             @Override public void onPageFinished(WebView view, String url) {
-                view.setWebViewClient(null);
                 manager.print(jobName, view.createPrintDocumentAdapter(jobName),
                         new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                                 .setResolution(new PrintAttributes.Resolution("pos", "POS", 300, 300))
