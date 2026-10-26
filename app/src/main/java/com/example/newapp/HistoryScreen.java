@@ -9,15 +9,19 @@ import android.os.Bundle;
 import android.widget.LinearLayout;
 
 public class HistoryScreen extends Activity {
-    private PosDatabase helper; private LinearLayout root;
+    private static final int BILLS_PAGE_SIZE=100;
+    private PosDatabase helper; private LinearLayout root; private int billsPage=0;
     @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
     private void home(){root=PosUi.page(this,"ประวัติการขาย");
-        PosUi.button(this,root,"รายการขายทั้งหมด",v->listBills());
+        PosUi.button(this,root,"รายการขายทั้งหมด",v->{billsPage=0;listBills();});
         PosUi.back(this,root);
     }
     private void listBills(){
         root=PosUi.page(this,"รายการขายทั้งหมด");
-        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC");
+        Cursor countCursor=helper.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM bills",null);
+        int totalBills=countCursor.moveToFirst()?countCursor.getInt(0):0;countCursor.close();
+        PosUi.line(this,root,"หน้า "+(billsPage+1)+" • บิลทั้งหมด "+totalBills);
+        Cursor c=helper.getReadableDatabase().query("bills",new String[]{"bill_code","total_satang","created_at","id","sale_type","subtotal_satang","status"},null,null,null,null,"created_at DESC",String.valueOf(BILLS_PAGE_SIZE),String.valueOf(billsPage*BILLS_PAGE_SIZE));
         while(c.moveToNext()){
             final long id=c.getLong(3);
             long amount=c.getLong(1);
@@ -28,7 +32,10 @@ public class HistoryScreen extends Activity {
             String label=c.getString(0)+" • "+statusLabel+" • "+amountLabel+" "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(c.getLong(2)));
             PosUi.button(this,root,label,v->details(id));
         }
-        c.close();PosUi.back(this,root);
+        c.close();
+        if(billsPage>0)PosUi.button(this,root,"← หน้าก่อน",v->{billsPage--;listBills();});
+        if((long)(billsPage+1)*BILLS_PAGE_SIZE<totalBills)PosUi.button(this,root,"หน้าถัดไป →",v->{billsPage++;listBills();});
+        PosUi.back(this,root);
     }
     private void details(long id){
         root=PosUi.page(this,"รายละเอียดบิล");
