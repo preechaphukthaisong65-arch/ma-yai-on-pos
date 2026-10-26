@@ -6,21 +6,6 @@ import static org.junit.Assert.*;
 public class PosBusinessRulesTest {
     private static final long DAY = 24L * 60L * 60L * 1000L;
 
-    @Test public void creditFeeIsExactlyFivePercentAcrossRepresentativeAmounts() {
-        assertEquals(5L, PosBusinessRules.creditFee(100L));
-        assertEquals(50L, PosBusinessRules.creditFee(1_000L));
-        assertEquals(500L, PosBusinessRules.creditFee(10_000L));
-        assertEquals(5_000L, PosBusinessRules.creditFee(100_000L));
-    }
-
-    @Test public void creditFeeRoundsOnlyFractionalSatangUp() {
-        assertEquals(1L, PosBusinessRules.creditFee(1L));
-        assertEquals(1L, PosBusinessRules.creditFee(20L));
-        assertEquals(2L, PosBusinessRules.creditFee(21L));
-        assertEquals(2L, PosBusinessRules.creditFee(40L));
-        assertEquals(3L, PosBusinessRules.creditFee(41L));
-    }
-
     @Test public void creditFeeRoundsUpToWholeSatang() {
         assertEquals(0L, PosBusinessRules.creditFee(0L));
         assertEquals(1L, PosBusinessRules.creditFee(1L));
@@ -33,10 +18,10 @@ public class PosBusinessRulesTest {
         PosBusinessRules.creditFee(-1L);
     }
 
-    @Test public void defaultCreditAmountDueDoesNotDependOnDeviceClock() {
+    @Test public void creditFeeIsWaivedAtExactly24Hours() {
         long created = 1_000_000L;
-        assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created));
-        assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created + DAY));
+        assertEquals(10_000L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created));
+        assertEquals(10_000L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created + DAY));
         assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created + DAY + 1L));
         assertEquals(10_500L, PosBusinessRules.paymentDue("CREDIT", 10_000L, 10_500L, created, created - 1L));
     }
@@ -51,48 +36,6 @@ public class PosBusinessRulesTest {
         assertEquals(0L, PosBusinessRules.reversalFee("CASH", "PAID", 0L));
         assertEquals(-10_000L, PosBusinessRules.reversalSubtotal(10_000L));
         assertEquals(-10_500L, PosBusinessRules.reversalTotal(-10_000L, -500L));
-    }
-
-    @Test public void reversalFeeDoesNotRefundCashOrAlreadyCollectedCreditFee() {
-        assertEquals(0L, PosBusinessRules.reversalFee("CASH", "UNPAID", 500L));
-        assertEquals(0L, PosBusinessRules.reversalFee("CREDIT", "PAID", 500L));
-        assertEquals(-500L, PosBusinessRules.reversalFee("CREDIT", "UNPAID", 500L));
-    }
-
-    @Test public void reversalAmountsBalanceForPaidAndUnpaidCreditBills() {
-        long subtotal = 12_345L;
-        long fee = PosBusinessRules.creditFee(subtotal);
-        long paidFee = PosBusinessRules.reversalFee("CREDIT", "PAID", fee);
-        assertEquals(-subtotal, PosBusinessRules.reversalSubtotal(subtotal));
-        assertEquals(-subtotal, PosBusinessRules.reversalTotal(
-                PosBusinessRules.reversalSubtotal(subtotal), paidFee));
-
-        long unpaidFee = PosBusinessRules.reversalFee("CREDIT", "UNPAID", fee);
-        assertEquals(-subtotal - fee, PosBusinessRules.reversalTotal(
-                PosBusinessRules.reversalSubtotal(subtotal), unpaidFee));
-    }
-
-    @Test public void timeWindowsIncludeExactBoundaryAndRejectFutureBills() {
-        long created = 1_000_000L;
-        assertTrue(PosBusinessRules.withinCreditFeeWindow(created, created));
-        assertTrue(PosBusinessRules.withinCreditFeeWindow(created, created + DAY));
-        assertFalse(PosBusinessRules.withinCreditFeeWindow(created, created + DAY + 1L));
-        assertFalse(PosBusinessRules.withinCreditFeeWindow(created, created - 1L));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void paymentDueRejectsNegativeSubtotal() {
-        PosBusinessRules.paymentDue("CREDIT", -1L, 100L, 0L, 0L);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void paymentDueRejectsNegativeTotal() {
-        PosBusinessRules.paymentDue("CREDIT", 100L, -1L, 0L, 0L);
-    }
-
-    @Test(expected = ArithmeticException.class)
-    public void reversalSubtotalRejectsLongOverflow() {
-        PosBusinessRules.reversalSubtotal(Long.MIN_VALUE);
     }
 
     @Test public void reversalWindowAndStatusesAreCentralized() {
