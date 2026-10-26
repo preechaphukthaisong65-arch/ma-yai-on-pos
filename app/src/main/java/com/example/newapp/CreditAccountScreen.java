@@ -9,6 +9,7 @@ import android.widget.EditText;
 import android.os.Bundle;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.HashSet;
 
@@ -162,13 +163,19 @@ public class CreditAccountScreen extends Activity {
     }
 
     private long payableTotal(long customerId,ArrayList<Long> ids){
-        long total=0,now=PosDatabase.now();SQLiteDatabase db=helper.getReadableDatabase();
+        long total=0;SQLiteDatabase db=helper.getReadableDatabase();
         for(long id:ids){
-            Cursor c=db.query("bills",new String[]{"sale_type","subtotal_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
-            if(c.moveToFirst()){
-                String type=c.getString(0);long subtotal=c.getLong(1),amount=c.getLong(2),created=c.getLong(3);
-                total=Math.addExact(total,PosBusinessRules.paymentDue(type,subtotal,amount,created,now));
-            }
+            Cursor c=db.query("bills",new String[]{"total_satang"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
+            if(c.moveToFirst())total=Math.addExact(total,c.getLong(0));
+            c.close();
+        }
+        return total;
+    }
+    private long selectedCreditFees(long customerId,ArrayList<Long> ids){
+        long total=0;SQLiteDatabase db=helper.getReadableDatabase();
+        for(long id:ids){
+            Cursor c=db.query("bills",new String[]{"fee_satang","sale_type"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
+            if(c.moveToFirst()&&"CREDIT".equals(c.getString(1)))total=Math.addExact(total,c.getLong(0));
             c.close();
         }
         return total;
@@ -186,23 +193,33 @@ public class CreditAccountScreen extends Activity {
 
     private void cashPaymentScreen(long customerId,ArrayList<Long> ids,long total){
         root=PosUi.page(this,"รับชำระบิลค้างชำระ");
-        PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท");
+        long feeTotal=selectedCreditFees(customerId,ids);
+        CheckBox waiveFee=new CheckBox(this);
+        waiveFee.setText("เจ้าของร้านอนุมัติยกเว้นค่าบริการขายเชื่อ ("+PosDatabase.money(feeTotal)+" บาท)");
+        waiveFee.setChecked(false);
+        if(feeTotal>0)root.addView(waiveFee,new LinearLayout.LayoutParams(-1,-2));
+        TextView dueLabel=PosUi.text(this,"ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท",16,android.graphics.Color.BLACK);
+        root.addView(dueLabel,new LinearLayout.LayoutParams(-1,-2));
+        if(feeTotal>0)waiveFee.setOnCheckedChangeListener((button,checked)->dueLabel.setText("ยอดที่ต้องชำระ "+PosDatabase.money(checked?Math.subtractExact(total,feeTotal):total)+" บาท"));
         EditText received=PosUi.input(this,root,"รับเงินสด (บาท)");
         PosUi.button(this,root,"ยืนยันรับเงินสด",v->{
+            long effectiveTotal=total;
+            try{if(waiveFee.isChecked())effectiveTotal=Math.subtractExact(total,feeTotal);}catch(ArithmeticException e){received.setError("คำนวณยอดยกเว้นไม่สำเร็จ");return;}
             long cash;
             try{cash=PosUi.satang(received);}catch(Exception e){received.setError("กรอกจำนวนเงินให้ถูกต้อง");return;}
-            if(cash<total){received.setError("เงินรับไม่พอ");return;}
+            if(cash<effectiveTotal){received.setError("เงินรับไม่พอ");return;}
             long change;
-            try{change=Math.subtractExact(cash,total);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
+            try{change=Math.subtractExact(cash,effectiveTotal);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
+            final boolean approvedWaiver=waiveFee.isChecked();
             new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
-                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
+                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(effectiveTotal)+" บาท"+(approvedWaiver?"\nเจ้าของร้านอนุมัติยกเว้นค่าบริการ "+PosDatabase.money(feeTotal)+" บาท":"")+"\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
                 .setNegativeButton("กลับไปแก้ไข",null)
-                .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,total,cash,change)).show();
+                .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,effectiveTotal,cash,change,approvedWaiver)).show();
         });
         PosUi.back(this,root);
     }
 
-    private void recordPayment(long customerId,ArrayList<Long> ids,long total,long cashReceived,long change){
+    private void recordPayment(long customerId,ArrayList<Long> ids,long total,long cashReceived,long change,boolean ownerWaivedFee){
         boolean paid=false;String error=null;
         StringBuilder receipt=new StringBuilder("ใบรับชำระเงิน\n");
         try{
@@ -214,13 +231,13 @@ public class CreditAccountScreen extends Activity {
                     if(!c.moveToFirst()){c.close();throw new IllegalStateException("ไม่พบบิล");}
                     String code=c.getString(0),type=c.getString(1),status=c.getString(5);long sub=c.getLong(2),fee=c.getLong(3),amount=c.getLong(4);c.close();
                     if(!"UNPAID".equals(status))throw new IllegalStateException("บิลนี้ถูกชำระไปแล้ว");
-                    long created=getBillTime(transaction,id);boolean waiveFee="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
-                    long collected=PosBusinessRules.paymentDue(type,sub,amount,created,now);actualTotal[0]=Math.addExact(actualTotal[0],collected);
+                    boolean waiveFee=ownerWaivedFee&&"CREDIT".equals(type)&&fee>0;
+                    long collected=waiveFee?sub:amount;actualTotal[0]=Math.addExact(actualTotal[0],collected);
                     ContentValues p=new ContentValues();p.put("status","PAID");p.put("paid_at",now);
                     if(transaction.update("bills",p,"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)})!=1)throw new IllegalStateException("สถานะบิลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่");
                     ContentValues pay=new ContentValues();pay.put("bill_id",id);pay.put("amount_satang",collected);pay.put("created_at",now);transaction.insertOrThrow("payments",null,pay);
                     PosEvents.payment(transaction,id,code,collected,cashReceived,change,now);
-                    receipt.append("บิล ").append(code).append(" (บาร์โค้ดเดิม) รับชำระ ").append(PosDatabase.money(collected)).append(" บาท\n");
+                    receipt.append("บิล ").append(code).append(" รับชำระ ").append(PosDatabase.money(collected)).append(" บาท").append(waiveFee?" (ยกเว้นค่าบริการโดยเจ้าของร้าน)":"").append("\n");
                     if(waiveFee)PosEvents.creditFeeWaived(transaction,id,code,type,fee,now);
                 }
                 if(actualTotal[0]!=total)throw new IllegalStateException("ยอดชำระเปลี่ยนระหว่างยืนยัน กรุณาตรวจสอบยอดใหม่ก่อนรับเงิน");
