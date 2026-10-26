@@ -10,7 +10,7 @@ import java.util.ArrayList;
 /** Single-device, offline-first database shared by all POS menus. Money is stored in satang. */
 public final class PosDatabase extends SQLiteOpenHelper {
     private static final String DB_NAME = "maeyai_on_pos.db";
-    private static final int DB_VERSION = 11;
+    private static final int DB_VERSION = 12;
     private static volatile PosDatabase instance;
 
     public static synchronized PosDatabase get(Context context) {
@@ -44,7 +44,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE barcode_registry (barcode TEXT PRIMARY KEY, name TEXT NOT NULL," +
                 "price_satang INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_barcode_registry_name ON barcode_registry(name COLLATE NOCASE)");
-        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL UNIQUE COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE bills (id INTEGER PRIMARY KEY AUTOINCREMENT, bill_code TEXT NOT NULL UNIQUE," +
                 "customer_id INTEGER, sale_type TEXT NOT NULL CHECK(sale_type IN ('CASH','CREDIT'))," +
                 "status TEXT NOT NULL CHECK(status IN ('PAID','UNPAID','CANCELLED','RETURNED'))," +
@@ -168,6 +168,15 @@ public final class PosDatabase extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE bill_items_new RENAME TO bill_items");
             db.execSQL("CREATE INDEX idx_bill_items_product ON bill_items(product_id)");
             db.execSQL("CREATE INDEX idx_bill_items_bill_id ON bill_items(bill_id)");
+        }
+
+
+        if (oldVersion < 12) {
+            // Remove the legacy UNIQUE constraint without changing customer IDs or bill references.
+            db.execSQL("CREATE TABLE customers_new (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)");
+            db.execSQL("INSERT INTO customers_new(id,full_name,first_name,last_name,created_at) SELECT id, CASE WHEN TRIM(COALESCE(first_name,''))<>'' AND TRIM(COALESCE(last_name,''))<>'' THEN TRIM(first_name)||' '||TRIM(last_name) ELSE full_name END, COALESCE(first_name,''), COALESCE(last_name,''), created_at FROM customers");
+            db.execSQL("DROP TABLE customers");
+            db.execSQL("ALTER TABLE customers_new RENAME TO customers");
         }
 
         if (oldVersion < 11) {
