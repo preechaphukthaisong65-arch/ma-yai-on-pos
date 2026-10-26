@@ -11,6 +11,16 @@ final class PosBusinessRules {
     private PosBusinessRules() {}
 
     /** 5% credit fee, rounded upward to the next satang. */
+    /** EAN-13 check digit for a 12-digit payload. */
+    static String ean13CheckDigit(String payload) {
+        if (payload == null || !payload.matches("[0-9]{12}"))
+            throw new IllegalArgumentException("ข้อมูลบาร์โค้ดไม่ถูกต้อง");
+        int sum = 0;
+        for (int i = 0; i < payload.length(); i++)
+            sum += (payload.charAt(i) - '0') * ((i % 2) == 0 ? 1 : 3);
+        return String.valueOf((10 - (sum % 10)) % 10);
+    }
+
     static long creditFee(long subtotalSatang) {
         if (subtotalSatang < 0L) throw new IllegalArgumentException("ยอดขายเชื่อต้องไม่ติดลบ");
         long whole = subtotalSatang / 20L;

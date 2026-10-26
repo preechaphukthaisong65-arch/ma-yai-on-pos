@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.graphics.drawable.GradientDrawable;
@@ -87,6 +89,9 @@ final class PosUi {
     private static boolean ttsInitializing=false;
     private static final ArrayDeque<SpeechRequest> SPEECH_QUEUE=new ArrayDeque<>();
     private static final java.util.HashMap<String,SpeechRequest> SPEECH_CALLBACKS=new java.util.HashMap<>();
+    private static final java.util.HashMap<String,Runnable> SPEECH_TIMEOUTS=new java.util.HashMap<>();
+    private static final Handler SPEECH_HANDLER=new Handler(Looper.getMainLooper());
+    private static final long SPEECH_TIMEOUT_MILLIS=15000L;
     private static final class SpeechRequest {
         final java.lang.ref.WeakReference<Activity> activity;
         final String message;
@@ -141,13 +146,28 @@ final class PosUi {
         }
         SPEECH_CALLBACKS.put(request.id,request);
         int result=sharedTts.speak(request.message,TextToSpeech.QUEUE_ADD,null,request.id);
-        if(result==TextToSpeech.ERROR)completeSpeech(request.id);
+        if(result==TextToSpeech.ERROR){completeSpeech(request.id);return;}
+        Runnable timeout=()->{
+            synchronized(PosUi.class){
+                if(!SPEECH_CALLBACKS.containsKey(request.id))return;
+                if(sharedTts!=null)sharedTts.stop();
+            }
+            completeSpeech(request.id);
+        };
+        synchronized(PosUi.class){
+            if(SPEECH_CALLBACKS.containsKey(request.id)){
+                SPEECH_TIMEOUTS.put(request.id,timeout);
+                SPEECH_HANDLER.postDelayed(timeout,SPEECH_TIMEOUT_MILLIS);
+            }
+        }
     }
     private static void completeSpeech(String id) {
         SpeechRequest request;
         synchronized(PosUi.class) {
             request=SPEECH_CALLBACKS.remove(id);
-            speakNext();
+            Runnable timeout=SPEECH_TIMEOUTS.remove(id);
+            if(timeout!=null)SPEECH_HANDLER.removeCallbacks(timeout);
+            if(request!=null)speakNext();
         }
         if(request!=null)runAfter(request);
     }
@@ -202,9 +222,33 @@ final class PosUi {
         if(container==null)return;
         BackNavigation.attach(a,container,()->PosNavigation.back(a));
     }
+    static void receipt(Activity a,String message,Runnable after) {
+        AlertDialog dialog=new AlertDialog.Builder(a)
+                .setTitle("ใบเสร็จ / ใบรับชำระเงิน")
+                .setMessage(message)
+                .setNeutralButton("แชร์ใบเสร็จ",null)
+                .setPositiveButton("ปิด",(d,w)->{if(after!=null)after.run();})
+                .create();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->{
+            Intent send=new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_TEXT,message);
+            try{
+                a.startActivity(Intent.createChooser(send,"แชร์ใบเสร็จ"));
+                dialog.dismiss();
+                if(after!=null)after.run();
+            }catch(Exception e){
+                new AlertDialog.Builder(a).setMessage("ไม่สามารถเปิดเมนูแชร์ได้ กรุณาแสดงใบเสร็จบนหน้าจอ")
+                        .setPositiveButton("ตกลง",null).show();
+            }
+        }));
+        dialog.show();
+        speak(a,"บันทึกสำเร็จค่ะ");
+    }
+
     static void result(Activity a,boolean success,String message,Runnable after) {
         String title=success?"บันทึกสำเร็จ":"บันทึกไม่สำเร็จ";
         new AlertDialog.Builder(a).setTitle(title).setMessage(message).setPositiveButton("ตกลง",(d,w)->{if(after!=null)after.run();}).show();
-        speak(a,(success?"บันทึกสำเร็จ ":"บันทึกไม่สำเร็จ ")+message);
+        speak(a,success?"บันทึกสำเร็จค่ะ":"บันทึกไม่สำเร็จค่ะ");
     }
 }

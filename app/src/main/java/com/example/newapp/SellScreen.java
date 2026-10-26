@@ -141,15 +141,27 @@ public class SellScreen extends Activity {
         rowParams.topMargin=PosUi.dp(this,12);
         root.addView(row,rowParams);
     }
+    @Override public void onBackPressed(){PosNavigation.back(this);}
+    void confirmExitIfCartNotEmpty(){
+        if(saleInProgress)return;
+        if(cart.isEmpty()){finish();return;}
+        new AlertDialog.Builder(this)
+                .setTitle("ยังมีสินค้าในตะกร้า")
+                .setMessage("หากออกจากหน้าขาย รายการสินค้าในตะกร้าจะหายไป ต้องการออกหรือไม่?")
+                .setNegativeButton("กลับไปขาย",null)
+                .setPositiveButton("ทิ้งตะกร้าและออก",(dialog,which)->{cart.clear();finish();})
+                .show();
+    }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
-        StringBuilder summary=new StringBuilder("รายการสินค้าในตะกร้าทั้งหมด ");
-        for(Item i:cart.values())summary.append(i.name).append(" จำนวน ").append(i.qty).append(" รายการ ");
-        PosUi.speakThen(this,summary.toString(),this::paymentChoice);
+        paymentChoice();
     }
     private void paymentChoice(){
-        root=PosUi.page(this,"เลือกวิธีขาย");
-        addSideBySideButtons(root,"ชำระเงินสด",v->cashSale(),"ค้างชำระ",v->creditSale());
+        root=PosUi.page(this,"ตรวจสอบตะกร้าก่อนขาย");
+        for(Item item:cart.values())PosUi.line(this,root,item.name+" × "+item.qty+" • "+PosDatabase.money(lineTotal(item))+" บาท");
+        PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(subtotal())+" บาท");
+        addSideBySideButtons(root,"ชำระเงินสด",v->cashSale(),"ขายเชื่อ",v->creditSale());
+        PosUi.back(this,root);
     }
     private void cashSale(){
         root=PosUi.page(this,"รับชำระเงินสด");PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(subtotal())+" บาท");
@@ -274,8 +286,14 @@ public class SellScreen extends Activity {
                     }else{
                         String f=firstName==null?"":firstName.trim(),l=lastName==null?"":lastName.trim();
                         if(f.isEmpty()||l.isEmpty())throw new IllegalStateException("กรอกชื่อและนามสกุลลูกค้าให้ครบ");
+                        Cursor duplicateCustomer=transaction.query("customers",new String[]{"id"},"first_name=? COLLATE NOCASE AND last_name=? COLLATE NOCASE",new String[]{f,l},null,null,null,"1");
+                        if(duplicateCustomer.moveToFirst()){
+                            long existingId=duplicateCustomer.getLong(0);duplicateCustomer.close();
+                            throw new IllegalStateException("มีลูกค้าชื่อนี้อยู่แล้ว (รหัส #"+existingId+") กรุณาเลือกลูกค้าเดิมจากรายการ เพื่อไม่ให้ยอดหนี้แยกบัญชี");
+                        }
+                        duplicateCustomer.close();
                         ContentValues cv=new ContentValues();
-                        cv.put("full_name",f+" "+l+" ["+java.util.UUID.randomUUID().toString()+"]");
+                        cv.put("full_name",f+" "+l);
                         cv.put("first_name",f);cv.put("last_name",l);cv.put("created_at",now);
                         selectedCustomerId=transaction.insertOrThrow("customers",null,cv);
                     }
@@ -298,7 +316,7 @@ public class SellScreen extends Activity {
         finally{saleInProgress=false;}
         if(saved){
             cart.clear();StockAlertManager.check(this);
-            PosUi.result(this,true,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
+            PosUi.receipt(this,"เลขที่บิล "+savedCode[0]+"\nยอดสินค้า "+PosDatabase.money(sub)+" บาท\n"+(credit?"ค่าบริการ 5% "+PosDatabase.money(fee)+" บาท\nยอดหนี้ "+PosDatabase.money(total)+" บาท":"รับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(cash-total)+" บาท"),this::home);
         }else PosUi.result(this,false,error==null?"บันทึกการขายไม่สำเร็จ":error,null);
     }
 }

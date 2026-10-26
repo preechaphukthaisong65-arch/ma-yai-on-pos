@@ -16,7 +16,7 @@ public class CreditAccountScreen extends Activity {
     private PosDatabase helper;
     private LinearLayout root;
 
-    @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);if(getIntent().getBooleanExtra("arrears_search_mode",false))arrearsSearch();else home();}
+    @Override protected void onCreate(Bundle state){super.onCreate(state);helper=PosDatabase.get(this);OwnerAccess.confirmOwnerAction(this,"ดูข้อมูลลูกค้าและหนี้",()->{if(getIntent().getBooleanExtra("arrears_search_mode",false))arrearsSearch();else home();});}
 
     private void arrearsSearch(){
         root=PosUi.page(this,"ชำระบิลค้างชำระ");
@@ -142,7 +142,7 @@ public class CreditAccountScreen extends Activity {
         long dueTotal=0;
         while(c.moveToNext()){
             long id=c.getLong(0),amount=c.getLong(2);String code=c.getString(1);long created=c.getLong(3);
-            allIds.add(id);selected.add(id);dueTotal+=amount;
+            allIds.add(id);dueTotal=Math.addExact(dueTotal,amount);
             CheckBox box=new CheckBox(this);
             box.setText(code+" • "+PosDatabase.money(amount)+" บาท • "+new java.text.SimpleDateFormat("dd/MM/yyyy",java.util.Locale.getDefault()).format(new java.util.Date(created)));
             box.setChecked(false);box.setOnCheckedChangeListener((button,checked)->{if(checked)selected.add(id);else selected.remove(id);});
@@ -180,24 +180,7 @@ public class CreditAccountScreen extends Activity {
     }
 
     private void payAll(long customerId,ArrayList<Long> ids,long total){
-        StringBuilder spoken=new StringBuilder();
-        SQLiteDatabase readDb=helper.getReadableDatabase();
-        for(long id:ids){
-            Cursor bill=readDb.query("bills",new String[]{"bill_code","sale_type","subtotal_satang","fee_satang","total_satang","created_at"},"id=? AND customer_id=? AND status='UNPAID'",new String[]{String.valueOf(id),String.valueOf(customerId)},null,null,null);
-            if(bill.moveToFirst()){
-                String type=bill.getString(1);long sub=bill.getLong(2),fee=bill.getLong(3),amount=bill.getLong(4),created=bill.getLong(5),now=PosDatabase.now();
-                boolean waive="CREDIT".equals(type)&&PosBusinessRules.withinCreditFeeWindow(created,now);
-                spoken.append("บิล ").append(bill.getString(0)).append(" ยอดสินค้า ").append(PosDatabase.money(sub)).append(" บาท ");
-                if(fee>0){if(waive)spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ได้รับการยกเว้นเนื่องจากชำระภายใน 24 ชั่วโมง ");else spoken.append("ค่าบริการ ").append(PosDatabase.money(fee)).append(" บาท ");}
-                spoken.append("ยอดที่ต้องชำระ ").append(PosDatabase.money(waive?sub:amount)).append(" บาท ");
-            }
-            bill.close();
-            Cursor items=readDb.query("bill_items",new String[]{"product_name","quantity","unit_price_satang"},"bill_id=?",new String[]{String.valueOf(id)},null,null,null);
-            while(items.moveToNext())spoken.append(items.getString(0)).append(" จำนวน ").append(items.getInt(1)).append(" ราคา ").append(PosDatabase.money(items.getLong(2))).append(" บาท ");
-            items.close();
-        }
-        spoken.append("ยอดรับชำระเงินสด ").append(PosDatabase.money(total)).append(" บาท");
-        PosUi.speakThen(this,spoken.toString(),()->cashPaymentScreen(customerId,ids,total));
+        cashPaymentScreen(customerId,ids,total);
     }
 
     private void cashPaymentScreen(long customerId,ArrayList<Long> ids,long total){
@@ -211,7 +194,7 @@ public class CreditAccountScreen extends Activity {
             long change;
             try{change=Math.subtractExact(cash,total);}catch(ArithmeticException e){received.setError("จำนวนเงินเกินขอบเขตที่ระบบรองรับ");return;}
             new AlertDialog.Builder(this).setTitle("ยืนยันรับชำระหนี้")
-                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\\nรับเงิน "+PosDatabase.money(cash)+" บาท\\nเงินทอน "+PosDatabase.money(change)+" บาท")
+                .setMessage("ยอดที่ต้องชำระ "+PosDatabase.money(total)+" บาท\nรับเงิน "+PosDatabase.money(cash)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท")
                 .setNegativeButton("กลับไปแก้ไข",null)
                 .setPositiveButton("ยืนยันรับเงิน",(dialog,which)->recordPayment(customerId,ids,total,cash,change)).show();
         });
@@ -244,7 +227,7 @@ public class CreditAccountScreen extends Activity {
             });
             paid=true;
         }catch(Exception e){error=e.getMessage()==null?"รับชำระไม่สำเร็จ":e.getMessage();paid=false;}
-        if(paid)PosUi.result(this,true,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt+"ยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท",this::arrearsSearch);
+        if(paid)PosUi.receipt(this,"บันทึกรับชำระหนี้เรียบร้อย\n"+receipt+"ยอดรับเงินสด "+PosDatabase.money(cashReceived)+" บาท\nเงินทอน "+PosDatabase.money(change)+" บาท",this::arrearsSearch);
         else PosUi.result(this,false,"รับชำระไม่สำเร็จ: "+(error==null?"ข้อผิดพลาดฐานข้อมูล":error),null);
     }
 

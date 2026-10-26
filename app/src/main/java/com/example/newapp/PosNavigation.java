@@ -46,6 +46,8 @@ final class PosNavigation {
             View previous = stack.pop();
             activity.setContentView(previous);
             if (stack.isEmpty()) STACKS.remove(activity);
+        } else if (activity instanceof SellScreen) {
+            ((SellScreen) activity).confirmExitIfCartNotEmpty();
         } else {
             activity.finish();
         }
