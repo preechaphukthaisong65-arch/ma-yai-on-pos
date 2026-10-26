@@ -14,7 +14,6 @@ import android.widget.TextView;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Arrays;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -42,7 +41,7 @@ public final class OwnerSecurity {
             long seconds = Math.max(1L, (lockUntil - now + 999L) / 1000L);
             new AlertDialog.Builder(activity).setTitle("ล็อกการยืนยันตัวตนชั่วคราว")
                     .setMessage("ลองรหัสผิดหลายครั้ง กรุณารอ " + seconds + " วินาที")
-                    .setPositiveButton("ตกลง", null).show();
+                    .setPositiveButton("ตกลง", (d, w) -> activity.finish()).show();
             return;
         }
         promptPin(activity, reason, action);
@@ -94,7 +93,7 @@ public final class OwnerSecurity {
                     if (verify(recovery.getText().toString(), p.getString("recovery_salt", ""), p.getString("recovery_hash", ""))) {
                         setupPin(a, action, p.getString("recovery_hash", ""));
                     } else {
-                        new AlertDialog.Builder(a).setMessage("รหัสกู้คืนไม่ถูกต้อง").setPositiveButton("ตกลง", null).show();
+                        new AlertDialog.Builder(a).setMessage("รหัสกู้คืนไม่ถูกต้อง").setPositiveButton("ลองอีกครั้ง", (x, y) -> promptRecovery(a, action)).show();
                     }
                 }).show();
     }
@@ -110,11 +109,11 @@ public final class OwnerSecurity {
         fields.addView(first); fields.addView(second);
         new AlertDialog.Builder(a).setTitle("ตั้ง PIN เจ้าของร้าน").setView(fields)
                 .setMessage("ใช้ตัวเลข 6 หลัก และอย่าใช้วันเกิดหรือรหัสที่เดาง่าย")
-                .setNegativeButton("ยกเลิก", null)
+                .setNegativeButton("ยกเลิก", (d, w) -> a.finish())
                 .setPositiveButton("บันทึก", (d, w) -> {
                     String one = first.getText().toString(), two = second.getText().toString();
                     if (!one.matches("[0-9]{6}") || !one.equals(two)) {
-                        new AlertDialog.Builder(a).setMessage("PIN ต้องเป็นตัวเลข 6 หลักและต้องตรงกัน").setPositiveButton("ตกลง", null).show();
+                        new AlertDialog.Builder(a).setMessage("PIN ต้องเป็นตัวเลข 6 หลักและต้องตรงกัน").setPositiveButton("ลองอีกครั้ง", (x, y) -> setupPin(a, action, oldRecoveryHash)).show();
                         return;
                     }
                     byte[] pinSalt = random(SALT_BYTES);
