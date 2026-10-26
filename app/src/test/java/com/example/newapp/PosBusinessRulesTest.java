@@ -13,6 +13,13 @@ public class PosBusinessRulesTest {
         assertEquals(6L, PosBusinessRules.creditFee(101L));
     }
 
+    @Test public void creditUnitPriceIncludesFivePercentInsteadOfSeparateFee() {
+        assertEquals(10_500L, PosBusinessRules.creditUnitPrice(10_000L));
+        assertEquals(21_000L, PosBusinessRules.creditUnitPrice(20_000L));
+        assertEquals(107L, PosBusinessRules.creditUnitPrice(101L));
+        assertEquals(0L, PosBusinessRules.creditUnitPrice(0L));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void creditFeeRejectsNegativeSubtotal() {
         PosBusinessRules.creditFee(-1L);
