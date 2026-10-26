@@ -57,11 +57,11 @@ public class SellScreen extends Activity {
     private void scan(){
         // Keep the cart screen as the return destination after each barcode scan.
         scanning=true;
-        PosUi.scan(this,"สแกนบาร์โค้ดสินค้า");
+        PosBarcode.launch(this,"สแกนบาร์โค้ดสินค้า");
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
         super.onActivityResult(requestCode,resultCode,data);
-        IntentResult result=IntentIntegrator.parseActivityResult(requestCode,resultCode,data);
+        IntentResult result=PosBarcode.parseResult(requestCode,resultCode,data);
         if(result==null)return;
         scanning=false;
         if(result.getContents()!=null){
@@ -71,9 +71,12 @@ public class SellScreen extends Activity {
         }
     }
     private void addScanned(String barcode){
-        Cursor c=helper.getReadableDatabase().query("products",new String[]{"id","name","price_satang","stock"},"barcode=? AND active=1",new String[]{barcode},null,null,null,"1");
+        Cursor c=helper.findProduct(helper.getReadableDatabase(),PosBarcode.trimmed(barcode));
         if(!c.moveToFirst()){c.close();PosUi.speakThen(this,"ไม่พบสินค้าในคลังค่ะ",this::showScanScreen);return;}
-        long id=c.getLong(0);String name=c.getString(1);long price=c.getLong(2);int stock=c.getInt(3);c.close();
+        long id=c.getLong(c.getColumnIndexOrThrow("id"));
+        String name=c.getString(c.getColumnIndexOrThrow("name"));
+        long price=c.getLong(c.getColumnIndexOrThrow("price_satang"));
+        int stock=c.getInt(c.getColumnIndexOrThrow("stock"));c.close();
         Item old=cart.get(id);
         if(stock<=0||(old!=null&&old.qty>=old.stock)){PosUi.speakThen(this,"สินค้า "+name+" ไม่มีสต๊อกเพียงพอค่ะ",this::showScanScreen);return;}
         if(old==null){Item item=new Item(id,barcode,name,price,stock);cart.put(id,item);}else old.qty++;
