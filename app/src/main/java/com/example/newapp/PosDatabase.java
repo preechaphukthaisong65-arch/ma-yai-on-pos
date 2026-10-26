@@ -220,7 +220,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
     /** Append-only operational audit entry. Actor identity remains unknown until user accounts are implemented. */
     public static void audit(SQLiteDatabase db, String action, String entityType, String entityId, String details) {
         ContentValues row = new ContentValues();
-        row.put("actor_label", "ยังไม่ระบุผู้ใช้");
+        row.put("actor_label", PosAuth.actorLabel());
         row.put("action", action);
         row.put("entity_type", entityType);
         if (entityId != null) row.put("entity_id", entityId);
