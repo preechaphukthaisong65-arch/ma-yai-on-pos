@@ -18,7 +18,7 @@ public class PosBusinessRulesTest {
 
     @Test public void ean13CheckDigitMatchesKnownBarcode() {
         assertEquals("1", PosBusinessRules.ean13CheckDigit("400638133393"));
-        assertEquals("7", PosBusinessRules.ean13CheckDigit("200000000000"));
+        assertEquals("8", PosBusinessRules.ean13CheckDigit("200000000000"));
     }
 
     @Test(expected = IllegalArgumentException.class)
