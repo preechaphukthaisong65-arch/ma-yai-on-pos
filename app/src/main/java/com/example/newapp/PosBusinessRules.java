@@ -6,6 +6,7 @@ package com.example.newapp;
  */
 final class PosBusinessRules {
     static final long CREDIT_FEE_WINDOW_MILLIS = 24L * 60L * 60L * 1000L;
+    static final long BILL_REVERSAL_WINDOW_MILLIS = 24L * 60L * 60L * 1000L;
 
     private PosBusinessRules() {}
 
@@ -28,6 +29,14 @@ final class PosBusinessRules {
 
     static boolean withinCreditFeeWindow(long billCreatedAt, long now) {
         return now >= billCreatedAt && now - billCreatedAt <= CREDIT_FEE_WINDOW_MILLIS;
+    }
+
+    static boolean withinBillReversalWindow(long billCreatedAt, long now) {
+        return now >= billCreatedAt && now - billCreatedAt <= BILL_REVERSAL_WINDOW_MILLIS;
+    }
+
+    static boolean isReversibleStatus(String status) {
+        return "PAID".equals(status) || "UNPAID".equals(status);
     }
 
     /** Net ledger reversal: a paid credit bill's already-collected fee is not refunded. */
