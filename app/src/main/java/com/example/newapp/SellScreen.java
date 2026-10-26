@@ -287,10 +287,10 @@ public class SellScreen extends Activity {
                     ContentValues p=new ContentValues();p.put("stock",i.stock-i.qty);p.put("updated_at",now);
                     if(transaction.update("products",p,"id=? AND stock=?",new String[]{String.valueOf(i.id),String.valueOf(i.stock)})!=1)throw new IllegalStateException("สต๊อกเปลี่ยนระหว่างเปิดบิล กรุณาสแกนสินค้าและทำรายการใหม่");
                     ContentValues it=new ContentValues();it.put("bill_id",billId);it.put("product_id",i.id);it.put("barcode",i.barcode);it.put("product_name",i.name);it.put("quantity",i.qty);it.put("unit_price_satang",i.price);it.put("line_total_satang",lineTotal(i));transaction.insertOrThrow("bill_items",null,it);
-                    ContentValues li=new ContentValues();li.put("bill_id",billId);li.put("bill_code",billCode);li.put("event_type","SALE");li.put("barcode",i.barcode);li.put("product_name",i.name);li.put("quantity",i.qty);li.put("unit_price_satang",i.price);li.put("line_total_satang",lineTotal(i));li.put("created_at",now);transaction.insertOrThrow("sales_ledger_items",null,li);
-                    ContentValues h=new ContentValues();h.put("product_id",i.id);h.put("barcode",i.barcode);h.put("product_name",i.name);h.put("change_type","SALE");h.put("before_qty",i.stock);h.put("after_qty",i.stock-i.qty);h.put("difference",-i.qty);h.put("reference",billCode);h.put("created_at",now);transaction.insertOrThrow("stock_history",null,h);
+                    PosRecords.salesLedgerItem(transaction,billId,billCode,"SALE",i.barcode,i.name,i.qty,i.price,lineTotal(i),now);
+                    PosRecords.stockMovement(transaction,i.id,i.barcode,i.name,"SALE",i.stock,i.stock-i.qty,billCode,now);
                 }
-                ContentValues ledger=new ContentValues();ledger.put("bill_id",billId);ledger.put("bill_code",billCode);ledger.put("sale_type",credit?"CREDIT":"CASH");ledger.put("event_type","SALE");ledger.put("subtotal_satang",sub);ledger.put("fee_satang",fee);ledger.put("total_satang",total);ledger.put("created_at",now);transaction.insertOrThrow("sales_ledger",null,ledger);
+                PosRecords.salesLedger(transaction,billId,billCode,credit?"CREDIT":"CASH","SALE",sub,fee,total,now);
                 PosDatabase.audit(transaction,"SALE","BILL",billCode,"type="+(credit?"CREDIT":"CASH")+"; subtotal_satang="+sub+"; fee_satang="+fee+"; total_satang="+total);
                 return null;
             });
