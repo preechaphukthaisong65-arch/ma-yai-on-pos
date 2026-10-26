@@ -1,22 +1,22 @@
 package com.example.newapp;
 
 /**
- * Retention policy for records that can affect reports or auditability.
- * Financial ledgers, payment history, stock/price history, and audit log are append-only
- * and must not be deleted by routine retention. Only closed bill detail may be purged.
+ * Canonical retention policy.
+ *
+ * No transactional or report-source table may be purged by routine age-based cleanup.
+ * This includes bills, bill_items, payments, payment_history, sales_ledger,
+ * sales_ledger_items, stock_history, price_history, and audit_log.
+ * Deletion may be enabled only after an archival/export workflow is implemented,
+ * verified, and tested against historical reports.
  */
 final class PosHistoryPolicy {
-    static final long CLOSED_BILL_DETAIL_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1000L;
-
     private PosHistoryPolicy() {}
 
-    static long closedBillDetailCutoff(long now) {
-        return Math.subtractExact(now, CLOSED_BILL_DETAIL_RETENTION_MILLIS);
+    static boolean mayPurgeHistoryTable(String table) {
+        return false;
     }
 
-    static boolean mayPurgeHistoryTable(String table) {
-        // Explicit deny-list: report/audit history is permanent unless a separate,
-        // reviewed archival/export migration is introduced.
+    static boolean mayPurgeTransactionDetails() {
         return false;
     }
 }
