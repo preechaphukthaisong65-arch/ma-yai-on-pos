@@ -11,6 +11,8 @@ import android.widget.TextView;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.TimeZone;
 import java.util.Locale;
 
 public class ReportScreen extends Activity {
@@ -22,7 +24,7 @@ public class ReportScreen extends Activity {
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);screen.setBackgroundColor(android.graphics.Color.WHITE);
-        annualChart=new SalesChartView(this);Calendar yearCal=AppClock.calendar();chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
+        annualChart=new SalesChartView(this);Calendar yearCal=new GregorianCalendar(TimeZone.getDefault(),Locale.US);chartYear=yearCal.get(Calendar.YEAR);updateAnnualChart(chartYear);screen.addView(annualChart,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout lower=new LinearLayout(this);lower.setOrientation(LinearLayout.VERTICAL);lower.setPadding(PosUi.dp(this,8),PosUi.dp(this,4),PosUi.dp(this,8),PosUi.dp(this,2));lower.setBackgroundColor(android.graphics.Color.WHITE);
         addMenuButton(lower,"📊  สรุปยอดขาย",v->summaryReport());
         addMenuButton(lower,"📈  สินค้าขายดี 20 อันดับ (30 วัน)",v->topProducts(true));
@@ -44,7 +46,7 @@ public class ReportScreen extends Activity {
         root.addView(summaries,new LinearLayout.LayoutParams(-1,-2));
         TextView chooseTitle=PosUi.text(this,"เลือกช่วงรายงาน",14,android.graphics.Color.rgb(35,80,48));root.addView(chooseTitle,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row1,"วัน",v->period("วันนี้",startOfDay(),PosDatabase.now()));addPeriodButton(row1,"สัปดาห์",v->period("สัปดาห์นี้",startOfWeek(),PosDatabase.now()));root.addView(row1,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));addPeriodButton(row2,"ปี",v->period("ปี "+chartYear,yearStart(chartYear),yearEnd(chartYear)));root.addView(row2,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row2,"เดือน",v->period("เดือนนี้",startOfMonth(),PosDatabase.now()));addPeriodButton(row2,"ปี",v->period("ปี "+(chartYear+543),yearStart(chartYear),yearEnd(chartYear)));root.addView(row2,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row3=new LinearLayout(this);row3.setOrientation(LinearLayout.HORIZONTAL);addPeriodButton(row3,"เลือกปีกราฟ",v->chooseChartYear());addPeriodButton(row3,"กำหนดช่วงวันที่",v->custom());root.addView(row3,new LinearLayout.LayoutParams(-1,-2));
     }
     private void addSummary(LinearLayout row,String label,long from,long to){
@@ -62,17 +64,17 @@ public class ReportScreen extends Activity {
         Cursor c=helper.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(total_satang),0) FROM sales_ledger WHERE created_at BETWEEN ? AND ? AND event_type IN ('SALE','CANCEL','RETURN','CREDIT_FEE_WAIVED')",new String[]{String.valueOf(from),String.valueOf(to)});
         long total=0;if(c.moveToFirst())total=c.getLong(0);c.close();return total;
     }
-    private long yearStart(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
-    private long yearEnd(int year){Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
+    private long yearStart(int year){Calendar c=new GregorianCalendar(TimeZone.getDefault(),Locale.US);c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);return c.getTimeInMillis();}
+    private long yearEnd(int year){Calendar c=new GregorianCalendar(TimeZone.getDefault(),Locale.US);c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.DECEMBER);c.set(Calendar.DAY_OF_MONTH,31);c.set(Calendar.HOUR_OF_DAY,23);c.set(Calendar.MINUTE,59);c.set(Calendar.SECOND,59);c.set(Calendar.MILLISECOND,999);return c.getTimeInMillis();}
     private void updateAnnualChart(int year){
         chartYear=year;String[] labels={"ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."};long[] values=new long[12];
-        Calendar c=AppClock.calendar();c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
+        Calendar c=new GregorianCalendar(TimeZone.getDefault(),Locale.US);c.set(Calendar.YEAR,year);c.set(Calendar.MONTH,Calendar.JANUARY);c.set(Calendar.DAY_OF_MONTH,1);c.set(Calendar.HOUR_OF_DAY,0);c.set(Calendar.MINUTE,0);c.set(Calendar.SECOND,0);c.set(Calendar.MILLISECOND,0);
         for(int i=0;i<12;i++){long from=c.getTimeInMillis();c.add(Calendar.MONTH,1);long to=c.getTimeInMillis()-1;values[i]=netSales(from,to);}
-        annualChart.setData("กราฟยอดขายสุทธิรายเดือน • "+year,labels,values);
+        annualChart.setData("กราฟยอดขายสุทธิรายเดือน • "+(year+543),labels,values);
     }
     private void chooseChartYear(){
-        EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine(true);input.setText(String.valueOf(chartYear));input.setSelectAllOnFocus(true);
-        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี พ.ศ. เช่น 2569").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2400||year>2700)throw new IllegalArgumentException();updateAnnualChart(year);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี พ.ศ. ระหว่าง 2400–2700").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
+        EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine(true);input.setText(String.valueOf(chartYear+543));input.setSelectAllOnFocus(true);
+        new android.app.AlertDialog.Builder(this).setTitle("เลือกปีของกราฟ").setMessage("กรอกปี พ.ศ. เช่น 2569").setView(input).setPositiveButton("แสดงกราฟ",(d,w)->{try{int year=Integer.parseInt(PosUi.str(input));if(year<2400||year>2700)throw new IllegalArgumentException();updateAnnualChart(year-543);}catch(Exception e){new android.app.AlertDialog.Builder(this).setMessage("กรุณากรอกปี พ.ศ. ระหว่าง 2400–2700").setPositiveButton("ตกลง",null).show();}}).setNegativeButton("ยกเลิก",null).show();
     }
     private void auditLog(){
         root=PosUi.page(this,"ประวัติการทำรายการสำคัญ");
