@@ -143,13 +143,14 @@ public class SellScreen extends Activity {
     }
     private void finishScanning(){
         if(cart.isEmpty()){new AlertDialog.Builder(this).setMessage("ยังไม่มีสินค้าในตะกร้า").setPositiveButton("ตกลง",null).show();return;}
-        StringBuilder summary=new StringBuilder("รายการสินค้าในตะกร้าทั้งหมด ");
-        for(Item i:cart.values())summary.append(i.name).append(" จำนวน ").append(i.qty).append(" รายการ ");
-        PosUi.speakThen(this,summary.toString(),this::paymentChoice);
+        paymentChoice();
     }
     private void paymentChoice(){
-        root=PosUi.page(this,"เลือกวิธีขาย");
-        addSideBySideButtons(root,"ชำระเงินสด",v->cashSale(),"ค้างชำระ",v->creditSale());
+        root=PosUi.page(this,"ตรวจสอบตะกร้าก่อนขาย");
+        for(Item item:cart.values())PosUi.line(this,root,item.name+" × "+item.qty+" • "+PosDatabase.money(lineTotal(item))+" บาท");
+        PosUi.line(this,root,"ยอดสินค้า "+PosDatabase.money(subtotal())+" บาท");
+        addSideBySideButtons(root,"ชำระเงินสด",v->cashSale(),"ขายเชื่อ",v->creditSale());
+        PosUi.back(this,root);
     }
     private void cashSale(){
         root=PosUi.page(this,"รับชำระเงินสด");PosUi.line(this,root,"ยอดที่ต้องชำระ "+PosDatabase.money(subtotal())+" บาท");
