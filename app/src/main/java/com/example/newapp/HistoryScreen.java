@@ -10,7 +10,7 @@ import android.widget.LinearLayout;
 
 public class HistoryScreen extends Activity {
     private PosDatabase helper; private LinearLayout root;
-    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);home();}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);helper=PosDatabase.get(this);OwnerSecurity.requireOwner(this,"ดูประวัติการขายและข้อมูลลูกค้า",this::home);} 
     private void home(){root=PosUi.page(this,"ประวัติการขาย");
         PosUi.button(this,root,"รายการขายทั้งหมด",v->listBills());
         PosUi.back(this,root);
