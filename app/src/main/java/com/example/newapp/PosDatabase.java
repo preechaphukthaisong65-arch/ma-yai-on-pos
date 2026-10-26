@@ -234,6 +234,7 @@ public final class PosDatabase extends SQLiteOpenHelper {
     public static void audit(SQLiteDatabase db, String action, String entityType, String entityId, String details) {
         ContentValues row = new ContentValues();
         row.put("actor_label", PosSession.actorLabel());
+        if (PosSession.actorId() >= 0L) row.put("actor_id", PosSession.actorId());
         row.put("action", action);
         row.put("entity_type", entityType);
         if (entityId != null) row.put("entity_id", entityId);
