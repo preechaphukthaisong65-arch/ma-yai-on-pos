@@ -32,7 +32,11 @@ public class ReportScreen extends Activity {
         screen.addView(lower,new LinearLayout.LayoutParams(-1,0,1f));
         android.widget.FrameLayout frame=new android.widget.FrameLayout(this);
         frame.setBackgroundColor(android.graphics.Color.WHITE);
-        frame.addView(screen,new android.widget.FrameLayout.LayoutParams(-1,-1));
+        // Reserve the bottom 10% of the screen exclusively for the shared back button.
+        int contentHeight = Math.round(getResources().getDisplayMetrics().heightPixels * 0.90f);
+        android.widget.FrameLayout.LayoutParams contentParams =
+                new android.widget.FrameLayout.LayoutParams(-1, contentHeight, android.view.Gravity.TOP);
+        frame.addView(screen, contentParams);
         BackNavigation.attach(this,frame,this::finish);
         PosUi.showRoot(this,frame);
     }
